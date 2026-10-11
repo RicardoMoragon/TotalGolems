@@ -2,5 +2,7 @@
   "block.totalgolems.iron_chest": "Cofre de hierro",
   "block.totalgolems.diamond_chest": "Cofre de diamante",
   "entity.totalgolems.iron_mining_golem": "Gólem minero de hierro",
-  "entity.totalgolems.diamond_mining_golem": "Gólem minero de diamante"
+  "entity.totalgolems.diamond_mining_golem": "Gólem minero de diamante",
+  "block.totalgolems.netherite_chest": "Cofre de netherita",
+  "entity.totalgolems.netherite_mining_golem": "Gólem minero de netherita"
 }

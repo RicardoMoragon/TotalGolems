@@ -36,6 +36,7 @@ public class MiningGolemRenderer extends MobRenderer<MiningGolem, CopperGolemRen
 			)
 		);
 		this.addLayer(new BlockDecorationLayer<>(this, state -> state.blockOnAntenna, this.model::applyBlockOnAntennaTransform));
+		this.addLayer(new AntennaGlintLayer(this, new MiningGolemModel(context.bakeLayer(AntennaGlintLayer.MODEL_LAYER))));
 	}
 
 	// The state type has to be the copper golem's for its model and layers to fit; it is always our subclass.
@@ -60,6 +61,7 @@ public class MiningGolemRenderer extends MobRenderer<MiningGolem, CopperGolemRen
 		MiningGolemRenderState miningState = (MiningGolemRenderState)state;
 		miningState.tier = entity.getTier();
 		miningState.mining = entity.isMining();
+		miningState.enchantment = entity.getEnchantment();
 		ItemStack flower = entity.getItemBySlot(MiningGolem.FLOWER_SLOT);
 		if (flower.getItem() instanceof BlockItem blockItem) {
 			BlockItemStateProperties blockItemState = flower.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY);

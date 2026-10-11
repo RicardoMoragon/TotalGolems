@@ -19,6 +19,7 @@ import net.minecraft.world.level.material.MapColor;
 public class ModBlocks {
 	public static final Block IRON_CHEST = registerChest("iron_chest", MapColor.METAL);
 	public static final Block DIAMOND_CHEST = registerChest("diamond_chest", MapColor.DIAMOND);
+	public static final Block NETHERITE_CHEST = registerChest("netherite_chest", MapColor.COLOR_BLACK);
 
 	private static Block registerChest(final String name, final MapColor color) {
 		ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, TotalGolems.id(name));
@@ -34,6 +35,7 @@ public class ModBlocks {
 		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(output -> {
 			output.accept(IRON_CHEST);
 			output.accept(DIAMOND_CHEST);
+			output.accept(NETHERITE_CHEST);
 		});
 	}
 }

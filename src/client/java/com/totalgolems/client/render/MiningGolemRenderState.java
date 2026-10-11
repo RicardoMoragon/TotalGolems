@@ -7,4 +7,6 @@ import net.minecraft.client.renderer.entity.state.CopperGolemRenderState;
 public class MiningGolemRenderState extends CopperGolemRenderState {
 	public GolemTier tier = GolemTier.IRON;
 	public boolean mining;
+	/** As MiningGolem#getEnchantment: 0 none, 1 to 3 Fortune, 4 Silk Touch. */
+	public int enchantment;
 }

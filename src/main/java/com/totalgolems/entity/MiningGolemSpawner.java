@@ -45,7 +45,12 @@ public class MiningGolemSpawner {
 		level.levelEvent(2001, basePos, Block.getId(base));
 		level.setBlock(basePos, ((MetalChestBlock)tier.chestBlock()).stateForGolemSpawn(level, basePos, facing), 3);
 
-		golem.snapTo(pumpkinPos.getX() + 0.5, pumpkinPos.getY() + 0.05, pumpkinPos.getZ() + 0.5, facing.toYRot(), 0.0F);
+		// Golems work at the height they are standing at, so put it on the ground in front of its chest when there is room.
+		BlockPos front = basePos.relative(facing);
+		boolean roomInFront = level.getBlockState(front).getCollisionShape(level, front).isEmpty()
+			&& !level.getBlockState(front.below()).getCollisionShape(level, front.below()).isEmpty();
+		BlockPos spawnPos = roomInFront ? front : pumpkinPos;
+		golem.snapTo(spawnPos.getX() + 0.5, spawnPos.getY() + 0.05, spawnPos.getZ() + 0.5, facing.toYRot(), 0.0F);
 		golem.setChestPos(basePos);
 		level.addFreshEntity(golem);
 		golem.playSound(SoundEvents.COPPER_GOLEM_SPAWN);

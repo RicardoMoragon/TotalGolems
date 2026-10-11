@@ -14,6 +14,7 @@ import net.minecraft.world.entity.MobCategory;
 public class ModEntities {
 	public static final EntityType<MiningGolem> IRON_MINING_GOLEM = register("iron_mining_golem", GolemTier.IRON);
 	public static final EntityType<MiningGolem> DIAMOND_MINING_GOLEM = register("diamond_mining_golem", GolemTier.DIAMOND);
+	public static final EntityType<MiningGolem> NETHERITE_MINING_GOLEM = register("netherite_mining_golem", GolemTier.NETHERITE);
 
 	private static EntityType<MiningGolem> register(final String name, final GolemTier tier) {
 		ResourceKey<EntityType<?>> key = ResourceKey.create(Registries.ENTITY_TYPE, TotalGolems.id(name));
@@ -28,7 +29,8 @@ public class ModEntities {
 	}
 
 	public static void init() {
-		FabricDefaultAttributeRegistry.register(IRON_MINING_GOLEM, MiningGolem.createAttributes(GolemTier.IRON));
-		FabricDefaultAttributeRegistry.register(DIAMOND_MINING_GOLEM, MiningGolem.createAttributes(GolemTier.DIAMOND));
+		for (GolemTier tier : GolemTier.values()) {
+			FabricDefaultAttributeRegistry.register(tier.entityType(), MiningGolem.createAttributes(tier));
+		}
 	}
 }

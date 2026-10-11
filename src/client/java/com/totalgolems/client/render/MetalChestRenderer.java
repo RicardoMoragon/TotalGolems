@@ -35,6 +35,7 @@ import org.jspecify.annotations.Nullable;
 public class MetalChestRenderer implements BlockEntityRenderer<MetalChestBlockEntity, MetalChestRenderer.State> {
 	private static final MultiblockChestResources<SpriteId> IRON = sprites("iron");
 	private static final MultiblockChestResources<SpriteId> DIAMOND = sprites("diamond");
+	private static final MultiblockChestResources<SpriteId> NETHERITE = sprites("netherite");
 	private final SpriteGetter sprites;
 	private final MultiblockChestResources<ChestModel> models;
 
@@ -64,7 +65,7 @@ public class MetalChestRenderer implements BlockEntityRenderer<MetalChestBlockEn
 		BlockState blockState = blockEntity.getBlockState();
 		state.type = blockState.getValue(ChestBlock.TYPE);
 		state.facing = blockState.getValue(ChestBlock.FACING);
-		state.textures = blockState.is(ModBlocks.DIAMOND_CHEST) ? DIAMOND : IRON;
+		state.textures = blockState.is(ModBlocks.NETHERITE_CHEST) ? NETHERITE : blockState.is(ModBlocks.DIAMOND_CHEST) ? DIAMOND : IRON;
 		if (blockEntity.getLevel() != null && blockState.getBlock() instanceof ChestBlock chestBlock) {
 			NeighborCombineResult<? extends ChestBlockEntity> combineResult = chestBlock.combine(
 				blockState, blockEntity.getLevel(), blockEntity.getBlockPos(), true

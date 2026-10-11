@@ -34,6 +34,16 @@ PALETTES = {
         "accent": (255, 255, 255),
         "accent_dark": (150, 240, 255),
     },
+    "netherite": {
+        "light": (112, 104, 110),
+        "base": (78, 72, 78),
+        "mid": (62, 57, 62),
+        "dark": (46, 42, 46),
+        "shadow": (28, 25, 29),
+        "inside": (12, 10, 12),
+        "accent": (255, 150, 60),
+        "accent_dark": (190, 80, 30),
+    },
 }
 
 
@@ -289,6 +299,19 @@ def chest(tier, kind):
     c.save("textures", "entity", "chest", tier + ("" if kind == "single" else "_" + kind) + ".png")
 
 
+def antenna_glint():
+    """Greyscale streaks on black for the enchanted antenna. Drawn additively and tinted, so black is invisible."""
+    size = 16
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 255))
+    for y in range(size):
+        for x in range(size):
+            band = (x + 2 * y) % 8
+            value = (255, 170, 70, 0, 0, 40, 110, 200)[band]
+            value = int(value * (0.75 + 0.25 * noise("glint", x, y)))
+            image.putpixel((x, y), (value, value, value, 255))
+    image.save(os.path.join(ASSETS, "textures", "entity", "mining_golem", "antenna_glint.png"))
+
+
 def icon():
     """Mod icon: the iron golem's face, scaled up."""
     pal = PALETTES["iron"]
@@ -308,4 +331,5 @@ if __name__ == "__main__":
         golem(tier)
         for kind in ("single", "left", "right"):
             chest(tier, kind)
+    antenna_glint()
     icon()
