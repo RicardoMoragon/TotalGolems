@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "totalgolems",
+	"version": "${version}",
+	"name": "Total Golems",
+	"description": "Mining golems built from ore blocks. Give them a flower and they dig for you.",
+	"authors": [
+		"ricar"
+	],
+	"license": "CC0-1.0",
+	"icon": "assets/totalgolems/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.totalgolems.TotalGolems"
+		],
+		"client": [
+			"com.totalgolems.client.TotalGolemsClient"
+		]
+	},
+	"mixins": [
+		"totalgolems.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

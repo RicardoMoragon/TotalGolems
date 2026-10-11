@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "totalgolems-test",
+	"version": "1.0.0",
+	"name": "Total Golems Tests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-gametest": [
+			"com.totalgolems.test.MiningGolemTests"
+		],
+		"fabric-client-gametest": [
+			"com.totalgolems.test.ScreenshotClientTest"
+		]
+	},
+	"depends": {
+		"totalgolems": "*"
+	}
+}
