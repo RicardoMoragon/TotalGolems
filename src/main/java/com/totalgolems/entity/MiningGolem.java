@@ -3,53 +3,53 @@ package com.totalgolems.entity;
 import com.totalgolems.GolemTier;
 import com.totalgolems.block.MetalChestBlock;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.fabricmc.fabric.api.tag.convention.v2.ConventionalItemTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.Holder;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
-import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.animal.golem.AbstractGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.EnchantmentInstance;
 import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -62,21 +62,27 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Either way the golem works at a fixed height. It only ever moves one cell at a time into a cell it
  * has cleared and that has a floor, laying a block from its inventory where the floor is missing.
+ * <p>
+ * It digs with the pickaxe it takes from its chest, at that pickaxe's speed and with its
+ * enchantments, and uses it on everything. When five seconds in water show that the diggings are
+ * flooded, it goes home and has the sponge golem next door (see {@link SpongeGolem}) dry them out.
  */
-public class MiningGolem extends AbstractGolem {
-	/** Same slot the copper golem wears its poppy in, so the vanilla antenna layer can draw it. */
-	public static final EquipmentSlot FLOWER_SLOT = EquipmentSlot.SADDLE;
-	/** Value of the enchantment data for Silk Touch; 1 to 3 are Fortune levels and 0 is none. */
-	public static final int SILK_TOUCH = 4;
+public class MiningGolem extends WorkerGolem {
 	private static final EntityDataAccessor<Boolean> DATA_MINING = SynchedEntityData.defineId(MiningGolem.class, EntityDataSerializers.BOOLEAN);
-	private static final EntityDataAccessor<Integer> DATA_ENCHANTMENT = SynchedEntityData.defineId(MiningGolem.class, EntityDataSerializers.INT);
-	private static final double CHEST_REACH = 2.3;
-	private static final int CHEST_SEARCH_RADIUS = 8;
-	private static final int TRANSFER_INTERVAL = 10;
-	private static final int REPATH_INTERVAL = 10;
-	/** Seconds without moving while walking somewhere before the golem gives up and teleports there. */
-	private static final int STALLED_SECONDS_BEFORE_TELEPORT = 10;
+	/** A chest keeps this many blocks for the golem to lay as floor; see {@link CoalGolem}. */
+	public static final int BLOCKS_KEPT_FOR_FLOOR = 64;
+	/** The same for every tier. */
+	public static final double MAX_HEALTH = 60.0;
+	/** What unlocks a netherite golem. */
+	public static final Item UNLOCK_FLOWER = Items.WITHER_ROSE;
+	/** Five seconds standing in water and it calls for the sponge golem. */
+	private static final int WATER_TICKS_BEFORE_ALERT = 100;
 	private static final int STEP_TICKS_BEFORE_TELEPORT = 100;
+	/** How far away another golem can be and still be asked which chunk it is quarrying. */
+	private static final double CLAIM_SEARCH_RANGE = 96.0;
+	/** How many chunks away a golem will go to find one that no other golem is quarrying. */
+	private static final int CLAIM_CHUNK_RANGE = 2;
+	private static final int CHEST_PROTECTION_INTERVAL = 200;
 	private static final int BLOCKS_FETCHED_PER_TRIP = 64;
 
 	private final GolemTier tier;
@@ -84,11 +90,12 @@ public class MiningGolem extends AbstractGolem {
 	/** Drops that did not fit in the inventory. Anything here means the golem is full and must unload. */
 	private final List<ItemStack> overflow = new ArrayList<>();
 	private final Map<BlockPos, BreakState> breaking = new HashMap<>();
-	private @Nullable List<ItemStack> tools;
-	private @Nullable BlockPos chestPos;
 	private @Nullable Direction miningDirection;
 	private @Nullable BlockPos tunnelOrigin;
 	private @Nullable QuarryPlan quarry;
+	private boolean chestsProtected;
+	private @Nullable BlockPos approachCell;
+	private @Nullable BlockPos approachFrom;
 	/** The last cell the golem worked from: where it goes back to after a trip or after being knocked away. */
 	private @Nullable BlockPos anchor;
 	private boolean returning;
@@ -97,31 +104,40 @@ public class MiningGolem extends AbstractGolem {
 	private boolean needsBlocks;
 	/** It cannot go on (unbreakable block, bottom of the world). It waits at its chest for a new flower. */
 	private boolean halted;
-	private int travelTicks;
-	private int stalledSeconds;
-	private @Nullable Vec3 lastTravelPosition;
 	private int stepTicks;
 	private @Nullable BlockPos stepTarget;
+	/** A netherite golem takes no pattern flower until a wither rose has unlocked it. */
+	private boolean unlocked;
+	/** Plain stone only wears the pickaxe every other block. */
+	private boolean stoneWearsNext = true;
+	/** Standing at its chest with nothing it can do: no pickaxe, or the sponge golem still drying the diggings. */
+	private boolean waiting;
+	private boolean waitingForDrain;
+	private int waterTicks;
 
 	public MiningGolem(final EntityType<? extends AbstractGolem> type, final Level level, final GolemTier tier) {
 		super(type, level);
 		this.tier = tier;
 		this.inventory = new SimpleContainer(tier.inventorySlots());
-		this.setPersistenceRequired();
-		// The flower is handed back in dropEquipment, never rolled as random loot.
-		this.setDropChance(FLOWER_SLOT, 0.0F);
+		this.unlocked = !tier.startsLocked();
 	}
 
 	public static AttributeSupplier.Builder createAttributes(final GolemTier tier) {
-		return Mob.createMobAttributes()
-			.add(Attributes.MOVEMENT_SPEED, 0.25 * tier.speedMultiplier())
-			.add(Attributes.STEP_HEIGHT, 1.0)
-			.add(Attributes.MAX_HEALTH, tier.maxHealth())
-			.add(Attributes.FOLLOW_RANGE, 64.0);
+		return createWorkerAttributes(tier.speedMultiplier(), MAX_HEALTH);
 	}
 
 	public GolemTier getTier() {
 		return this.tier;
+	}
+
+	@Override
+	public String getTextureId() {
+		return this.tier.id();
+	}
+
+	@Override
+	public boolean isSwingingArm() {
+		return this.isMining();
 	}
 
 	public boolean isMining() {
@@ -134,26 +150,28 @@ public class MiningGolem extends AbstractGolem {
 		}
 	}
 
-	/** 0 for none, 1 to 3 for that level of Fortune, {@link #SILK_TOUCH} for Silk Touch. */
-	public int getEnchantment() {
-		return this.entityData.get(DATA_ENCHANTMENT);
-	}
-
-	private void setEnchantment(final int enchantment) {
-		this.entityData.set(DATA_ENCHANTMENT, enchantment);
-		this.tools = null;
-	}
-
-	public boolean hasFlower() {
-		return !this.getItemBySlot(FLOWER_SLOT).isEmpty();
-	}
-
-	public void setChestPos(final @Nullable BlockPos chestPos) {
-		this.chestPos = chestPos;
-	}
-
 	public boolean isHalted() {
 		return this.halted;
+	}
+
+	public boolean isUnlocked() {
+		return this.unlocked;
+	}
+
+	/** At home until the sponge golem has dried out where it was digging. */
+	public boolean isWaitingForDrain() {
+		return this.waitingForDrain;
+	}
+
+	@Override
+	protected TagKey<Item> toolTag() {
+		return ItemTags.PICKAXES;
+	}
+
+	/** Currents do not carry it off; water only slows it down. */
+	@Override
+	public boolean isPushedByFluid() {
+		return false;
 	}
 
 	private boolean isWorking() {
@@ -165,41 +183,15 @@ public class MiningGolem extends AbstractGolem {
 		return flower.is(Items.DANDELION) ? this.quarry != null : flower.is(Items.POPPY) && this.miningDirection != null && this.tunnelOrigin != null;
 	}
 
-	private boolean isBusy() {
-		return this.depositing || this.isWorking();
+	@Override
+	protected boolean isBusy() {
+		return (this.depositing || this.isWorking()) && !this.waiting;
 	}
 
 	@Override
 	protected void defineSynchedData(final SynchedEntityData.Builder entityData) {
 		super.defineSynchedData(entityData);
 		entityData.define(DATA_MINING, false);
-		entityData.define(DATA_ENCHANTMENT, 0);
-	}
-
-	@Override
-	protected void registerGoals() {
-		this.goalSelector.addGoal(1, new LookAtPlayerGoal(this, Player.class, 6.0F) {
-			@Override
-			public boolean canUse() {
-				return !MiningGolem.this.isBusy() && super.canUse();
-			}
-
-			@Override
-			public boolean canContinueToUse() {
-				return !MiningGolem.this.isBusy() && super.canContinueToUse();
-			}
-		});
-		this.goalSelector.addGoal(2, new RandomLookAroundGoal(this) {
-			@Override
-			public boolean canUse() {
-				return !MiningGolem.this.isBusy() && super.canUse();
-			}
-
-			@Override
-			public boolean canContinueToUse() {
-				return !MiningGolem.this.isBusy() && super.canContinueToUse();
-			}
-		});
 	}
 
 	// ------------------------------------------------------------------------------------ interaction
@@ -211,68 +203,46 @@ public class MiningGolem extends AbstractGolem {
 	@Override
 	public InteractionResult mobInteract(final Player player, final InteractionHand hand) {
 		ItemStack held = player.getItemInHand(hand);
-		if (held.is(Items.ENCHANTED_BOOK)) {
-			int enchantment = this.enchantmentOf(held);
-			if (enchantment == 0) {
-				return InteractionResult.PASS;
-			}
-
-			if (this.level() instanceof ServerLevel level) {
-				// Only one enchantment at a time: the previous book comes back.
-				ItemStack previous = this.enchantmentBook();
-				held.consume(1, player);
-				this.setEnchantment(enchantment);
-				if (!previous.isEmpty() && !player.addItem(previous)) {
-					this.spawnAtLocation(level, previous, 1.0F);
-				}
-
-				level.playSound(null, this, SoundEvents.ENCHANTMENT_TABLE_USE, this.getSoundSource(), 1.0F, 1.0F);
-			}
-
-			return InteractionResult.SUCCESS;
-		}
-
-		if (isPatternFlower(held)) {
-			if (this.level() instanceof ServerLevel level) {
-				ItemStack worn = this.getItemBySlot(FLOWER_SLOT);
-				if (!worn.is(held.getItem())) {
-					this.setItemSlot(FLOWER_SLOT, held.copyWithCount(1));
+		// Only the server knows whether it is unlocked, so the client just agrees that something happens.
+		if (this.tier.startsLocked() && (held.is(UNLOCK_FLOWER) || isPatternFlower(held))) {
+			if (this.level() instanceof ServerLevel level && !this.unlocked) {
+				if (held.is(UNLOCK_FLOWER)) {
 					held.consume(1, player);
-					if (!worn.isEmpty() && !player.addItem(worn)) {
-						this.spawnAtLocation(level, worn, 1.0F);
-					}
+					this.unlocked = true;
+					level.playSound(null, this, SoundEvents.ENCHANTMENT_TABLE_USE, this.getSoundSource(), 1.0F, 1.0F);
+				} else {
+					player.sendOverlayMessage(Component.translatable("message.totalgolems.golem_locked"));
 				}
 
-				// Giving the flower it already wears just starts the pattern again from here.
-				this.startMining(level, player.getDirection());
-				this.playSound(SoundEvents.COPPER_GOLEM_SPAWN, 0.6F, 1.4F);
+				return InteractionResult.SUCCESS;
+			} else if (this.level().isClientSide()) {
+				return InteractionResult.SUCCESS;
 			}
-
-			return InteractionResult.SUCCESS;
-		}
-
-		if (held.isEmpty() && hand == InteractionHand.MAIN_HAND && this.hasFlower()) {
-			if (this.level() instanceof ServerLevel level) {
-				ItemStack flower = this.getItemBySlot(FLOWER_SLOT);
-				this.setItemSlot(FLOWER_SLOT, ItemStack.EMPTY);
-				if (!player.addItem(flower)) {
-					this.spawnAtLocation(level, flower, 1.0F);
-				}
-
-				this.stopMining(level);
-				level.playSound(null, this, SoundEvents.COPPER_GOLEM_SHEAR, this.getSoundSource(), 1.0F, 1.0F);
-			}
-
-			return InteractionResult.SUCCESS;
 		}
 
 		return super.mobInteract(player, hand);
+	}
+
+	@Override
+	protected boolean isActivatingFlower(final ItemStack stack) {
+		return this.unlocked && isPatternFlower(stack);
+	}
+
+	@Override
+	protected void onActivated(final ServerLevel level, final Player player) {
+		this.startMining(level, player.getDirection());
+	}
+
+	@Override
+	protected void onDeactivated(final ServerLevel level) {
+		this.stopMining(level);
 	}
 
 	private void startMining(final ServerLevel level, final Direction direction) {
 		this.clearBreaking(level);
 		this.halted = false;
 		this.needsBlocks = false;
+		this.stopWaiting();
 		this.resetTravel();
 		if (this.findChest(level) == null) {
 			this.chestPos = this.findNearbyChest(level);
@@ -285,7 +255,8 @@ public class MiningGolem extends AbstractGolem {
 		if (this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
 			// Back in a pit it already started, the golem carries on with it and keeps using its staircase.
 			if (this.quarry == null || !this.quarry.isInsidePit(cell)) {
-				this.quarry = QuarryPlan.create(cell, this.chestPos, this.tier);
+				ChunkPos chunk = this.findFreeChunk(level, cell);
+				this.quarry = QuarryPlan.create(chunk.x(), chunk.z(), cell, this.chestPos, this.tier);
 			}
 
 			this.miningDirection = null;
@@ -295,6 +266,40 @@ public class MiningGolem extends AbstractGolem {
 			this.miningDirection = direction;
 			this.tunnelOrigin = cell;
 		}
+	}
+
+	/** The chunk this golem is quarrying or about to, or null when it is doing something else. */
+	public @Nullable ChunkPos getQuarryChunk() {
+		return this.quarry != null && !this.halted && this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION) ? new ChunkPos(this.quarry.chunkX(), this.quarry.chunkZ()) : null;
+	}
+
+	/**
+	 * Two golems digging the same chunk would undo each other's staircases and floors, so each one takes
+	 * a chunk to itself: the one it stands in if no other golem has it, otherwise the nearest free one.
+	 */
+	private ChunkPos findFreeChunk(final ServerLevel level, final BlockPos cell) {
+		ChunkPos own = ChunkPos.containing(cell);
+		Set<ChunkPos> taken = new HashSet<>();
+		for (MiningGolem other : level.getEntitiesOfClass(MiningGolem.class, this.getBoundingBox().inflate(CLAIM_SEARCH_RANGE), golem -> golem != this && golem.isAlive())) {
+			ChunkPos chunk = other.getQuarryChunk();
+			if (chunk != null) {
+				taken.add(chunk);
+			}
+		}
+
+		List<ChunkPos> candidates = new ArrayList<>();
+		for (int dx = -CLAIM_CHUNK_RANGE; dx <= CLAIM_CHUNK_RANGE; dx++) {
+			for (int dz = -CLAIM_CHUNK_RANGE; dz <= CLAIM_CHUNK_RANGE; dz++) {
+				candidates.add(new ChunkPos(own.x() + dx, own.z() + dz));
+			}
+		}
+
+		// Nearest first: the chunk itself, then those sharing an edge with it, then the corners, and so on outwards.
+		candidates.sort(Comparator.comparingInt((ChunkPos chunk) -> Math.max(Math.abs(chunk.x() - own.x()), Math.abs(chunk.z() - own.z())))
+			.thenComparingInt(chunk -> Math.abs(chunk.x() - own.x()) + Math.abs(chunk.z() - own.z()))
+			.thenComparingInt(ChunkPos::x)
+			.thenComparingInt(ChunkPos::z));
+		return candidates.stream().filter(chunk -> !taken.contains(chunk)).findFirst().orElse(own);
 	}
 
 	private void stopMining(final ServerLevel level) {
@@ -307,8 +312,16 @@ public class MiningGolem extends AbstractGolem {
 		this.returning = false;
 		this.halted = false;
 		this.needsBlocks = false;
+		this.stopWaiting();
 		this.resetTravel();
 		this.getNavigation().stop();
+	}
+
+	private void stopWaiting() {
+		this.waiting = false;
+		this.waitingForDrain = false;
+		this.waterTicks = 0;
+		this.setWaitingForTool(false);
 	}
 
 	/** Gives up on the current job and walks home, where it waits until it is given a flower again. */
@@ -317,63 +330,85 @@ public class MiningGolem extends AbstractGolem {
 		this.setMining(false);
 		this.halted = true;
 		this.needsBlocks = false;
+		this.stopWaiting();
 		this.depositing = this.chestPos != null;
 		this.resetTravel();
 	}
 
-	// ------------------------------------------------------------------------------------ enchantments
+	// ------------------------------------------------------------------------------------ pickaxe
 
-	private @Nullable Holder<Enchantment> enchantmentHolder(final int enchantment) {
-		if (enchantment == 0) {
-			return null;
-		}
-
-		HolderLookup.RegistryLookup<Enchantment> enchantments = this.level().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-		return enchantments.get(enchantment == SILK_TOUCH ? Enchantments.SILK_TOUCH : Enchantments.FORTUNE).orElse(null);
-	}
-
-	/** Reads Fortune or Silk Touch from an enchanted book, in the form {@link #getEnchantment()} uses. */
-	private int enchantmentOf(final ItemStack book) {
-		ItemEnchantments stored = book.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY);
-		for (Holder<Enchantment> enchantment : stored.keySet()) {
-			if (enchantment.is(Enchantments.SILK_TOUCH)) {
-				return SILK_TOUCH;
-			} else if (enchantment.is(Enchantments.FORTUNE)) {
-				return Mth.clamp(stored.getLevel(enchantment), 1, 3);
+	/**
+	 * How fast the pickaxe gets through {@code state}: what a player holding it would manage, Efficiency
+	 * included, and no better than a bare hand on what a pickaxe is not meant for.
+	 */
+	private float diggingSpeed(final ItemStack tool, final BlockState state) {
+		float speed = tool.getDestroySpeed(state);
+		if (speed > 1.0F) {
+			int efficiency = this.level()
+				.registryAccess()
+				.lookupOrThrow(Registries.ENCHANTMENT)
+				.get(Enchantments.EFFICIENCY)
+				.map(enchantment -> EnchantmentHelper.getItemEnchantmentLevel(enchantment, tool))
+				.orElse(0);
+			if (efficiency > 0) {
+				speed += efficiency * efficiency + 1;
 			}
 		}
 
-		return 0;
+		return speed;
 	}
 
-	private ItemStack enchantmentBook() {
-		int enchantment = this.getEnchantment();
-		Holder<Enchantment> holder = this.enchantmentHolder(enchantment);
-		return holder == null ? ItemStack.EMPTY : EnchantmentHelper.createBook(new EnchantmentInstance(holder, enchantment == SILK_TOUCH ? 1 : enchantment));
-	}
+	// ------------------------------------------------------------------------------------ water
 
-	/** The tier's tools carrying the golem's enchantment, so block loot tables apply it as they would for a player. */
-	private List<ItemStack> tools() {
-		if (this.tools == null) {
-			int enchantment = this.getEnchantment();
-			Holder<Enchantment> holder = this.enchantmentHolder(enchantment);
-			this.tools = this.tier.tools().stream().map(ItemStack::copy).toList();
-			if (holder != null) {
-				this.tools.forEach(tool -> tool.enchant(holder, enchantment == SILK_TOUCH ? 1 : enchantment));
-			}
+	/** Counts how long it has been standing in water and, at five seconds, has the sponge golem called out. */
+	private void tickWater(final ServerLevel level) {
+		this.waterTicks = this.isInWater() ? this.waterTicks + 1 : 0;
+		if (this.waterTicks < WATER_TICKS_BEFORE_ALERT) {
+			return;
 		}
 
-		return this.tools;
+		// With no sponge golem to call it carries on as best it can, and looks again in another five seconds.
+		this.waterTicks = 0;
+		SpongeGolem sponge = this.chestPos == null ? null : SpongeGolem.linkedTo(level, this.chestPos);
+		if (sponge != null && sponge.requestDrain(this.feetPos(), this.diggings())) {
+			this.waitingForDrain = true;
+			this.beginDeposit(level);
+		}
+	}
+
+	/** Everything it is digging out: the pit of its quarry, or its tunnel as far as it has got and a little beyond. */
+	private BoundingBox diggings() {
+		if (this.miningDirection == null || this.tunnelOrigin == null) {
+			return this.quarry.pit();
+		}
+
+		Direction side = this.miningDirection.getClockWise();
+		int radius = this.tier.tunnelRadius();
+		BlockPos front = this.snapToTunnel(this.cellAt(this.tunnelOrigin.getY()), this.miningDirection).relative(this.miningDirection, 2);
+		return BoundingBox.fromCorners(this.tunnelOrigin.relative(side, -radius), front.relative(side, radius).above(this.tier.tunnelHeight() - 1));
+	}
+
+	/** Called by the sponge golem when no water is left. */
+	public void drainFinished() {
+		this.waitingForDrain = false;
 	}
 
 	// ------------------------------------------------------------------------------------ behaviour
 
 	@Override
-	protected void customServerAiStep(final ServerLevel level) {
-		super.customServerAiStep(level);
+	protected void serverStep(final ServerLevel level) {
 		// Without a flower the golem still takes home whatever it was carrying.
 		if (!this.depositing && (!this.overflow.isEmpty() || !this.isWorking() && !this.inventory.isEmpty() && this.chestPos != null)) {
 			this.beginDeposit(level);
+		}
+
+		// Nothing can be dug without a pickaxe: home for one.
+		if (!this.depositing && this.isWorking() && !this.hasTool()) {
+			this.beginDeposit(level);
+		}
+
+		if (this.isWorking() && !this.depositing) {
+			this.tickWater(level);
 		}
 
 		if (this.depositing) {
@@ -396,16 +431,19 @@ public class MiningGolem extends AbstractGolem {
 		if (this.chestPos == null) {
 			// Nowhere to go: a halted golem just stays put, a full one keeps waiting for a chest.
 			this.depositing = !this.halted;
+			this.waiting = this.depositing;
 			return;
 		}
 
 		BlockPos hop = this.quarry != null ? this.quarry.stairHop(this.feetPos(), this.chestPos) : null;
 		if (hop != null) {
+			this.waiting = false;
 			this.travelTo(level, hop, 1.0);
 			return;
 		}
 
 		if (!this.travelTo(level, this.chestPos, CHEST_REACH)) {
+			this.waiting = false;
 			return;
 		}
 
@@ -416,7 +454,21 @@ public class MiningGolem extends AbstractGolem {
 
 		// A missing or full chest, or one without blocks when blocks are needed, leaves the golem waiting here.
 		Container chest = this.findChest(level);
-		if (chest == null || !this.unloadInto(chest) || this.needsBlocks && !this.takeBuildingBlocks(chest)) {
+		if (chest == null || !this.unloadInto(chest)) {
+			return;
+		}
+
+		// So does one without a pickaxe, with its eyes off until somebody puts one in.
+		boolean lacksTool = this.isWorking() && !this.hasTool() && !this.takeTool(chest);
+		this.setWaitingForTool(lacksTool);
+		if (this.waitingForDrain) {
+			// The sponge golem says when it is done; should it be gone, there is nothing to wait for either.
+			SpongeGolem sponge = SpongeGolem.linkedTo(level, this.chestPos);
+			this.waitingForDrain = sponge != null && sponge.isDraining();
+		}
+
+		this.waiting = lacksTool || this.waitingForDrain;
+		if (this.waiting || this.needsBlocks && !this.takeBuildingBlocks(chest)) {
 			return;
 		}
 
@@ -445,7 +497,7 @@ public class MiningGolem extends AbstractGolem {
 		int wanted = BLOCKS_FETCHED_PER_TRIP;
 		for (int slot = 0; slot < chest.getContainerSize() && wanted > 0; slot++) {
 			ItemStack stack = chest.getItem(slot);
-			if (this.isBuildingBlock(stack)) {
+			if (isBuildingBlock(stack)) {
 				ItemStack taken = chest.removeItem(slot, Math.min(wanted, stack.getCount()));
 				wanted -= taken.getCount();
 				this.inventory.addItem(taken);
@@ -457,28 +509,13 @@ public class MiningGolem extends AbstractGolem {
 	}
 
 	/** Plain full blocks the golem may lay as floor: nothing that falls, holds data or is worth keeping. */
-	private boolean isBuildingBlock(final ItemStack stack) {
+	public static boolean isBuildingBlock(final ItemStack stack) {
 		if (!(stack.getItem() instanceof BlockItem blockItem) || stack.is(ConventionalItemTags.ORES) || stack.is(ConventionalItemTags.STORAGE_BLOCKS)) {
 			return false;
 		}
 
 		BlockState state = blockItem.getBlock().defaultBlockState();
-		return !(state.getBlock() instanceof FallingBlock) && !state.hasBlockEntity() && state.isCollisionShapeFullBlock(this.level(), BlockPos.ZERO);
-	}
-
-	private @Nullable Container findChest(final ServerLevel level) {
-		return this.chestPos != null && level.isLoaded(this.chestPos) ? HopperBlockEntity.getContainerAt(level, this.chestPos) : null;
-	}
-
-	/** Golems that were not built on a block (summoned, for instance) adopt the closest golem chest. */
-	private @Nullable BlockPos findNearbyChest(final ServerLevel level) {
-		for (BlockPos pos : BlockPos.withinManhattan(this.blockPosition(), CHEST_SEARCH_RADIUS)) {
-			if (level.getBlockState(pos).getBlock() instanceof MetalChestBlock) {
-				return pos.immutable();
-			}
-		}
-
-		return null;
+		return !(state.getBlock() instanceof FallingBlock) && !state.hasBlockEntity() && state.isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
 	}
 
 	private void tickWork(final ServerLevel level) {
@@ -544,6 +581,11 @@ public class MiningGolem extends AbstractGolem {
 
 	/** Dandelion: clear the chunk one layer at a time, building the staircase down between layers. */
 	private void tickQuarry(final ServerLevel level, final QuarryPlan plan) {
+		if (this.tickCount % CHEST_PROTECTION_INTERVAL == 0 || !this.chestsProtected) {
+			plan.protectChests(level);
+			this.chestsProtected = true;
+		}
+
 		if (plan.isDescending()) {
 			BlockPos stand = plan.stairStand(plan.stairsBuilt());
 			BlockPos nextStand = plan.stairStand(plan.stairsBuilt() + 1);
@@ -570,8 +612,16 @@ public class MiningGolem extends AbstractGolem {
 
 		int y = plan.layerFeetY();
 		BlockPos cell = this.cellAt(y);
+		// A golem given a neighbouring chunk first has to get there.
+		boolean approaching = plan.isOnFirstLayer() && !plan.contains(cell);
+		if (approaching && this.isOnLevel(y)) {
+			this.anchor = cell;
+			this.approach(level, plan, cell);
+			return;
+		}
+
 		if (!this.isOnLevel(y) || !plan.contains(cell)) {
-			if (this.anchor == null || this.anchor.getY() != y || !plan.contains(this.anchor)) {
+			if (this.anchor == null || !approaching && (this.anchor.getY() != y || !plan.contains(this.anchor))) {
 				this.anchor = plan.stairStand(plan.stairsBuilt());
 			}
 
@@ -587,6 +637,49 @@ public class MiningGolem extends AbstractGolem {
 			// Chests and unbreakable blocks are simply left standing.
 			this.advance(level, next, plan.slice(cell, next), false);
 		}
+	}
+
+	/**
+	 * Walks to the chunk to be quarried the way it does everything else: a cell at a time, digging through
+	 * what is in the way and laying floor where there is none. Chests and unbreakable blocks are walked around.
+	 */
+	private void approach(final ServerLevel level, final QuarryPlan plan, final BlockPos cell) {
+		// Remembering where it came from keeps it from stepping back and forth in front of an obstacle.
+		if (!cell.equals(this.approachCell)) {
+			this.approachFrom = this.approachCell;
+			this.approachCell = cell;
+		}
+
+		BlockPos entry = plan.stairStand(0);
+		int stepX = Integer.signum(entry.getX() - cell.getX());
+		int stepZ = Integer.signum(entry.getZ() - cell.getZ());
+		List<BlockPos> steps = new ArrayList<>();
+		if (stepX != 0) {
+			steps.add(cell.offset(stepX, 0, 0));
+		}
+
+		if (stepZ != 0) {
+			steps.add(cell.offset(0, 0, stepZ));
+		}
+
+		// Sideways, to get round something that cannot be dug.
+		steps.add(stepX != 0 ? cell.offset(0, 0, 1) : cell.offset(1, 0, 0));
+		steps.add(stepX != 0 ? cell.offset(0, 0, -1) : cell.offset(-1, 0, 0));
+		for (BlockPos next : steps) {
+			BlockState state = level.getBlockState(next);
+			boolean passable = state.getCollisionShape(level, next).isEmpty() || state.getDestroySpeed(level, next) >= 0.0F && !state.hasBlockEntity();
+			if (passable && !next.equals(this.approachFrom)) {
+				List<BlockPos> column = new ArrayList<>();
+				for (int up = this.tier.tunnelHeight() - 1; up >= 0; up--) {
+					column.add(next.above(up));
+				}
+
+				this.advance(level, next, column, false);
+				return;
+			}
+		}
+
+		this.halt(level);
 	}
 
 	/**
@@ -661,7 +754,7 @@ public class MiningGolem extends AbstractGolem {
 
 		for (int slot = 0; slot < this.inventory.getContainerSize(); slot++) {
 			ItemStack stack = this.inventory.getItem(slot);
-			if (this.isBuildingBlock(stack)) {
+			if (isBuildingBlock(stack)) {
 				BlockState block = ((BlockItem)stack.getItem()).getBlock().defaultBlockState();
 				stack.shrink(1);
 				level.setBlockAndUpdate(floor, block);
@@ -697,11 +790,11 @@ public class MiningGolem extends AbstractGolem {
 				this.breaking.put(pos, progress);
 			}
 
-			ItemStack tool = this.bestTool(state);
+			ItemStack tool = this.getTool();
 			boolean dropsLoot = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
 			float hardness = state.getDestroySpeed(level, pos);
 			// Same formula a player digs with: tool speed over hardness, far slower with the wrong tool.
-			progress.progress += hardness <= 0.0F ? 1.0F : tool.getDestroySpeed(state) * this.tier.hasteMultiplier() / hardness / (dropsLoot ? 30.0F : 100.0F);
+			progress.progress += hardness <= 0.0F ? 1.0F : this.diggingSpeed(tool, state) / hardness / (dropsLoot ? 30.0F : 100.0F);
 			if (playSound) {
 				level.playSound(null, pos, state.getSoundType().getHitSound(), SoundSource.NEUTRAL, 0.5F, 0.75F);
 				playSound = false;
@@ -727,7 +820,30 @@ public class MiningGolem extends AbstractGolem {
 					this.overflow.add(leftover);
 				}
 			}
+
+			// The pickaxe wears as it does in a player's hand: not at all on what breaks at a touch.
+			Tool wear = tool.get(DataComponents.TOOL);
+			this.wearTool(hardness == 0.0F || this.isSpared(state) ? 0 : wear != null ? wear.damagePerBlock() : 1);
+			if (!this.hasTool()) {
+				// It broke. Whatever else was being dug is left as it is.
+				this.clearBreaking(level);
+				this.setMining(false);
+				return;
+			}
 		}
+	}
+
+	/**
+	 * Stone and deepslate are most of what a quarry is, so they cost half: of every two such blocks only
+	 * the first wears the pickaxe.
+	 */
+	private boolean isSpared(final BlockState state) {
+		if (!state.is(BlockTags.BASE_STONE_OVERWORLD)) {
+			return false;
+		}
+
+		this.stoneWearsNext = !this.stoneWearsNext;
+		return this.stoneWearsNext;
 	}
 
 	/**
@@ -743,29 +859,12 @@ public class MiningGolem extends AbstractGolem {
 		}
 	}
 
-	private ItemStack bestTool(final BlockState state) {
-		List<ItemStack> tools = this.tools();
-		ItemStack best = tools.getFirst();
-		for (ItemStack tool : tools) {
-			if (tool.getDestroySpeed(state) > best.getDestroySpeed(state)) {
-				best = tool;
-			}
-		}
-
-		return best;
-	}
-
 	private void clearBreaking(final ServerLevel level) {
 		this.breaking.forEach((pos, state) -> level.destroyBlockProgress(state.crackId, pos, -1));
 		this.breaking.clear();
 	}
 
 	// ------------------------------------------------------------------------------------ movement
-
-	/** The block the golem stands in. Sampled slightly above its feet so sunken blocks such as soul sand do not count as one lower. */
-	private BlockPos feetPos() {
-		return BlockPos.containing(this.getX(), this.getY() + 0.2, this.getZ());
-	}
 
 	private BlockPos cellAt(final int y) {
 		return new BlockPos(Mth.floor(this.getX()), y, Mth.floor(this.getZ()));
@@ -806,61 +905,11 @@ public class MiningGolem extends AbstractGolem {
 		return false;
 	}
 
-	/** Walks towards the bottom centre of {@code target}; returns true once within {@code reach} of it. */
-	private boolean travelTo(final ServerLevel level, final BlockPos target, final double reach) {
-		Vec3 spot = Vec3.atBottomCenterOf(target);
-		double distance = this.position().distanceTo(spot);
-		if (distance <= reach) {
-			this.getNavigation().stop();
-			this.resetTravel();
-			return true;
-		}
-
-		if (distance < 1.5 && Math.abs(this.getY() - spot.y) < 0.6) {
-			// Path nodes are a whole block apart, too coarse for the last stretch.
-			this.getNavigation().stop();
-			this.getMoveControl().setWantedPosition(spot.x, spot.y, spot.z, 1.0);
-		} else if (this.travelTicks % REPATH_INTERVAL == 0) {
-			this.getNavigation().moveTo(spot.x, spot.y, spot.z, 1, 1.0);
-		}
-
-		if (++this.travelTicks % 20 == 0) {
-			boolean moved = this.lastTravelPosition == null || this.lastTravelPosition.distanceTo(this.position()) > 0.5;
-			this.stalledSeconds = moved ? 0 : this.stalledSeconds + 1;
-			this.lastTravelPosition = this.position();
-			if (this.stalledSeconds >= STALLED_SECONDS_BEFORE_TELEPORT) {
-				this.resetTravel();
-				this.teleportNextTo(level, target);
-			}
-		}
-
-		return false;
-	}
-
-	private void resetTravel() {
-		this.travelTicks = 0;
-		this.stalledSeconds = 0;
-		this.lastTravelPosition = null;
-	}
-
-	private void teleportNextTo(final ServerLevel level, final BlockPos pos) {
-		List<BlockPos> candidates = List.of(pos, pos.above(), pos.north(), pos.south(), pos.east(), pos.west());
-		for (BlockPos candidate : candidates) {
-			Vec3 spot = Vec3.atBottomCenterOf(candidate);
-			if (level.noCollision(this, this.getType().getDimensions().makeBoundingBox(spot))) {
-				this.getNavigation().stop();
-				this.teleportTo(spot.x, spot.y, spot.z);
-				return;
-			}
-		}
-	}
-
 	// ------------------------------------------------------------------------------------ persistence
 
 	@Override
 	public void addAdditionalSaveData(final ValueOutput output) {
 		super.addAdditionalSaveData(output);
-		output.storeNullable("chest_pos", BlockPos.CODEC, this.chestPos);
 		output.storeNullable("mining_direction", Direction.CODEC, this.miningDirection);
 		output.storeNullable("tunnel_origin", BlockPos.CODEC, this.tunnelOrigin);
 		output.storeNullable("anchor", BlockPos.CODEC, this.anchor);
@@ -872,7 +921,8 @@ public class MiningGolem extends AbstractGolem {
 		output.putBoolean("depositing", this.depositing);
 		output.putBoolean("needs_blocks", this.needsBlocks);
 		output.putBoolean("halted", this.halted);
-		output.putInt("enchantment", this.getEnchantment());
+		output.putBoolean("unlocked", this.unlocked);
+		output.putBoolean("waiting_for_drain", this.waitingForDrain);
 		this.inventory.storeAsItemList(output.list("inventory", ItemStack.CODEC));
 		ValueOutput.TypedOutputList<ItemStack> overflowList = output.list("overflow", ItemStack.CODEC);
 		this.overflow.forEach(overflowList::add);
@@ -881,7 +931,6 @@ public class MiningGolem extends AbstractGolem {
 	@Override
 	public void readAdditionalSaveData(final ValueInput input) {
 		super.readAdditionalSaveData(input);
-		this.chestPos = input.read("chest_pos", BlockPos.CODEC).orElse(null);
 		this.miningDirection = input.read("mining_direction", Direction.CODEC).filter(direction -> direction.getAxis().isHorizontal()).orElse(null);
 		this.tunnelOrigin = input.read("tunnel_origin", BlockPos.CODEC).orElse(null);
 		this.anchor = input.read("anchor", BlockPos.CODEC).orElse(null);
@@ -890,7 +939,9 @@ public class MiningGolem extends AbstractGolem {
 		this.depositing = input.getBooleanOr("depositing", false);
 		this.needsBlocks = input.getBooleanOr("needs_blocks", false);
 		this.halted = input.getBooleanOr("halted", false);
-		this.setEnchantment(Mth.clamp(input.getIntOr("enchantment", 0), 0, SILK_TOUCH));
+		// One already wearing a pattern flower was at work before the lock existed, and stays as it was.
+		this.unlocked = !this.tier.startsLocked() || input.getBooleanOr("unlocked", false) || isPatternFlower(this.getItemBySlot(FLOWER_SLOT));
+		this.waitingForDrain = input.getBooleanOr("waiting_for_drain", false);
 		this.inventory.fromItemList(input.listOrEmpty("inventory", ItemStack.CODEC));
 		this.overflow.clear();
 		input.listOrEmpty("overflow", ItemStack.CODEC).forEach(this.overflow::add);
@@ -899,9 +950,6 @@ public class MiningGolem extends AbstractGolem {
 	@Override
 	protected void dropEquipment(final ServerLevel level) {
 		super.dropEquipment(level);
-		this.spawnAtLocation(level, this.getItemBySlot(FLOWER_SLOT));
-		this.setItemSlot(FLOWER_SLOT, ItemStack.EMPTY);
-		this.spawnAtLocation(level, this.enchantmentBook());
 		this.inventory.removeAllItems().forEach(stack -> this.spawnAtLocation(level, stack));
 		this.overflow.forEach(stack -> this.spawnAtLocation(level, stack));
 		this.overflow.clear();
@@ -914,31 +962,6 @@ public class MiningGolem extends AbstractGolem {
 		}
 
 		super.remove(reason);
-	}
-
-	@Override
-	public boolean canBreatheUnderwater() {
-		return true;
-	}
-
-	@Override
-	protected SoundEvent getHurtSound(final DamageSource source) {
-		return SoundEvents.IRON_GOLEM_HURT;
-	}
-
-	@Override
-	protected SoundEvent getDeathSound() {
-		return SoundEvents.IRON_GOLEM_DEATH;
-	}
-
-	@Override
-	protected void playStepSound(final BlockPos pos, final BlockState blockState) {
-		this.playSound(SoundEvents.COPPER_GOLEM_STEP, 1.0F, 1.0F);
-	}
-
-	@Override
-	public Vec3 getLeashOffset() {
-		return new Vec3(0.0, 0.75F * this.getEyeHeight(), 0.0);
 	}
 
 	private static class BreakState {

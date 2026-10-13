@@ -1,12 +1,14 @@
 package com.totalgolems.client.render;
 
-import com.totalgolems.GolemTier;
 import net.minecraft.client.renderer.entity.state.CopperGolemRenderState;
 
 /** Extends the copper golem's state so the vanilla copper golem model can be driven unchanged. */
 public class MiningGolemRenderState extends CopperGolemRenderState {
-	public GolemTier tier = GolemTier.IRON;
+	/** Which golem this is, as it appears in its texture file names. */
+	public String textureId = "iron";
+	/** Names the texture of the lit eyes, which an upgraded golem swaps for another. */
+	public String eyesTextureId = "iron";
+	/** Lights the eyes. */
+	public boolean active;
 	public boolean mining;
-	/** As MiningGolem#getEnchantment: 0 none, 1 to 3 Fortune, 4 Silk Touch. */
-	public int enchantment;
 }

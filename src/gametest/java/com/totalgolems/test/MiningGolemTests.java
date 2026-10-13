@@ -1,7 +1,10 @@
 package com.totalgolems.test;
 
+import com.totalgolems.entity.CoalGolem;
+import com.totalgolems.entity.LumberGolem;
 import com.totalgolems.entity.MiningGolem;
 import com.totalgolems.entity.QuarryPlan;
+import com.totalgolems.entity.WorkerGolem;
 import com.totalgolems.GolemTier;
 import com.totalgolems.registry.ModBlocks;
 import com.totalgolems.registry.ModEntities;
@@ -9,30 +12,34 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Unit;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.EnchantmentInstance;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.phys.Vec3;
 
 public class MiningGolemTests {
 	private static final BlockPos CHEST = new BlockPos(0, 1, 3);
-	/** Ten blocks with ten different drops, two per tunnel slice, so a five slot golem overflows on the sixth. */
+	/** Ten blocks with ten different drops, two per tunnel slice, so a nine slot golem overflows on the last. */
 	private static final List<Block> MIXED_WALL = List.of(
 		Blocks.STONE,
 		Blocks.DIRT,
@@ -72,6 +79,119 @@ public class MiningGolemTests {
 		helper.assertBlockPresent(ModBlocks.NETHERITE_CHEST, 3, 1, 3);
 		helper.assertEntityPresent(ModEntities.NETHERITE_MINING_GOLEM);
 		helper.succeed();
+	}
+
+	@GameTest
+	public void pumpkinOnAmethystBlockBuildsGolemAndChest(final GameTestHelper helper) {
+		helper.setBlock(3, 1, 3, Blocks.AMETHYST_BLOCK);
+		helper.setBlock(3, 2, 3, Blocks.CARVED_PUMPKIN);
+		helper.assertBlockPresent(ModBlocks.AMETHYST_CHEST, 3, 1, 3);
+		helper.assertEntityPresent(ModEntities.AMETHYST_GOLEM);
+		helper.succeed();
+	}
+
+	@GameTest
+	public void pumpkinOnCoalBlockBuildsGolemWithoutChest(final GameTestHelper helper) {
+		helper.setBlock(3, 1, 3, Blocks.COAL_BLOCK);
+		helper.setBlock(3, 2, 3, Blocks.CARVED_PUMPKIN);
+		helper.assertBlockPresent(Blocks.AIR, 3, 1, 3);
+		helper.assertBlockPresent(Blocks.AIR, 3, 2, 3);
+		helper.assertEntityPresent(ModEntities.COAL_GOLEM);
+		helper.succeed();
+	}
+
+	@GameTest(maxTicks = 1200)
+	public void eyesAreLitOnlyWhileWorking(final GameTestHelper helper) {
+		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		helper.setBlock(2, 1, 3, Blocks.STONE);
+		helper.setBlock(3, 1, 3, Blocks.STONE);
+		stopper(helper, 4);
+		helper.runAfterDelay(5, () -> {
+			helper.assertTrue(!golem.isActive(), "a golem without a flower has nothing to do");
+			give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
+		});
+		boolean[] wasActive = {false};
+		helper.onEachTick(() -> wasActive[0] |= golem.isActive());
+		helper.succeedWhen(() -> {
+			helper.assertTrue(wasActive[0], "eyes should have been lit while digging");
+			helper.assertTrue(golem.isHalted() && !golem.isActive(), "eyes should go out once it is back home with nothing to do");
+		});
+	}
+
+	/**
+	 * A golem chest with raw iron, too little coal and some cobblestone; two furnaces; a copper chest.
+	 * Thirty-two raw iron is sixteen per furnace, which wants two coal each, but there are only two in all.
+	 */
+	@GameTest(maxTicks = 4000)
+	public void coalGolemFeedsFurnacesSharesCoalAndStoresIngots(final GameTestHelper helper) {
+		CoalGolem golem = setUp(helper, ModEntities.COAL_GOLEM, ModBlocks.IRON_CHEST);
+		Container source = chest(helper);
+		source.setItem(0, new ItemStack(Items.RAW_IRON, 32));
+		source.setItem(1, new ItemStack(Items.COAL, 2));
+		source.setItem(2, new ItemStack(Items.COBBLESTONE, 10));
+		BlockPos firstFurnace = new BlockPos(3, 1, 1);
+		BlockPos secondFurnace = new BlockPos(5, 1, 1);
+		BlockPos copperChest = new BlockPos(6, 1, 5);
+		helper.setBlock(firstFurnace, Blocks.FURNACE);
+		helper.setBlock(secondFurnace, Blocks.FURNACE);
+		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
+		give(helper, golem, new ItemStack(Items.OXEYE_DAISY), Direction.EAST);
+
+		boolean[] fuelled = {false, false};
+		helper.onEachTick(() -> {
+			// A furnace burns its coal the moment it has something to smelt, so look at the fire rather than the slot.
+			fuelled[0] |= helper.getBlockState(firstFurnace).getValue(AbstractFurnaceBlock.LIT);
+			fuelled[1] |= helper.getBlockState(secondFurnace).getValue(AbstractFurnaceBlock.LIT);
+		});
+		helper.succeedWhen(() -> {
+			helper.assertTrue(fuelled[0] && fuelled[1], "the two pieces of coal should have been split between the furnaces");
+			helper.assertContainerContains(copperChest, Items.IRON_INGOT);
+			// One coal smelts eight, so sixteen ingots come out in all and the rest waits for more coal.
+			Container copper = (Container)helper.getLevel().getBlockEntity(helper.absolutePos(copperChest));
+			helper.assertTrue(copper.countItem(Items.IRON_INGOT) == 16, "expected 16 ingots in the copper chest, found " + copper.countItem(Items.IRON_INGOT));
+			helper.assertTrue(source.countItem(Items.COBBLESTONE) == 10, "stone must be left in the golem chest");
+			helper.assertTrue(source.countItem(Items.RAW_IRON) == 0, "all the raw iron should have been taken");
+			helper.assertTrue(!golem.isActive(), "with nothing left to do its eyes should be off");
+		});
+	}
+
+	@GameTest(maxTicks = 3000)
+	public void amethystGolemFellsTallTreeReplantsAndStoresWood(final GameTestHelper helper) {
+		LumberGolem golem = setUp(helper, ModEntities.AMETHYST_GOLEM, ModBlocks.AMETHYST_CHEST);
+		int height = 10;
+		helper.setBlock(4, 0, 4, Blocks.DIRT);
+		for (int y = 1; y <= height; y++) {
+			helper.setBlock(4, y, 4, Blocks.OAK_LOG);
+		}
+
+		// With a spyglass it works the chunks around as well, wherever the test happens to sit among them.
+		give(helper, golem, new ItemStack(Items.SPYGLASS), Direction.EAST);
+		// Leaves as they are on a grown tree, so the golem takes it for one and they do not decay mid-test.
+		for (BlockPos leaf : List.of(new BlockPos(4, height + 1, 4), new BlockPos(3, height, 4), new BlockPos(5, height, 4))) {
+			helper.setBlock(leaf, Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.DISTANCE, 1));
+		}
+
+		// A log cabin wall: logs with no leaves are not a tree.
+		helper.setBlock(6, 0, 6, Blocks.DIRT);
+		helper.setBlock(6, 1, 6, Blocks.SPRUCE_LOG);
+		// It picks saplings up off the ground, and nothing else.
+		helper.spawnItem(Items.OAK_SAPLING, new BlockPos(2, 1, 3));
+		helper.spawnItem(Items.DIAMOND, new BlockPos(2, 1, 4));
+		give(helper, golem, new ItemStack(Items.LILY_OF_THE_VALLEY), Direction.EAST);
+		helper.succeedWhen(() -> {
+			for (int y = 2; y <= height; y++) {
+				helper.assertBlockPresent(Blocks.AIR, 4, y, 4);
+			}
+
+			helper.assertBlockPresent(Blocks.OAK_SAPLING, 4, 1, 4);
+			helper.assertBlockPresent(Blocks.SPRUCE_LOG, 6, 1, 6);
+			helper.assertTrue(golem.getSaplingCount(Items.OAK_SAPLING) == 0, "the one sapling it found should have been planted");
+			helper.assertItemEntityPresent(Items.DIAMOND);
+			// With no trees left it goes home, unloads and rests there.
+			helper.assertTrue(chest(helper).countItem(Items.OAK_LOG) == height, "all " + height + " logs should be in the chest");
+			helper.assertTrue(golem.getTool().getDamageValue() == height, "the axe should be worn by one for every log, not " + golem.getTool().getDamageValue());
+			helper.assertTrue(golem.isResting() && !golem.isActive(), "golem should be resting with its eyes off");
+		});
 	}
 
 	@GameTest
@@ -116,7 +236,7 @@ public class MiningGolemTests {
 
 			helper.assertBlockPresent(Blocks.STONE, 2, 1, 2);
 			helper.assertBlockPresent(Blocks.STONE, 2, 3, 3);
-			// The sixth kind of drop did not fit in five slots, so the first ones were carried home mid-tunnel.
+			// The tenth kind of drop did not fit in nine slots, so the first ones were carried home before the end.
 			helper.assertContainerContains(CHEST, Items.DIRT);
 			// The bedrock ends the tunnel: the golem walks home by itself with the rest and waits there.
 			helper.assertContainerContains(CHEST, Items.END_STONE);
@@ -157,7 +277,7 @@ public class MiningGolemTests {
 	}
 
 	@GameTest(maxTicks = 400)
-	public void netheriteGolemBreaksTheWholeSliceAtOnce(final GameTestHelper helper) {
+	public void netheriteGolemBreaksThreeBlocksAtOnce(final GameTestHelper helper) {
 		MiningGolem golem = setUp(helper, ModEntities.NETHERITE_MINING_GOLEM, ModBlocks.NETHERITE_CHEST);
 		for (int z = 2; z <= 4; z++) {
 			for (int y = 1; y <= 3; y++) {
@@ -166,6 +286,7 @@ public class MiningGolemTests {
 		}
 
 		stopper(helper, 3);
+		give(helper, golem, new ItemStack(MiningGolem.UNLOCK_FLOWER), Direction.EAST);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.onEachTick(() -> {
 			int broken = 0;
@@ -175,7 +296,7 @@ public class MiningGolemTests {
 				}
 			}
 
-			helper.assertTrue(broken == 0 || broken == 9, "all nine blocks should break on the same tick, but " + broken + " were gone");
+			helper.assertTrue(broken % 3 == 0, "the blocks should break three at a time, but " + broken + " were gone");
 			if (broken == 9) {
 				helper.succeed();
 			}
@@ -193,9 +314,11 @@ public class MiningGolemTests {
 		buildMixedWall(helper);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.runAtTickTime(600, () -> {
-			// It filled up after six blocks, went home, and has been waiting there since.
+			// It filled up on the last block, went home, and has been waiting there since: with room in the
+			// chest it would have gone back, met the bedrock and given up.
 			helper.assertBlockPresent(Blocks.AIR, 2, 1, 3);
-			helper.assertBlockPresent(Blocks.END_STONE, 6, 2, 3);
+			helper.assertTrue(!golem.isHalted(), "it should still be waiting to unload, not finished");
+			helper.assertTrue(chest(helper).countItem(Items.GOLD_BLOCK) == 27 * 64, "nothing fits in a full chest");
 			helper.assertTrue(golem.position().distanceTo(Vec3.atCenterOf(helper.absolutePos(CHEST))) < 3.0, "golem should wait at its chest");
 			helper.succeed();
 		});
@@ -233,17 +356,13 @@ public class MiningGolemTests {
 	}
 
 	@GameTest(maxTicks = 1200)
-	public void enchantedBooksApplySilkTouchAndFortuneOneAtATime(final GameTestHelper helper) {
+	public void pickaxeEnchantmentsApplyToWhatIsDug(final GameTestHelper helper) {
 		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, enchanted(helper, Items.IRON_PICKAXE, Enchantments.SILK_TOUCH, 1));
 		helper.setBlock(2, 1, 3, Blocks.STONE);
 		stopper(helper, 3);
-		give(helper, golem, book(helper, Enchantments.EFFICIENCY, 1), Direction.EAST);
-		helper.assertTrue(golem.getEnchantment() == 0, "only Fortune and Silk Touch are accepted");
-		give(helper, golem, book(helper, Enchantments.FORTUNE, 3), Direction.EAST);
-		helper.assertTrue(golem.getEnchantment() == 3, "Fortune III should be applied");
-		Player player = give(helper, golem, book(helper, Enchantments.SILK_TOUCH, 1), Direction.EAST);
-		helper.assertTrue(golem.getEnchantment() == MiningGolem.SILK_TOUCH, "Silk Touch should replace Fortune");
-		helper.assertTrue(player.getMainHandItem().is(Items.ENCHANTED_BOOK), "the Fortune book should be handed back");
+		give(helper, golem, new ItemStack(Items.ENCHANTED_BOOK), Direction.EAST);
+		helper.assertTrue(golem.getTool().is(Items.IRON_PICKAXE), "books are no longer anything to a golem");
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		// With Silk Touch stone drops as stone, not cobblestone.
 		helper.succeedWhen(() -> helper.assertContainerContains(CHEST, Items.STONE));
@@ -251,7 +370,7 @@ public class MiningGolemTests {
 
 	/**
 	 * These quarry a real chunk, so they are padded well away from the other tests. The chunk gets a slab
-	 * of dirt with the chest and the golem on top, inside the chunk.
+	 * of stone with the chest and the golem on top, inside the chunk.
 	 */
 	@GameTest(maxTicks = 8000, padding = 24)
 	public void dandelionQuarriesChunkLayerAndClimbsStairsHome(final GameTestHelper helper) {
@@ -265,7 +384,8 @@ public class MiningGolemTests {
 
 	private static void quarry(final GameTestHelper helper, final GolemTier tier, final int layers) {
 		ServerLevel level = helper.getLevel();
-		BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+		// Built well above the test structure, clear of the blocks the test framework puts around it.
+		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(16);
 		int minX = origin.getX() & ~15;
 		int minZ = origin.getZ() & ~15;
 		// One block of floor under the layers that get dug.
@@ -274,7 +394,7 @@ public class MiningGolemTests {
 		for (int x = 0; x < 16; x++) {
 			for (int z = 0; z < 16; z++) {
 				for (int y = origin.getY(); y <= top; y++) {
-					level.setBlockAndUpdate(new BlockPos(minX + x, y, minZ + z), Blocks.DIRT.defaultBlockState());
+					level.setBlockAndUpdate(new BlockPos(minX + x, y, minZ + z), Blocks.STONE.defaultBlockState());
 				}
 			}
 		}
@@ -288,6 +408,11 @@ public class MiningGolemTests {
 		golem.snapTo(Vec3.atBottomCenterOf(golemPos));
 		level.addFreshEntity(golem);
 		golem.setChestPos(chestPos);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, tirelessPickaxe(helper));
+		if (tier.startsLocked()) {
+			give(helper, golem, new ItemStack(MiningGolem.UNLOCK_FLOWER), Direction.EAST);
+		}
+
 		give(helper, golem, new ItemStack(Items.DANDELION), Direction.EAST);
 
 		// The plan the golem made, to know which blocks it has to leave: the stairs and the walkway to the chest.
@@ -303,20 +428,20 @@ public class MiningGolemTests {
 				}
 			}
 
-			// More dirt than the golem can carry, so it has been up the stairs to unload.
-			helper.assertTrue(((Container)level.getBlockEntity(chestPos)).hasAnyMatching(stack -> stack.is(Items.DIRT)), "no dirt was taken to the chest");
+			// It has been up the stairs to unload.
+			helper.assertTrue(((Container)level.getBlockEntity(chestPos)).hasAnyMatching(stack -> stack.is(Items.COBBLESTONE)), "no stone was taken to the chest");
 			// Every stair step and the walkway from the top of the stairs to the chest are still there.
 			for (int step = 0; step <= depth; step++) {
-				helper.assertTrue(level.getBlockState(plan.stairStand(step).below()).is(Blocks.DIRT), "stair step " + step + " is missing");
+				helper.assertTrue(level.getBlockState(plan.stairStand(step).below()).is(Blocks.STONE), "stair step " + step + " is missing");
 			}
 
-			helper.assertTrue(level.getBlockState(chestPos.north().below()).is(Blocks.DIRT), "walkway to the chest is missing");
+			helper.assertTrue(level.getBlockState(chestPos.north().below()).is(Blocks.STONE), "walkway to the chest is missing");
 			golem.discard();
 			level.setChunkForced(minX >> 4, minZ >> 4, false);
 		});
 	}
 
-	private static <T extends MiningGolem> T setUp(final GameTestHelper helper, final EntityType<T> type, final Block chest) {
+	static <T extends WorkerGolem> T setUp(final GameTestHelper helper, final EntityType<T> type, final Block chest) {
 		for (int x = 0; x <= 7; x++) {
 			for (int z = 0; z <= 7; z++) {
 				helper.setBlock(x, 0, z, Blocks.SMOOTH_STONE);
@@ -326,10 +451,21 @@ public class MiningGolemTests {
 		helper.setBlock(CHEST, chest);
 		T golem = helper.spawn(type, 1, 1, 3);
 		golem.setChestPos(helper.absolutePos(CHEST));
+		// Already holding the tool of its trade, so that the tests are about something else.
+		if (golem instanceof MiningGolem) {
+			golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_PICKAXE));
+		} else if (golem instanceof LumberGolem) {
+			golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
+		}
+
 		return golem;
 	}
 
-	private static Container chest(final GameTestHelper helper) {
+	private static AbstractFurnaceBlockEntity furnace(final GameTestHelper helper, final BlockPos pos) {
+		return (AbstractFurnaceBlockEntity)helper.getLevel().getBlockEntity(helper.absolutePos(pos));
+	}
+
+	static Container chest(final GameTestHelper helper) {
 		return (Container)helper.getLevel().getBlockEntity(helper.absolutePos(CHEST));
 	}
 
@@ -342,7 +478,7 @@ public class MiningGolemTests {
 	}
 
 	/** A bedrock wall the golem cannot break, so it stays inside the test area. */
-	private static void stopper(final GameTestHelper helper, final int x) {
+	static void stopper(final GameTestHelper helper, final int x) {
 		for (int z = 0; z <= 7; z++) {
 			for (int y = 1; y <= 4; y++) {
 				helper.setBlock(x, y, z, Blocks.BEDROCK);
@@ -351,7 +487,7 @@ public class MiningGolemTests {
 	}
 
 	/** Removes the floor in the golem's lane from {@code fromX} to {@code toX}, three blocks down. */
-	private static void digPit(final GameTestHelper helper, final int fromX, final int toX) {
+	static void digPit(final GameTestHelper helper, final int fromX, final int toX) {
 		for (int x = fromX; x <= toX; x++) {
 			for (int y = 0; y >= -2; y--) {
 				helper.setBlock(x, y, 3, Blocks.AIR);
@@ -359,14 +495,21 @@ public class MiningGolemTests {
 		}
 	}
 
-	private static ItemStack book(final GameTestHelper helper, final ResourceKey<Enchantment> enchantment, final int level) {
-		return EnchantmentHelper.createBook(
-			new EnchantmentInstance(helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(enchantment), level)
-		);
+	static ItemStack enchanted(final GameTestHelper helper, final Item item, final ResourceKey<Enchantment> enchantment, final int level) {
+		ItemStack stack = new ItemStack(item);
+		stack.enchant(helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(enchantment), level);
+		return stack;
+	}
+
+	/** A pickaxe for the tests that dig a lot: it goes through stone at a touch and never breaks. */
+	static ItemStack tirelessPickaxe(final GameTestHelper helper) {
+		ItemStack pickaxe = enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.EFFICIENCY, 5);
+		pickaxe.set(DataComponents.UNBREAKABLE, Unit.INSTANCE);
+		return pickaxe;
 	}
 
 	/** Right-clicks the golem with {@code held} as a player facing {@code facing} would. */
-	private static Player give(final GameTestHelper helper, final MiningGolem golem, final ItemStack held, final Direction facing) {
+	static Player give(final GameTestHelper helper, final WorkerGolem golem, final ItemStack held, final Direction facing) {
 		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 		player.setYRot(facing.toYRot());
 		player.setItemInHand(InteractionHand.MAIN_HAND, held);

@@ -11,7 +11,17 @@ public class ModBlockEntities {
 	public static final BlockEntityType<MetalChestBlockEntity> METAL_CHEST = Registry.register(
 		BuiltInRegistries.BLOCK_ENTITY_TYPE,
 		TotalGolems.id("metal_chest"),
-		FabricBlockEntityTypeBuilder.create(MetalChestBlockEntity::new, ModBlocks.IRON_CHEST, ModBlocks.DIAMOND_CHEST, ModBlocks.NETHERITE_CHEST).build()
+		FabricBlockEntityTypeBuilder.create(
+				MetalChestBlockEntity::new,
+				ModBlocks.IRON_CHEST,
+				ModBlocks.DIAMOND_CHEST,
+				ModBlocks.NETHERITE_CHEST,
+				ModBlocks.AMETHYST_CHEST,
+				ModBlocks.SPONGE_CHEST,
+				ModBlocks.HAY_CHEST,
+				ModBlocks.BONE_CHEST
+			)
+			.build()
 	);
 
 	public static void init() {

@@ -1,15 +1,16 @@
 package com.totalgolems.client.render;
 
-import com.totalgolems.GolemTier;
 import com.totalgolems.TotalGolems;
-import com.totalgolems.entity.MiningGolem;
+import com.totalgolems.entity.WorkerGolem;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.block.BlockModelResolver;
 import net.minecraft.client.renderer.entity.CopperGolemRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.entity.layers.BlockDecorationLayer;
+import net.minecraft.client.renderer.entity.layers.ItemInHandLayer;
 import net.minecraft.client.renderer.entity.layers.LivingEntityEmissiveLayer;
+import net.minecraft.client.renderer.entity.state.ArmedEntityRenderState;
 import net.minecraft.client.renderer.entity.state.CopperGolemRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.component.DataComponents;
@@ -19,7 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.level.block.state.BlockState;
 
-public class MiningGolemRenderer extends MobRenderer<MiningGolem, CopperGolemRenderState, MiningGolemModel> {
+public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRenderState, MiningGolemModel> {
 	private final BlockModelResolver blockModelResolver;
 
 	public MiningGolemRenderer(final EntityRendererProvider.Context context) {
@@ -28,26 +29,23 @@ public class MiningGolemRenderer extends MobRenderer<MiningGolem, CopperGolemRen
 		this.addLayer(
 			new LivingEntityEmissiveLayer<>(
 				this,
-				state -> texture(state, "_eyes"),
-				(state, ageInTicks) -> 1.0F,
+				state -> TotalGolems.id("textures/entity/mining_golem/" + ((MiningGolemRenderState)state).eyesTextureId + "_golem_eyes.png"),
+				// The base texture has the eyes switched off; this layer lights them while the golem has work to do.
+				(state, ageInTicks) -> ((MiningGolemRenderState)state).active ? 1.0F : 0.0F,
 				new MiningGolemModel(context.bakeLayer(ModelLayers.COPPER_GOLEM)),
 				RenderTypes::eyes,
 				false
 			)
 		);
+		// The tool of its trade, held the way a copper golem holds what it carries.
+		this.addLayer(new ItemInHandLayer<>(this));
 		this.addLayer(new BlockDecorationLayer<>(this, state -> state.blockOnAntenna, this.model::applyBlockOnAntennaTransform));
-		this.addLayer(new AntennaGlintLayer(this, new MiningGolemModel(context.bakeLayer(AntennaGlintLayer.MODEL_LAYER))));
 	}
 
 	// The state type has to be the copper golem's for its model and layers to fit; it is always our subclass.
-	private static Identifier texture(final CopperGolemRenderState state, final String suffix) {
-		GolemTier tier = ((MiningGolemRenderState)state).tier;
-		return TotalGolems.id("textures/entity/mining_golem/" + tier.id() + "_golem" + suffix + ".png");
-	}
-
 	@Override
 	public Identifier getTextureLocation(final CopperGolemRenderState state) {
-		return texture(state, "");
+		return TotalGolems.id("textures/entity/mining_golem/" + ((MiningGolemRenderState)state).textureId + "_golem.png");
 	}
 
 	@Override
@@ -56,13 +54,15 @@ public class MiningGolemRenderer extends MobRenderer<MiningGolem, CopperGolemRen
 	}
 
 	@Override
-	public void extractRenderState(final MiningGolem entity, final CopperGolemRenderState state, final float partialTicks) {
+	public void extractRenderState(final WorkerGolem entity, final CopperGolemRenderState state, final float partialTicks) {
 		super.extractRenderState(entity, state, partialTicks);
+		ArmedEntityRenderState.extractArmedEntityRenderState(entity, state, this.itemModelResolver, partialTicks);
 		MiningGolemRenderState miningState = (MiningGolemRenderState)state;
-		miningState.tier = entity.getTier();
-		miningState.mining = entity.isMining();
-		miningState.enchantment = entity.getEnchantment();
-		ItemStack flower = entity.getItemBySlot(MiningGolem.FLOWER_SLOT);
+		miningState.textureId = entity.getTextureId();
+		miningState.eyesTextureId = entity.getEyesTextureId();
+		miningState.active = entity.isActive();
+		miningState.mining = entity.isSwingingArm();
+		ItemStack flower = entity.getItemBySlot(WorkerGolem.FLOWER_SLOT);
 		if (flower.getItem() instanceof BlockItem blockItem) {
 			BlockItemStateProperties blockItemState = flower.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY);
 			BlockState blockState = blockItemState.apply(blockItem.getBlock().defaultBlockState());

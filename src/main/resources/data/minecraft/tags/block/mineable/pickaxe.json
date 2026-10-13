@@ -2,6 +2,10 @@
   "values": [
     "totalgolems:iron_chest",
     "totalgolems:diamond_chest",
-    "totalgolems:netherite_chest"
+    "totalgolems:netherite_chest",
+    "totalgolems:amethyst_chest",
+    "totalgolems:sponge_chest",
+    "totalgolems:hay_chest",
+    "totalgolems:bone_chest"
   ]
 }

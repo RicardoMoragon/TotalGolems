@@ -1,6 +1,9 @@
-"""Generates every texture of the mod. Run from the repository root:
+"""Generates the textures of the mod. Run from the repository root:
 
     python tools/generate_textures.py
+
+Textures that already exist are left alone, so ones edited by hand are safe; pass --force to
+regenerate everything.
 
 Textures are painted per cuboid face using the same box-UV layout Minecraft's ModelPart uses, so the
 shapes below mirror the cuboids of the vanilla copper golem and chest models.
@@ -8,9 +11,11 @@ shapes below mirror the cuboids of the vanilla copper golem and chest models.
 
 import hashlib
 import os
+import sys
 
 from PIL import Image
 
+FORCE = "--force" in sys.argv
 ASSETS = os.path.join(os.path.dirname(__file__), "..", "src", "main", "resources", "assets", "totalgolems")
 
 PALETTES = {
@@ -44,7 +49,90 @@ PALETTES = {
         "accent": (255, 150, 60),
         "accent_dark": (190, 80, 30),
     },
+    "amethyst": {
+        "light": (200, 144, 240),
+        "base": (141, 106, 204),
+        "mid": (122, 91, 181),
+        "dark": (100, 71, 158),
+        "shadow": (72, 45, 122),
+        "inside": (30, 18, 52),
+        "accent": (254, 203, 230),
+        "accent_dark": (200, 144, 240),
+    },
+    "sponge": {
+        "light": (225, 227, 81),
+        "base": (205, 206, 74),
+        "mid": (193, 188, 78),
+        "dark": (183, 172, 79),
+        "shadow": (157, 143, 57),
+        "inside": (70, 62, 24),
+        "accent": (240, 240, 150),
+        "accent_dark": (157, 143, 57),
+    },
+    "hay": {
+        "light": (203, 182, 48),
+        "base": (191, 171, 49),
+        "mid": (171, 146, 37),
+        "dark": (148, 128, 30),
+        # The frame takes the colour of the twine round a bale.
+        "shadow": (146, 65, 35),
+        "inside": (60, 40, 14),
+        "accent": (230, 205, 70),
+        "accent_dark": (164, 81, 43),
+    },
+    "bone": {
+        "light": (240, 238, 224),
+        "base": (233, 230, 212),
+        "mid": (225, 221, 202),
+        "dark": (205, 200, 176),
+        "shadow": (160, 154, 128),
+        "inside": (60, 56, 44),
+        "accent": (250, 250, 240),
+        "accent_dark": (190, 184, 160),
+    },
 }
+
+# Golems painted like the block they are built from: the block's own colours, darkest first, with no
+# outlines. "glint" is the occasional bright speck, "off" the unlit eyes and "lit" the eyes' glow.
+BLOCK_GOLEMS = {
+    "coal": {
+        "colors": [(5, 5, 5), (13, 13, 13), (21, 21, 21), (31, 30, 30), (41, 40, 40)],
+        "glint": None,
+        "off": (58, 56, 60),
+        "lit": [(214, 110, 30), (240, 160, 70), (255, 225, 170)],
+    },
+    "amethyst": {
+        "colors": [(93, 58, 154), (100, 71, 158), (122, 91, 181), (141, 106, 204), (166, 120, 241), (200, 144, 240)],
+        "glint": (254, 203, 230),
+        "off": (58, 34, 100),
+        "lit": [(214, 160, 245), (236, 196, 248), (255, 238, 252)],
+    },
+    "sponge": {
+        "colors": [(157, 143, 57), (183, 172, 79), (193, 188, 78), (205, 206, 74), (225, 227, 81)],
+        "glint": None,
+        # The holes of the sponge.
+        "pores": (122, 108, 40),
+        "off": (104, 94, 38),
+        "lit": [(90, 170, 230), (140, 205, 245), (215, 240, 255)],
+    },
+    "bone": {
+        "colors": [(205, 200, 176), (222, 218, 197), (225, 221, 202), (230, 226, 210), (233, 230, 212)],
+        "glint": None,
+        "off": (118, 114, 98),
+        "lit": [(200, 60, 60), (235, 110, 100), (255, 200, 190)],
+    },
+}
+
+
+UPGRADED_EYES = [(226, 148, 42), (250, 202, 92), (255, 242, 196)]
+
+
+def save_image(image, *path):
+    target = os.path.join(ASSETS, *path)
+    if os.path.exists(target) and not FORCE:
+        return
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    image.save(target)
 
 
 def noise(*key):
@@ -99,9 +187,7 @@ class Canvas:
                     self.put(fu + i, fv + j, painter(*to_model(i, j)))
 
     def save(self, *path):
-        target = os.path.join(ASSETS, *path)
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        self.image.save(target)
+        save_image(self.image, *path)
 
 
 # --------------------------------------------------------------------------------------------- golems
@@ -218,6 +304,141 @@ def golem(tier):
     glow.save("textures", "entity", "mining_golem", f"{tier}_golem_eyes.png")
 
 
+def block_golem(name):
+    """A golem with the look of its block: blotches of the block's colours over every face."""
+    style = BLOCK_GOLEMS[name]
+    colors = style["colors"]
+    c = Canvas()
+
+    def surface(seed, darker=0):
+        def paint(a, b):
+            if style["glint"] and darker == 0 and noise(name, seed, "glint", a, b) > 0.95:
+                return style["glint"]
+            if style.get("pores") and noise(name, seed, "pore", a, b) > 0.87:
+                return style["pores"]
+            value = 0.55 * noise(name, seed, a // 2, b // 2) + 0.45 * noise(name, seed, "fine", a, b)
+            return colors[max(0, min(len(colors) - 1, int(value * len(colors))) - darker)]
+
+        return paint
+
+    def part(seed, darker=0):
+        painters = {face: surface(seed + face, darker) for face in ("north", "south", "west", "east", "down")}
+        # The underside is never lit.
+        painters["up"] = lambda a, b: colors[0]
+        return painters
+
+    head = part("head")
+    front = head["north"]
+    head["north"] = lambda x, y: style["off"] if (x, y) in EYES else front(x, y)
+    c.box(0, 0, 8, 5, 10, head)
+    c.box(56, 0, 2, 3, 2, part("nose", 1))
+    c.box(37, 8, 2, 4, 2, part("rod", 2))
+    c.box(37, 0, 4, 4, 4, part("knob"))
+
+    body = part("body")
+    chest_front = body["north"]
+    body["north"] = lambda x, y: style["off"] if (x, y) in CORE else chest_front(x, y)
+    c.box(0, 15, 8, 6, 6, body)
+
+    # Hands and feet a shade darker than the limb.
+    for seed, u in (("rarm", 36), ("larm", 50)):
+        arm = part(seed)
+        for face in ("north", "south", "west", "east"):
+            arm[face] = (lambda limb, hand: lambda a, y: hand(a, y) if y >= 8 else limb(a, y))(arm[face], surface(seed + face, 1))
+        c.box(u, 16, 3, 10, 4, arm)
+    for seed, u in (("rleg", 0), ("lleg", 16)):
+        leg = part(seed)
+        for face in ("north", "south", "west", "east"):
+            leg[face] = (lambda limb, foot: lambda a, y: foot(a, y) if y == 4 else limb(a, y))(leg[face], surface(seed + face, 1))
+        c.box(u, 27, 4, 5, 4, leg)
+    c.save("textures", "entity", "mining_golem", f"{name}_golem.png")
+    glow_layer(name, style["lit"])
+
+
+def glow_layer(name, lit):
+    """The eyes texture, only drawn while the golem is working: the eyes and the core, brightest at one corner."""
+    glow = Canvas()
+    dim, medium, bright = lit
+    for u, v in ((11, 11), (15, 11)):
+        glow.put(u, v, dim)
+        glow.put(u + 1, v, medium)
+        glow.put(u, v + 1, medium)
+        glow.put(u + 1, v + 1, bright)
+    glow.put(9, 23, bright)
+    glow.put(10, 23, medium)
+    glow.put(9, 24, medium)
+    glow.put(10, 24, dim)
+    glow.save("textures", "entity", "mining_golem", f"{name}_golem_eyes.png")
+
+
+def scarecrow_golem():
+    """The hay golem: a sackcloth head, a checked shirt, patched trousers and straw sticking out everywhere."""
+    name = "hay"
+    sack = [(150, 122, 74), (172, 142, 88), (188, 158, 100), (202, 174, 116)]
+    straw = [(171, 146, 37), (191, 171, 49), (203, 182, 48), (230, 205, 70)]
+    shirt = [(120, 44, 34), (146, 58, 42), (168, 74, 52)]
+    trousers = [(52, 66, 104), (64, 82, 126), (78, 98, 146)]
+    wood = [(92, 64, 38), (112, 80, 48)]
+    c = Canvas()
+
+    def cloth(colors, seed):
+        return lambda a, b: colors[int(noise(name, seed, a, b) * len(colors)) % len(colors)]
+
+    def strawy(seed):
+        return cloth(straw, seed)
+
+    def part(painter):
+        painters = {face: painter for face in ("north", "south", "west", "east", "down")}
+        painters["up"] = lambda a, b: sack[0]
+        return painters
+
+    head = part(cloth(sack, "head"))
+    weave = head["north"]
+
+    def face(x, y):
+        if (x, y) in EYES:
+            return (48, 34, 22)
+        # A stitched mouth under the nose.
+        if y == 4 and x in (1, 2, 5, 6):
+            return sack[0]
+        return weave(x, y)
+
+    head["north"] = face
+    # Straw hair showing under the hat, all round the top of the head.
+    for side in ("north", "south", "west", "east"):
+        head[side] = (lambda base: lambda a, y: straw[int(noise(name, "hair", a) * 4)] if y == 0 and (a, y) not in EYES else base(a, y))(head[side])
+    head["down"] = strawy("hat")
+    c.box(0, 0, 8, 5, 10, head)
+    # A carrot for a nose, a stick for the antenna and a straw knob on top.
+    c.box(56, 0, 2, 3, 2, part(cloth([(214, 118, 30), (232, 140, 44)], "nose")))
+    c.box(37, 8, 2, 4, 2, part(cloth(wood, "rod")))
+    c.box(37, 0, 4, 4, 4, part(strawy("knob")))
+
+    def checked(a, b):
+        return shirt[((a // 2) + (b // 2)) % 2 + (1 if noise(name, "shirt", a, b) > 0.7 else 0)]
+
+    body = part(checked)
+
+    def chest_front(x, y):
+        if (x, y) in CORE:
+            return (48, 34, 22)
+        # Straw at the collar.
+        return straw[int(noise(name, "collar", x) * 4)] if y == 0 and x % 2 == 0 else checked(x, y)
+
+    body["north"] = chest_front
+    c.box(0, 15, 8, 6, 6, body)
+
+    # Sleeves ending in bunches of straw for hands.
+    for seed, u in (("rarm", 36), ("larm", 50)):
+        arm = part(lambda a, y: strawy(seed)(a, y) if y >= 7 else checked(a, y))
+        c.box(u, 16, 3, 10, 4, arm)
+    for seed, u in (("rleg", 0), ("lleg", 16)):
+        leg = part((lambda s: lambda a, y: strawy(s)(a, y) if y == 4 else cloth(trousers, s)(a, y))(seed))
+        c.box(u, 27, 4, 5, 4, leg)
+    c.save("textures", "entity", "mining_golem", f"{name}_golem.png")
+    glow_layer(name, [(230, 170, 40), (250, 215, 90), (255, 245, 190)])
+
+
 # --------------------------------------------------------------------------------------------- chests
 # Chest models are drawn with Y pointing up, so y = 0 is the bottom of each cuboid. South is the front.
 # A double chest is painted as one 30 pixel wide chest and cut in two: the "right" model is the low-X
@@ -238,7 +459,32 @@ def chest(tier, kind):
     def rivets(w, h, x, y):
         return x in (2, w - 3) and y in (2, h - 3)
 
+    def soaked(color):
+        """Darker and a touch greener, the way a sponge goes when it is wet."""
+        return (int(color[0] * 0.68), int(color[1] * 0.74), int(color[2] * 0.62))
+
+    def straw(seed, x):
+        """Ears of wheat, mostly golden with the odd green stalk, or None where there is none."""
+        n = noise("straw", seed, x)
+        return (236, 208, 72) if n < 0.5 else (112, 152, 50) if n < 0.66 else None
+
     def wall(seed, w, h, x, y, e, band_row):
+        color = plain_wall(seed, w, h, x, y, e, band_row)
+        lid = seed.startswith("lid")
+        if tier == "sponge" and not lid and y >= h // 2:
+            # The bottom half of the sponge chest is waterlogged.
+            return soaked(color)
+        if tier == "hay":
+            # Wheat poking out through the gap between lid and base, a few ears standing or hanging further.
+            at_gap = y == h - 1 if lid else y == 0
+            near_gap = y == h - 2 if lid else y == 1
+            if at_gap and straw(seed[:3], x):
+                return straw(seed[:3], x)
+            if near_gap and noise("ear", seed, x) < 0.3 and straw(seed[:3], x):
+                return straw(seed[:3], x)
+        return color
+
+    def plain_wall(seed, w, h, x, y, e, band_row):
         def body(x, y):
             if y == band_row:
                 return pal["dark"]
@@ -299,19 +545,6 @@ def chest(tier, kind):
     c.save("textures", "entity", "chest", tier + ("" if kind == "single" else "_" + kind) + ".png")
 
 
-def antenna_glint():
-    """Greyscale streaks on black for the enchanted antenna. Drawn additively and tinted, so black is invisible."""
-    size = 16
-    image = Image.new("RGBA", (size, size), (0, 0, 0, 255))
-    for y in range(size):
-        for x in range(size):
-            band = (x + 2 * y) % 8
-            value = (255, 170, 70, 0, 0, 40, 110, 200)[band]
-            value = int(value * (0.75 + 0.25 * noise("glint", x, y)))
-            image.putpixel((x, y), (value, value, value, 255))
-    image.save(os.path.join(ASSETS, "textures", "entity", "mining_golem", "antenna_glint.png"))
-
-
 def icon():
     """Mod icon: the iron golem's face, scaled up."""
     pal = PALETTES["iron"]
@@ -323,13 +556,18 @@ def icon():
         face.putpixel((x, y + 2), (pal["accent"] if y == 2 else pal["accent_dark"]) + (255,))
     for x, y in ((3, 5), (4, 5), (3, 6), (4, 6)):
         face.putpixel((x, y), pal["dark"] + (255,))
-    face.resize((128, 128), Image.NEAREST).save(os.path.join(ASSETS, "icon.png"))
+    save_image(face.resize((128, 128), Image.NEAREST), "icon.png")
 
 
 if __name__ == "__main__":
-    for tier in PALETTES:
+    for tier in ("iron", "diamond", "netherite"):
         golem(tier)
+    for name in BLOCK_GOLEMS:
+        block_golem(name)
+    scarecrow_golem()
+    for tier in PALETTES:
         for kind in ("single", "left", "right"):
             chest(tier, kind)
-    antenna_glint()
+    # The amethyst golem's eyes once a spyglass has upgraded it: brass instead of lilac.
+    glow_layer("amethyst_upgraded", UPGRADED_EYES)
     icon()

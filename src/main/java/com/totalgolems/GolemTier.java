@@ -3,54 +3,36 @@ package com.totalgolems;
 import com.totalgolems.entity.MiningGolem;
 import com.totalgolems.registry.ModBlocks;
 import com.totalgolems.registry.ModEntities;
-import java.util.List;
-import java.util.stream.Stream;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Everything that differs between the golems: what they are built from, how big a tunnel they dig,
- * how much they carry and how fast they work.
+ * Everything that differs between the mining golems: what they are built from, how big a tunnel they
+ * dig, how much they carry, how fast they move and how many blocks they work on at once. What they
+ * dig with is the pickaxe they are given, whatever the tier.
  */
 public enum GolemTier {
-	IRON("iron", 5, 0, 2, 0, 0, false, 30.0),
-	DIAMOND("diamond", 15, 1, 3, 2, 0, false, 60.0),
-	NETHERITE("netherite", 27, 1, 3, 2, 2, true, 100.0);
+	IRON("iron", 9, 0, 2, 1, 0),
+	DIAMOND("diamond", 15, 1, 3, 2, 0),
+	NETHERITE("netherite", 27, 1, 3, 3, 2);
 
 	private final String id;
 	private final int inventorySlots;
 	private final int tunnelRadius;
 	private final int tunnelHeight;
-	private final int hasteLevel;
+	private final int blocksAtOnce;
 	private final int speedLevel;
-	private final boolean breaksSliceAtOnce;
-	private final double maxHealth;
-	private @Nullable List<ItemStack> tools;
 
-	GolemTier(
-		final String id,
-		final int inventorySlots,
-		final int tunnelRadius,
-		final int tunnelHeight,
-		final int hasteLevel,
-		final int speedLevel,
-		final boolean breaksSliceAtOnce,
-		final double maxHealth
-	) {
+	GolemTier(final String id, final int inventorySlots, final int tunnelRadius, final int tunnelHeight, final int blocksAtOnce, final int speedLevel) {
 		this.id = id;
 		this.inventorySlots = inventorySlots;
 		this.tunnelRadius = tunnelRadius;
 		this.tunnelHeight = tunnelHeight;
-		this.hasteLevel = hasteLevel;
+		this.blocksAtOnce = blocksAtOnce;
 		this.speedLevel = speedLevel;
-		this.breaksSliceAtOnce = breaksSliceAtOnce;
-		this.maxHealth = maxHealth;
 	}
 
 	public String id() {
@@ -72,16 +54,7 @@ public enum GolemTier {
 
 	/** How many blocks the golem works on at the same time. */
 	public int blocksAtOnce() {
-		return this.breaksSliceAtOnce ? (2 * this.tunnelRadius + 1) * this.tunnelHeight : 1;
-	}
-
-	public double maxHealth() {
-		return this.maxHealth;
-	}
-
-	/** Same multiplier the Haste effect gives a player. */
-	public float hasteMultiplier() {
-		return 1.0F + this.hasteLevel * 0.2F;
+		return this.blocksAtOnce;
 	}
 
 	/** Same multiplier the Speed effect gives. */
@@ -89,18 +62,24 @@ public enum GolemTier {
 		return 1.0 + this.speedLevel * 0.2;
 	}
 
-	/** The golem digs as if it carried a pickaxe, shovel and axe of its material, using whichever suits the block. */
-	public List<ItemStack> tools() {
-		if (this.tools == null) {
-			Stream<Item> items = switch (this) {
-				case IRON -> Stream.of(Items.IRON_PICKAXE, Items.IRON_SHOVEL, Items.IRON_AXE);
-				case DIAMOND -> Stream.of(Items.DIAMOND_PICKAXE, Items.DIAMOND_SHOVEL, Items.DIAMOND_AXE);
-				case NETHERITE -> Stream.of(Items.NETHERITE_PICKAXE, Items.NETHERITE_SHOVEL, Items.NETHERITE_AXE);
-			};
-			this.tools = items.map(ItemStack::new).toList();
+	/** A netherite golem has to be given a wither rose once before it will take a pattern flower. */
+	public boolean startsLocked() {
+		return this == NETHERITE;
+	}
+
+	public boolean isChest(final BlockState state) {
+		return state.is(this.chestBlock());
+	}
+
+	/** Whether the block is the chest of a mining golem of any tier. */
+	public static boolean isMinerChest(final BlockState state) {
+		for (GolemTier tier : values()) {
+			if (tier.isChest(state)) {
+				return true;
+			}
 		}
 
-		return this.tools;
+		return false;
 	}
 
 	public EntityType<MiningGolem> entityType() {

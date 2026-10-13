@@ -1,6 +1,7 @@
 package com.totalgolems.entity;
 
 import com.totalgolems.GolemTier;
+import com.totalgolems.block.MetalChestBlock;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -9,7 +10,9 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -36,8 +39,8 @@ public class QuarryPlan {
 	private final int radius;
 	private final int height;
 	private final List<int[]> waypoints;
-	/** Floor blocks kept so the golem can walk from the top of the stairs to a chest inside the chunk. */
-	private final Set<BlockPos> walkway;
+	/** Floor blocks kept so that golems can still walk to the chests inside the chunk once the ground around them is gone. */
+	private final Set<BlockPos> walkway = new HashSet<>();
 	private int layer;
 	private int stairsBuilt;
 	private int routeIndex;
@@ -50,28 +53,71 @@ public class QuarryPlan {
 		this.radius = tier.tunnelRadius();
 		this.height = tier.tunnelHeight();
 		this.waypoints = buildWaypoints(this.radius);
-		this.walkway = this.buildWalkway(chest);
+		if (chest != null) {
+			this.addWalkway(chest, stairStart);
+		}
 	}
 
+	/** A quarry of the chunk the golem stands in. */
 	public static QuarryPlan create(final BlockPos feet, final @Nullable BlockPos chest, final GolemTier tier) {
-		int minX = feet.getX() & ~15;
-		int minZ = feet.getZ() & ~15;
+		return create(feet.getX() >> 4, feet.getZ() >> 4, feet, chest, tier);
+	}
+
+	/**
+	 * A quarry of the given chunk, which need not be the one the golem is in: it starts at the golem's
+	 * height, with the top of the staircase on the side facing its chest.
+	 */
+	public static QuarryPlan create(final int chunkX, final int chunkZ, final BlockPos feet, final @Nullable BlockPos chest, final GolemTier tier) {
+		int minX = chunkX << 4;
+		int minZ = chunkZ << 4;
 		BlockPos towards = chest != null ? chest : feet;
-		int targetX = towards.getX() - minX;
-		int targetZ = towards.getZ() - minZ;
+		return new QuarryPlan(minX, minZ, feet.getY(), nearestRingIndex(towards.getX() - minX, towards.getZ() - minZ), tier, chest);
+	}
+
+	/** The ring cell closest to a place given in local coordinates, which may be outside the chunk. Never that place itself. */
+	private static int nearestRingIndex(final int x, final int z) {
 		int best = 0;
 		int bestDistance = Integer.MAX_VALUE;
 		for (int index = 0; index < RING_LENGTH; index++) {
 			int[] cell = ringCell(index);
-			int distance = Math.abs(cell[0] - targetX) + Math.abs(cell[1] - targetZ);
-			// The stairs cannot start on the chest itself.
+			int distance = Math.abs(cell[0] - x) + Math.abs(cell[1] - z);
 			if (distance > 0 && distance < bestDistance) {
 				best = index;
 				bestDistance = distance;
 			}
 		}
 
-		return new QuarryPlan(minX, minZ, feet.getY(), best, tier, chest);
+		return best;
+	}
+
+	public int chunkX() {
+		return this.minX >> 4;
+	}
+
+	public int chunkZ() {
+		return this.minZ >> 4;
+	}
+
+	/** Whether no layer has been finished yet, so the golem may still be on its way to the chunk. */
+	public boolean isOnFirstLayer() {
+		return this.layer == 0;
+	}
+
+	/**
+	 * Keeps a path to every golem chest standing in the chunk at the quarry's starting height, not just
+	 * this golem's own: another golem's chest must not be left stranded over the pit.
+	 */
+	public void protectChests(final Level level) {
+		if (!level.hasChunk(this.chunkX(), this.chunkZ())) {
+			return;
+		}
+
+		for (BlockEntity blockEntity : level.getChunk(this.chunkX(), this.chunkZ()).getBlockEntities().values()) {
+			BlockPos pos = blockEntity.getBlockPos();
+			if (blockEntity.getBlockState().getBlock() instanceof MetalChestBlock) {
+				this.addWalkway(pos, nearestRingIndex(pos.getX() - this.minX, pos.getZ() - this.minZ));
+			}
+		}
 	}
 
 	public static @Nullable QuarryPlan load(final int[] data, final GolemTier tier, final @Nullable BlockPos chest) {
@@ -151,13 +197,14 @@ public class QuarryPlan {
 		return cells;
 	}
 
-	private Set<BlockPos> buildWalkway(final @Nullable BlockPos chest) {
-		Set<BlockPos> blocks = new HashSet<>();
-		if (chest == null || chest.getY() != this.topY || !this.contains(chest)) {
-			return blocks;
+	/** Protects the floor from the ring cell {@code ringIndex} to the chest, in a straight line or an L. */
+	private void addWalkway(final BlockPos chest, final int ringIndex) {
+		Set<BlockPos> blocks = this.walkway;
+		if (chest.getY() != this.topY || !this.contains(chest)) {
+			return;
 		}
 
-		int[] start = ringCell(this.stairStart);
+		int[] start = ringCell(ringIndex);
 		int x = start[0];
 		int z = start[1];
 		int chestX = chest.getX() - this.minX;
@@ -170,8 +217,6 @@ public class QuarryPlan {
 				z += Integer.signum(chestZ - z);
 			}
 		}
-
-		return blocks;
 	}
 
 	public boolean contains(final BlockPos pos) {
@@ -181,6 +226,11 @@ public class QuarryPlan {
 	/** Whether {@code pos} is in this quarry's chunk and no higher than where it was started. */
 	public boolean isInsidePit(final BlockPos pos) {
 		return this.contains(pos) && pos.getY() <= this.topY;
+	}
+
+	/** The whole pit, dug or not: the chunk from the layer being worked on up to the top of the first one. */
+	public BoundingBox pit() {
+		return new BoundingBox(this.minX, this.layerFeetY(), this.minZ, this.minX + SIZE - 1, this.topY + this.height - 1, this.minZ + SIZE - 1);
 	}
 
 	public int layerFeetY() {
@@ -252,7 +302,8 @@ public class QuarryPlan {
 		int fromZ = cell.getZ() - this.minZ;
 		for (; this.routeIndex < this.waypoints.size(); this.routeIndex++) {
 			int[] target = this.waypoints.get(this.routeIndex);
-			if (target[0] == fromX && target[1] == fromZ || this.isBlocked(level, target[0], target[1], y)) {
+			// Nothing to dig around it either: no point walking there. A layer of open air is over at once.
+			if (target[0] == fromX && target[1] == fromZ || this.isBlocked(level, target[0], target[1], y) || !this.hasWork(level, target[0], target[1], y)) {
 				continue;
 			}
 
@@ -267,6 +318,19 @@ public class QuarryPlan {
 		}
 
 		return null;
+	}
+
+	/** Whether standing next to this cell of the layer there would be anything for the golem to break. */
+	private boolean hasWork(final Level level, final int x, final int z, final int y) {
+		BlockPos cell = new BlockPos(this.minX + x, y, this.minZ + z);
+		for (BlockPos pos : this.slice(cell.west(), cell)) {
+			BlockState state = level.getBlockState(pos);
+			if (!state.isAir() && !state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity() && state.getDestroySpeed(level, pos) >= 0.0F) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private boolean isBlocked(final Level level, final int x, final int z, final int y) {

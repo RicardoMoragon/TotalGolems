@@ -3,9 +3,10 @@ package com.totalgolems.client.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.totalgolems.TotalGolems;
 import com.totalgolems.block.MetalChestBlockEntity;
-import com.totalgolems.registry.ModBlocks;
 import it.unimi.dsi.fastutil.floats.Float2FloatFunction;
 import it.unimi.dsi.fastutil.ints.Int2IntFunction;
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.client.model.object.chest.ChestModel;
 import net.minecraft.client.renderer.MultiblockChestResources;
 import net.minecraft.client.renderer.Sheets;
@@ -20,6 +21,8 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.resources.model.sprite.SpriteGetter;
 import net.minecraft.client.resources.model.sprite.SpriteId;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner.NeighborCombineResult;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
@@ -34,8 +37,8 @@ import org.jspecify.annotations.Nullable;
  */
 public class MetalChestRenderer implements BlockEntityRenderer<MetalChestBlockEntity, MetalChestRenderer.State> {
 	private static final MultiblockChestResources<SpriteId> IRON = sprites("iron");
-	private static final MultiblockChestResources<SpriteId> DIAMOND = sprites("diamond");
-	private static final MultiblockChestResources<SpriteId> NETHERITE = sprites("netherite");
+	/** Each chest block's textures, found by its name: sponge_chest uses sponge, sponge_left and sponge_right. */
+	private static final Map<Block, MultiblockChestResources<SpriteId>> TEXTURES = new HashMap<>();
 	private final SpriteGetter sprites;
 	private final MultiblockChestResources<ChestModel> models;
 
@@ -65,7 +68,9 @@ public class MetalChestRenderer implements BlockEntityRenderer<MetalChestBlockEn
 		BlockState blockState = blockEntity.getBlockState();
 		state.type = blockState.getValue(ChestBlock.TYPE);
 		state.facing = blockState.getValue(ChestBlock.FACING);
-		state.textures = blockState.is(ModBlocks.NETHERITE_CHEST) ? NETHERITE : blockState.is(ModBlocks.DIAMOND_CHEST) ? DIAMOND : IRON;
+		state.textures = TEXTURES.computeIfAbsent(
+			blockState.getBlock(), block -> sprites(BuiltInRegistries.BLOCK.getKey(block).getPath().replace("_chest", ""))
+		);
 		if (blockEntity.getLevel() != null && blockState.getBlock() instanceof ChestBlock chestBlock) {
 			NeighborCombineResult<? extends ChestBlockEntity> combineResult = chestBlock.combine(
 				blockState, blockEntity.getLevel(), blockEntity.getBlockPos(), true

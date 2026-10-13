@@ -6,7 +6,9 @@
 	"environment": "*",
 	"entrypoints": {
 		"fabric-gametest": [
-			"com.totalgolems.test.MiningGolemTests"
+			"com.totalgolems.test.MiningGolemTests",
+			"com.totalgolems.test.FarmGolemTests",
+			"com.totalgolems.test.GolemUpgradeTests"
 		],
 		"fabric-client-gametest": [
 			"com.totalgolems.test.ScreenshotClientTest"

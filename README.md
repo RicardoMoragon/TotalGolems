@@ -1,8 +1,41 @@
 # Total Golems
 
-Mod de Fabric para Minecraft 26.3 que añade gólems mineros construidos con bloques de mineral.
+Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con bloques de mineral.
 
-## Cómo se usa
+| Bloque | Gólem | Flor que lo activa | Herramienta | Qué hace |
+|---|---|---|---|---|
+| Hierro, diamante, netherita | Minero | Amapola o diente de león | Pico | Pica túneles o canteras y lo lleva a su cofre |
+| Carbón | Fundidor | Margarita (oxeye daisy) | — | Vacía los cofres de los demás: funde lo fundible y lleva el resto a un cofre de cobre |
+| Amatista | Leñador | Lirio de los valles | Hacha | Tala y replanta los árboles de su chunk (3x3 chunks con un catalejo) |
+| Esponja | Drenador | Orquídea azul | — | Seca el agua cercana con esponjas, o la que inunda a un minero |
+| Heno | Agricultor | Aciano (cornflower) | Azada | Ara, siembra y cosecha el campo vallado en el que está |
+| Hueso | Ganadero | Tulipán blanco | Espada | Alimenta, cría y sacrifica los animales de su recinto |
+
+Todos se crean igual: el bloque con una **calabaza tallada** encima. Se activan dándoles su flor con clic derecho y se
+paran quitándosela con la mano vacía. Tienen los **ojos encendidos solo mientras trabajan**.
+
+## Herramientas
+
+El minero, el leñador, el agricultor y el ganadero trabajan con una **herramienta de verdad** que cogen de su propio
+cofre y llevan en la mano: pico, hacha, azada y espada. Vale cualquiera, de cualquier material.
+
+- La herramienta **se gasta con cada uso igual que en manos de un jugador** (un punto por bloque picado, tronco talado,
+  casilla arada, cultivo cosechado o animal sacrificado) y se rompe al llegar a cero. Irrompibilidad funciona como siempre.
+- La **piedra y la pizarra naturales gastan la mitad**: de cada dos bloques, solo el primero desgasta el pico. Cuentan la
+  piedra, la pizarra profunda, el granito, la diorita, la andesita y la toba. Las menas y el resto gastan un punto.
+- Al romperse, el gólem **vuelve a su cofre a por otra**. Si no hay, se queda **junto al cofre con los ojos apagados**
+  hasta que pongas una; en cuanto la hay, la coge y sigue donde lo dejó.
+- Sin herramienta no hacen nada de su trabajo: hay que dejarles una en el cofre antes de darles la flor. La excepción
+  es el ganadero, que sin espada sigue alimentando y recogiendo y solo deja de sacrificar.
+- Al morir sueltan la herramienta que llevan.
+
+### Cofres que se tocan
+
+Los cofres del mod **del mismo tipo que se tocan** (simples o dobles, también uno encima de otro) forman **un único
+inventario** para su gólem: guarda en todos y busca en todos, herramientas incluidas. Un grupo llega hasta **8 cofres**
+(un cofre doble cuenta como uno). Sirve para todos los tipos de cofre.
+
+## Gólems mineros
 
 1. Coloca un **bloque de hierro**, de **diamante** o de **netherita** y pon encima una **calabaza tallada** (o una calabaza
    iluminada). El bloque se convierte en un cofre de ese material y aparece el gólem delante, asociado a ese cofre.
@@ -11,11 +44,21 @@ Mod de Fabric para Minecraft 26.3 que añade gólems mineros construidos con blo
 
 | | Hierro | Diamante | Netherita |
 |---|---|---|---|
-| Túnel | 1 de ancho x 2 de alto | 3 x 3 | 3 x 3, los 9 bloques a la vez |
-| Inventario | 5 huecos | 15 huecos | 27 huecos |
-| Herramientas | Hierro | Diamante con Prisa II | Netherita con Prisa II |
+| Túnel | 1 de ancho x 2 de alto | 3 x 3 | 3 x 3 |
+| Bloques que pica a la vez | 1 | 2 | 3 |
+| Inventario | 9 huecos | 15 huecos | 27 huecos |
 | Movimiento | Normal | Normal | Velocidad II |
-| Vida | 30 | 60 | 100 |
+
+Los tres tienen **60 de vida** y pican cada bloque a la velocidad del pico, sin Prisa: lo que cambia con el material es
+cuántos bloques trabajan a la vez. Más bloques a la vez es más rápido, y gasta el pico igual de rápido.
+
+El material del gólem ya no decide con qué pica: **pica con el pico que lleva**, a la velocidad de ese pico y con sus
+encantamientos (**Eficiencia**, **Fortuna**, **Toque de seda**, Irrompibilidad...). Usa el pico para todos los bloques,
+así que la tierra o la arena le cuestan lo mismo que a ti con un pico en la mano, y un pico demasiado flojo para un
+mineral lo rompe despacio y sin soltar nada. Los libros encantados ya no se le dan al gólem: encanta el pico.
+
+El gólem de **netherita** recién creado **no acepta amapola ni diente de león**. Dale primero una **rosa de Wither**: se
+gasta y lo desbloquea para siempre. Después elige patrón con amapola o diente de león como los demás.
 
 Cuando no le cabe un objeto más, el gólem vuelve a su cofre, lo vacía todo y regresa al punto donde lo dejó.
 Si el cofre está lleno (o lo han roto) se queda esperando junto a él y no sigue picando.
@@ -37,29 +80,153 @@ mineral, arena o grava).
   - Si el cofre está dentro del chunk y a su misma altura, deja también una pasarela desde lo alto de la escalera hasta él.
   - Los cofres y bloques irrompibles que encuentra los rodea y los deja en pie.
   - Si le quitas la flor y se la vuelves a dar dentro del mismo pozo, sigue con la misma cantera y la misma escalera.
+  - **Un gólem por chunk.** Si el chunk ya lo está picando otro gólem, el nuevo se queda con el chunk libre más cercano
+    (hasta dos chunks de distancia) y va hasta él abriéndose paso. Así no se destrozan las escaleras ni el suelo entre ellos.
+  - Deja una pasarela hasta todos los cofres de gólem que haya dentro del chunk, no solo el suyo.
+  - No recorre las zonas de una capa donde no hay nada que picar: una capa de aire se da por hecha al momento.
 
 Darle la flor que ya lleva reinicia el patrón desde donde está; darle la otra se la cambia y te devuelve la anterior.
 El resto de flores no tienen patrón y no las acepta.
 
-### Encantamientos
+### Agua
 
-Clic derecho con un **libro encantado** de **Fortuna** (I, II o III) o **Toque de seda**. El libro se gasta y el gólem pica
-como si sus herramientas llevaran ese encantamiento. Solo puede tener uno: al darle otro libro te devuelve el anterior.
-La antena brilla en **rojo** con Fortuna y en **azul** con Toque de seda. Al morir suelta el libro.
+Las corrientes no arrastran a los mineros: el agua solo los ralentiza. Si además hay un **gólem de esponja con su cofre
+pegado al cofre del minero**, trabajan juntos:
+
+1. Cuando el minero pasa **5 segundos seguidos dentro del agua**, deja de picar, vuelve a su cofre y avisa a la esponja.
+2. El gólem de esponja va al punto donde el minero encontró el agua y quita **toda el agua, fuentes y corrientes**, de la
+   zona de trabajo del minero: el chunk entero si hace cantera, la línea del túnel si hace túnel.
+3. Cuando no queda agua, avisa al minero y vuelve a su cofre. El minero **reanuda el trabajo donde lo dejó**.
+
+Si la esponja se queda sin esponjas secas a medias, el minero sigue esperando hasta que haya más. Sin gólem de esponja
+vinculado (o si no lleva su flor), el minero sigue picando dentro del agua como antes.
+
+## Gólem de carbón (fundidor)
+
+Calabaza sobre un **bloque de carbón**. No genera cofre: el bloque se consume. Se activa con una **margarita** y trabaja en
+un radio de 16 bloques alrededor del punto donde se la des.
+
+- Coge **cualquier objeto** de los cofres de **hierro, diamante, netherita, esponja y hueso**. Lleva 9 huecos para los
+  hornos, 9 de carbón y 9 para lo que va al cofre de cobre.
+- Lo **fundible** lo lleva a un horno: **minerales** (menas y metal en bruto), **carne y pescado crudos**, **patatas** y
+  **esponjas mojadas**. El carbón y el carbón vegetal los usa de combustible.
+- **Todo lo demás** lo lleva directamente al **cofre de cobre** más cercano (tienes que colocarlo tú).
+- **Nunca coge lo que necesita el dueño del cofre:**
+  - los **picos** de los cofres de minero y las **espadas** de los cofres de hueso;
+  - en cofres de minero, **64 bloques** de los que el minero usa como suelo (se lleva solo lo que pase de ahí);
+  - en cofres de esponja, las **esponjas secas** y el **carbón** de la hoguera;
+  - en cofres de hueso, la **comida que come algún animal del recinto** de ese gólem de hueso, salvo las patatas.
+- Atiende hasta **5 hornos**, los más cercanos, contando juntos hornos normales, altos hornos y ahumadores.
+  - Los minerales van a **altos hornos** y la comida a **ahumadores** si tiene alguno asignado; si no, a hornos normales.
+  - Las esponjas van siempre a hornos normales.
+- Pone la carga arriba y el carbón abajo. Reparte la carga a partes iguales entre los hornos que la admiten, y el carbón
+  también cuando no hay suficiente para todos.
+- Lleva lo que sale de los hornos al cofre de cobre, salvo las **esponjas secas, que devuelve a un cofre de esponja**.
+- Solo recoge algo si tiene dónde dejarlo: un horno del tipo adecuado libre, o sitio en un cofre de cobre.
+- **Hogueras.** A cada cofre de esponja que tenga una **hoguera encendida pegada** le mantiene **8 de carbón**, que saca
+  de los cofres de los mineros. Es lo que quema el gólem de esponja para secar sus esponjas (ver más abajo).
+
+## Gólem de cobre (el de siempre): filtro con marcos
+
+El gólem de cobre de Minecraft reparte lo que hay en los cofres de cobre. Con este mod puedes decirle dónde va cada cosa:
+
+- Si un cofre tiene **uno o más marcos de objeto pegados con un objeto dentro**, el gólem de cobre solo deposita en él los
+  objetos que coinciden con alguno de los marcos. Si lo que lleva no coincide, **ni se acerca ni lo abre**.
+- Los cofres **sin marcos** se comportan como siempre.
+- En un cofre doble vale un marco en cualquiera de las dos mitades. Coincide el tipo de objeto (un pico gastado vale para
+  un marco con un pico nuevo).
+
+## Gólem de amatista (leñador)
+
+Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa con un **lirio de los valles**.
+
+- Necesita un **hacha** en su cofre (ver Herramientas). Se gasta con cada tronco.
+- De base tala solo **el chunk donde se activa**. Dale un **catalejo** con clic derecho para subirlo de nivel: el catalejo
+  se gasta, su zona pasa a una malla de **3x3 chunks** que recorre en espiral desde el centro, y **sus ojos cambian de
+  color** (de lila a dorado). Al morir suelta el catalejo.
+- Desde el pie del árbol tira **todos los troncos**, por alto que sea, ramas incluidas. Las hojas las deja caer solas.
+- Al terminar un árbol **planta un brote** de su especie donde estaba (cuatro en los árboles de tronco 2x2), si tiene.
+- Lleva 10 huecos de madera y una reserva de hasta 64 brotes de cada tipo. Del suelo **solo recoge brotes**, y se acerca
+  a por los que ve a menos de 10 bloques.
+- Lleva la madera a su cofre cuando se llena o cuando se queda sin árboles.
+- Solo considera árbol un tronco sobre tierra que tenga hojas naturales, así que no toca construcciones de troncos.
+- **Se queda parado junto al cofre, con los ojos apagados**, si el cofre está lleno o si ya no quedan árboles en la zona.
+  Cada 30 segundos vuelve a mirar si ha crecido alguno.
+
+## Gólem de esponja (drenador)
+
+Calabaza sobre una **esponja seca**; deja un cofre de esponja. Se activa con una **orquídea azul** y trabaja en un radio de
+16 bloques alrededor de su cofre.
+
+- Coge esponjas secas de su cofre (6 huecos de secas y 6 de mojadas) y va al agua más cercana.
+- En cada absorción coloca una esponja, deja que absorba y la recoge mojada: quita exactamente el agua que quitaría una
+  esponja puesta a mano (hasta 6 bloques de distancia y 64 bloques de agua).
+- Elige el punto desde el que una esponja quitaría más agua, descontando un poco por la distancia. Los sitios donde ya
+  queda poca agua los deja para el final.
+- Cuando se queda sin secas vuelve al cofre, deja las mojadas y coge más. Si no hay secas, se queda parado junto a él.
+- El gólem de carbón seca las mojadas y las devuelve al cofre, así que con hornos y carbón el ciclo se mantiene solo.
+- **Hoguera.** Si hay una hoguera encendida pegada al cofre de esponja y **carbón en el cofre**, el gólem que vuelve con
+  esponjas mojadas gasta **1 de carbón** (o carbón vegetal), espera **30 segundos** delante de ella y todas las que lleva
+  pasan a secas de golpe. Sin carbón en el cofre la hoguera no sirve y deja las mojadas en el cofre, como siempre. El
+  carbón lo repone el gólem de carbón, o lo pones tú.
+- **Trabaja desde tierra firme cuando puede.** Si el punto donde va la esponja se alcanza desde un bloque seco (a menos
+  de unos 3 bloques), la coloca desde ahí y no se mete en el agua.
+- Si no, **flota** y coloca las esponjas desde la superficie, bajando con el agua que quita. Las corrientes no lo
+  arrastran. Si acaba en el fondo de un hoyo sin camino de vuelta, **se teletransporta a su cofre esté a la distancia
+  que esté**: es el único gólem que puede hacerlo.
+- **Con un minero.** Si su cofre de esponja está pegado a un cofre de hierro, diamante o netherita, queda al servicio de
+  ese minero: no busca agua por su cuenta y espera junto a su cofre a que el minero lo avise (ver *Agua* en los mineros).
+
+## Gólems de granja: el recinto vallado
+
+Los gólems de heno y de hueso trabajan en el **recinto vallado en el que están** cuando reciben la flor: todo lo que se
+puede recorrer a pie sin cruzar una valla, un muro, una puerta de valla o un bloque alto. Si el recinto no está cerrado
+(o mide más de unos 48 bloques hacia algún lado) no hacen nada. Nunca salen de él: usan los cofres desde dentro, así que
+los cofres pueden estar en la propia línea de la valla o pegados a ella.
+
+## Gólem de heno (agricultor)
+
+Calabaza sobre un **bloque de heno**; deja un cofre de heno. Se activa con un **aciano**. En este orden:
+
+1. Si no tiene **azada**, coge una de su cofre de heno. Sin azada no hace nada (ver Herramientas).
+2. **Ara** toda la tierra y la hierba del recinto.
+3. **Siembra** la tierra arada vacía. Si no lleva semillas las coge de su cofre, y si tampoco hay, las saca cosechando.
+4. **Cosecha** los cultivos maduros y **replanta** el mismo cultivo en el mismo sitio.
+5. Lleva la cosecha al **cofre de hueso** más cercano. Se queda hasta 64 semillas de cada tipo para replantar.
+
+Sirve cualquier cultivo que se plante en tierra arada: trigo, zanahorias, patatas, remolacha... La azada **se gasta al
+arar y al cosechar**, un punto por casilla arada y otro por cada cultivo recogido, así que hay que reponerla.
+
+## Gólem de hueso (ganadero)
+
+Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un **tulipán blanco**.
+
+- **Sin espada no sacrifica**, pero sigue alimentando y recogiendo. En cuanto hay una espada en su cofre de hueso la coge
+  (ver Herramientas), y la gasta un punto por cada animal que sacrifica. Saqueo en la espada da más botín.
+- **Aspecto ígneo no hace nada**: la carne sale siempre cruda, y la cocina el gólem de carbón.
+- **Alimenta** a los animales adultos del recinto con la comida de su especie, que coge de su cofre, para que críen.
+  Solo coge comida que coma algún animal del recinto.
+- Con **20 animales o menos nunca mata**. Con más, mata adultos hasta volver a 20. Las crías cuentan para el total pero
+  nunca se matan, y tampoco las mascotas ni los animales con nombre.
+- **Recoge lo que hay en el suelo** del recinto y lo deja en su cofre.
+- El cofre de hueso es el punto de encuentro de la granja: el gólem de heno deja en él el trigo, el de hueso lo usa para
+  alimentar, y el de carbón se lleva de él la carne cruda para cocinarla y todo lo que no sea comida de tus animales.
 
 ### Detalles
 
 - Es inmune al fuego y no se ahoga.
 - Solo se mueve en chunks cargados, como cualquier otra criatura.
-- Si lleva diez segundos sin poder moverse hacia donde va, se teletransporta a su destino.
-- Los cofres también se fabrican: un cofre rodeado de 8 lingotes de hierro, 8 diamantes u 8 lingotes de netherita.
-  Se unen en cofres dobles.
+- Si lleva diez segundos sin poder moverse hacia donde va, se teletransporta a su destino, siempre que esté a **16
+  bloques o menos**. Más lejos se queda donde está y lo sigue intentando a pie. La excepción es el gólem de esponja al
+  volver a su cofre.
+- Los cofres también se fabrican: un cofre rodeado de 8 lingotes de hierro, diamantes, lingotes de netherita, fragmentos
+  de amatista, esponjas, trigo o huesos. Se unen en cofres dobles.
 - Un gólem invocado con `/summon` adopta el cofre de gólem más cercano (8 bloques) al recibir la flor.
 - La forma de gólem de hierro de siempre (la T de cuatro bloques) sigue creando el gólem de hierro normal.
 
 ## Instalación
 
-Copia `build/libs/totalgolems-1.1.0.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
+Copia `build/libs/totalgolems-1.4.0.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
 
 ## Compilar
 
@@ -72,4 +239,7 @@ Hace falta un JDK 25.
 - `./gradlew runGameTest` ejecuta las pruebas de comportamiento (`src/gametest`).
 - `./gradlew runClientGameTest` abre el juego, monta una escena con los gólems y cofres y guarda una captura en
   `build/run/clientGameTest/screenshots`.
-- `python tools/generate_textures.py` regenera todas las texturas (necesita Pillow).
+- `python tools/generate_textures.py` genera las texturas que falten (necesita Pillow). No toca las que ya existen,
+  así que las editadas a mano están a salvo; con `--force` las regenera todas.
+- `python tools/make_blockbench_model.py` crea `art/mining_golem.bbmodel` para pintar las texturas sobre el modelo en
+  Blockbench.

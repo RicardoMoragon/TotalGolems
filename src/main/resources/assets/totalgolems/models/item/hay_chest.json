@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/template_chest",
+  "textures": {
+    "particle": "minecraft:block/hay_block_side"
+  }
+}

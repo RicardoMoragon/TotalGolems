@@ -3,7 +3,8 @@
 	"package": "com.totalgolems.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
-		"CarvedPumpkinBlockMixin"
+		"CarvedPumpkinBlockMixin",
+		"TransportItemsBetweenContainersMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
