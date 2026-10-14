@@ -233,7 +233,7 @@ public class GolemUpgradeTests {
 			}
 
 			helper.assertTrue(golem.getTool().is(Items.IRON_SWORD), "it should take the sword once there is one");
-			int herd = FarmGolemTests.animals(helper).size();
+			int herd = FarmGolemTests.penned(helper).size();
 			helper.assertTrue(herd == BoneGolem.MAX_ANIMALS, "with a sword it thins the herd to twenty, found " + herd);
 		});
 	}

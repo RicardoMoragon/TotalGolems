@@ -235,7 +235,8 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 - **Alimenta** a los animales adultos del recinto con la comida de su especie, que coge de su cofre, para que críen.
   Solo coge comida que coma algún animal del recinto.
 - Con **20 animales o menos nunca mata**. Con más, mata adultos hasta volver a 20. Las crías cuentan para el total pero
-  nunca se matan, y tampoco las mascotas ni los animales con nombre.
+  nunca se matan, y tampoco las mascotas ni los animales con nombre. Entre un sacrificio y el siguiente espera 10
+  segundos, para dar tiempo a que el rebaño críe. Los animales que acaban encima de la valla también cuentan.
 - **Recoge lo que hay en el suelo** del recinto y lo deja en su cofre.
 - El cofre de hueso es el punto de encuentro de la granja: el gólem de heno deja en él el trigo, el de hueso lo usa para
   alimentar, y el de carbón se lleva de él la carne cruda para cocinarla y todo lo que no sea comida de tus animales.

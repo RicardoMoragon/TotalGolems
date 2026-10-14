@@ -46,7 +46,8 @@ public final class Enclosure {
 			maxZ = Math.max(maxZ, cell.getZ());
 		}
 
-		this.bounds = new AABB(minX, minY - 1, minZ, maxX + 1, maxY + 3, maxZ + 1);
+		// Out to the fence line all round, where {@link #holds} still counts what stands there.
+		this.bounds = new AABB(minX - 1, minY - 1, minZ - 1, maxX + 2, maxY + 3, maxZ + 2);
 	}
 
 	/**
