@@ -63,7 +63,7 @@ public class FarmGolemTests {
 	 * A pool five by five and two deep is fifty blocks of water: one sponge's worth, but only from the
 	 * middle. From a corner the far side is out of a sponge's reach, and one sponge is all it gets.
 	 */
-	@GameTest(maxTicks = 1200)
+	@GameTest(maxTicks = 1200, padding = 16)
 	public void spongeGolemDrainsPoolWithAsFewSpongesAsPossible(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		for (int x = 1; x <= 7; x++) {
@@ -96,7 +96,7 @@ public class FarmGolemTests {
 		});
 	}
 
-	@GameTest(maxTicks = 300)
+	@GameTest(maxTicks = 300, padding = 16)
 	public void spongeGolemWaitsByChestWithoutDrySponges(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		helper.setBlock(5, 1, 5, Blocks.WATER);
@@ -278,7 +278,7 @@ public class FarmGolemTests {
 	// ------------------------------------------------------------------------------------ coal
 
 	/** One of each kind of furnace, and one chest of each kind of thing to smelt. */
-	@GameTest(maxTicks = 6000)
+	@GameTest(maxTicks = 6000, padding = 16)
 	public void coalGolemSortsOresMeatAndSpongesIntoTheRightFurnaces(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos spongeChest = new BlockPos(0, 1, 1);

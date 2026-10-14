@@ -122,7 +122,7 @@ public class MiningGolemTests {
 	 * A golem chest with raw iron, too little coal and some cobblestone; two furnaces; a copper chest.
 	 * Thirty-two raw iron is sixteen per furnace, which wants two coal each, but there are only two in all.
 	 */
-	@GameTest(maxTicks = 4000)
+	@GameTest(maxTicks = 4000, padding = 16)
 	public void coalGolemFeedsFurnacesSharesCoalAndStoresIngots(final GameTestHelper helper) {
 		CoalGolem golem = setUp(helper, ModEntities.COAL_GOLEM, ModBlocks.IRON_CHEST);
 		Container source = chest(helper);

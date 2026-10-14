@@ -281,7 +281,7 @@ public class GolemUpgradeTests {
 	 * into a pocket of water and then meets obsidian, slow enough to keep it standing there. It must go
 	 * home, the sponge golem next door must dry the tunnel, and then the miner must finish it.
 	 */
-	@GameTest(maxTicks = 4000)
+	@GameTest(maxTicks = 4000, padding = 16)
 	public void minerCallsSpongeGolemToDrainFloodedTunnel(final GameTestHelper helper) {
 		BlockPos spongeChest = CHEST.south();
 		MiningGolem miner = miner(helper, GolemTier.IRON, CHEST, new ItemStack(Items.DIAMOND_PICKAXE));
@@ -420,7 +420,7 @@ public class GolemUpgradeTests {
 		});
 	}
 
-	@GameTest(maxTicks = 300)
+	@GameTest(maxTicks = 300, padding = 16)
 	public void spongeGolemLinkedToMinerWaitsToBeCalled(final GameTestHelper helper) {
 		BlockPos spongeChest = CHEST.south();
 		floor(helper, Blocks.SMOOTH_STONE);
@@ -444,7 +444,7 @@ public class GolemUpgradeTests {
 	}
 
 	/** Two glass tanks four blocks deep: the sponge golem comes up to the top of its own, the miner stays at the bottom. */
-	@GameTest(maxTicks = 300)
+	@GameTest(maxTicks = 300, padding = 16)
 	public void spongeGolemFloatsAndCurrentsPushNeitherItNorMiners(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		for (BlockPos tank : List.of(new BlockPos(2, 1, 2), new BlockPos(5, 1, 5))) {
@@ -471,7 +471,7 @@ public class GolemUpgradeTests {
 	}
 
 	/** One sponge, two blocks of water, a campfire against the sponge chest and two pieces of coal in it. */
-	@GameTest(maxTicks = 2400)
+	@GameTest(maxTicks = 2400, padding = 16)
 	public void spongeGolemDriesItsSpongesAtCampfireByChest(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		helper.setBlock(CHEST, ModBlocks.SPONGE_CHEST);
@@ -501,7 +501,7 @@ public class GolemUpgradeTests {
 	}
 
 	/** The same, but with no coal in the chest: the fire is no use, and the wet sponge is left for the coal golem. */
-	@GameTest(maxTicks = 1200)
+	@GameTest(maxTicks = 1200, padding = 16)
 	public void spongeGolemCannotUseCampfireWithoutCoal(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		helper.setBlock(CHEST, ModBlocks.SPONGE_CHEST);
@@ -519,7 +519,7 @@ public class GolemUpgradeTests {
 	}
 
 	/** A sponge chest with a campfire against it is kept in coal out of the miner's chest; one without gets none. */
-	@GameTest(maxTicks = 2000)
+	@GameTest(maxTicks = 2000, padding = 16)
 	public void coalGolemKeepsSpongeChestWithCampfireInCoal(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos ironChest = new BlockPos(0, 1, 1);
@@ -549,7 +549,7 @@ public class GolemUpgradeTests {
 	 * chest. Everything goes to the copper chest, the potatoes by way of the furnace, except what the
 	 * owner of each chest needs.
 	 */
-	@GameTest(maxTicks = 4000)
+	@GameTest(maxTicks = 4000, padding = 16)
 	public void coalGolemCartsEverythingAwayExceptWhatOwnersNeed(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos ironChest = new BlockPos(0, 1, 1);
