@@ -49,6 +49,19 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 
 			context.waitTicks(60);
 			context.takeScreenshot("totalgolems_farm");
+			// Copper golems with Efficiency I, III and V, close up: the antenna glint and the dots on the forehead.
+			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 20");
+			context.waitTicks(5);
+			server.runCommand(at + "fill ~1 ~ ~-4 ~6 ~3 ~4 air");
+			int[] levels = {1, 3, 5};
+			for (int i = 0; i < levels.length; i++) {
+				server.runCommand(
+					at + "summon minecraft:copper_golem ~2 ~ ~" + (-0.9 + 0.9 * i) + " {NoAI:1b,Rotation:[90f,0f],\"fabric:attachments\":{\"totalgolems:copper_golem_efficiency\":" + levels[i] + "}}"
+				);
+			}
+
+			context.waitTicks(60);
+			context.takeScreenshot("totalgolems_copper");
 		}
 	}
 

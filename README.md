@@ -126,7 +126,7 @@ un radio de 16 bloques alrededor del punto donde se la des.
 - **Hogueras.** A cada cofre de esponja que tenga una **hoguera encendida pegada** le mantiene **8 de carbón**, que saca
   de los cofres de los mineros. Es lo que quema el gólem de esponja para secar sus esponjas (ver más abajo).
 
-## Gólem de cobre (el de siempre): filtro con marcos
+## Gólem de cobre (el de siempre): marcos y Eficiencia
 
 El gólem de cobre de Minecraft reparte lo que hay en los cofres de cobre. Con este mod puedes decirle dónde va cada cosa:
 
@@ -137,6 +137,26 @@ El gólem de cobre de Minecraft reparte lo que hay en los cofres de cobre. Con e
 - Los cofres **sin marcos** se comportan como siempre: solo reciben un objeto si están vacíos o ya tienen ese objeto.
 - En un cofre doble vale un marco en cualquiera de las dos mitades. Coincide el tipo de objeto (un pico gastado vale para
   un marco con un pico nuevo).
+
+### Eficiencia
+
+Dale al gólem de cobre un **libro encantado de Eficiencia** con clic derecho. El libro se gasta y el gólem sube de nivel.
+Los niveles van **en orden estricto**: sin nivel solo acepta Eficiencia I, con I solo II, y así hasta V. Cualquier otro
+libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qué nivel necesita.
+
+| Nivel | Efecto (acumulativo) |
+|---|---|
+| I | Lleva hasta **32** objetos por viaje (16 sin encantar) |
+| II | Hasta **48** |
+| III | Hasta **64**, una pila entera. Nunca más de lo que admite la pila del objeto (16 en perlas de ender, huevos, carteles...) |
+| IV | Las esperas al abrir un cofre, coger y dejar duran **la mitad** |
+| V | Esas esperas se reducen **al mínimo** y anda un **20 % más rápido** |
+
+- Con cualquier nivel, la **antena brilla** como un objeto encantado, y en la frente se encienden de **1 a 5 puntos de
+  cobre**, uno por nivel.
+- El nivel se guarda con el gólem. Si se oxida del todo y se convierte en **estatua**, la estatua lo conserva y el gólem lo
+  recupera al revivirlo con un hacha. (Si picas la estatua y la recoges como objeto, el nivel se pierde.)
+- Al **morir** suelta un libro de Eficiencia de su nivel.
 
 ## Gólem de amatista (leñador)
 

@@ -545,6 +545,20 @@ def chest(tier, kind):
     c.save("textures", "entity", "chest", tier + ("" if kind == "single" else "_" + kind) + ".png")
 
 
+def copper_efficiency_dots():
+    """The copper golem's Efficiency: one lit copper dot per level along the top row of its face.
+
+    Drawn over the vanilla copper golem model with its 64x64 layout, so only the head's front face is
+    used (u 10-17, v 10-14); everything else is transparent. Rendered like the eyes, at full brightness.
+    """
+    bright, glow = (255, 196, 140), (255, 150, 84)
+    for level in range(1, 6):
+        image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        for i in range(level):
+            image.putpixel((11 + i, 10), (bright if i % 2 == 0 else glow) + (255,))
+        save_image(image, "textures", "entity", "copper_golem", f"efficiency_{level}.png")
+
+
 def icon():
     """Mod icon: the iron golem's face, scaled up."""
     pal = PALETTES["iron"]
@@ -570,4 +584,5 @@ if __name__ == "__main__":
             chest(tier, kind)
     # The amethyst golem's eyes once a spyglass has upgraded it: brass instead of lilac.
     glow_layer("amethyst_upgraded", UPGRADED_EYES)
+    copper_efficiency_dots()
     icon()
