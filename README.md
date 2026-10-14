@@ -254,7 +254,7 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 
 ## Instalación
 
-Copia `build/libs/totalgolems-1.4.0.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
+Copia `build/libs/totalgolems-1.4.1.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
 
 ## Compilar
 

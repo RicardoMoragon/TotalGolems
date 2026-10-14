@@ -100,6 +100,7 @@ public class BoneGolem extends PenGolem {
 			&& !level.getEntitiesOfClass(Animal.class, pen.bounds(), animal -> animal.isAlive() && pen.holds(animal.position()) && animal.isFood(stack)).isEmpty();
 	}
 
+	//List of animals in the pen, alive and not escaped. The pen is the one the golem is in, or if it is outside, the one it is nearest to.
 	private List<Animal> animals(final ServerLevel level) {
 		return level.getEntitiesOfClass(Animal.class, this.pen.bounds(), animal -> animal.isAlive() && this.pen.holds(animal.position()));
 	}
@@ -153,6 +154,10 @@ public class BoneGolem extends PenGolem {
 
 		// Twenty or fewer and nothing dies. Babies count towards the total but are never the ones to go.
 		if (this.hasTool() && animals.size() > MAX_ANIMALS) {
+			//Waits 10 seconds to let the animals to reproduce
+			if (this.tickCount % 200 != 0) {
+				return false;
+			}
 			Animal surplus = this.nearest(animals, BoneGolem::canBeCulled);
 			if (surplus != null) {
 				return this.start(Errand.CULL, surplus);
