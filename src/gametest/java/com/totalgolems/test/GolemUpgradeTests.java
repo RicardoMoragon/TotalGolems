@@ -529,6 +529,33 @@ public class GolemUpgradeTests {
 		});
 	}
 
+	/**
+	 * Both chests already hold gold. The nearer one has no frame, so the vanilla rule keeps the iron out of
+	 * it; the further one is marked for iron, and the frame wins over what is inside.
+	 */
+	@GameTest(maxTicks = 3000)
+	public void copperGolemFillsMarkedChestWhateverIsAlreadyInIt(final GameTestHelper helper) {
+		floor(helper, Blocks.SMOOTH_STONE);
+		BlockPos source = new BlockPos(1, 1, 1);
+		BlockPos unmarked = new BlockPos(4, 1, 1);
+		BlockPos marked = new BlockPos(4, 1, 6);
+		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(unmarked, Blocks.CHEST);
+		helper.setBlock(marked, Blocks.CHEST);
+		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+		container(helper, unmarked).setItem(0, new ItemStack(Items.GOLD_INGOT, 5));
+		container(helper, marked).setItem(0, new ItemStack(Items.GOLD_INGOT, 5));
+		frame(helper, marked, Items.IRON_INGOT);
+		helper.spawn(EntityTypes.COPPER_GOLEM, 2, 1, 2);
+		helper.succeedWhen(() -> {
+			Container chest = container(helper, marked);
+			helper.assertTrue(chest.countItem(Items.IRON_INGOT) == 4, "the chest marked for iron should get the ingots even with gold in it");
+			helper.assertTrue(chest.countItem(Items.GOLD_INGOT) == 5, "and the gold should still be there");
+			helper.assertTrue(container(helper, unmarked).countItem(Items.IRON_INGOT) == 0, "a chest without frames keeps the vanilla rule");
+			helper.killAllEntitiesOfClass(ItemFrame.class);
+		});
+	}
+
 	// ------------------------------------------------------------------------------------ amethyst
 
 	/**

@@ -132,7 +132,9 @@ El gólem de cobre de Minecraft reparte lo que hay en los cofres de cobre. Con e
 
 - Si un cofre tiene **uno o más marcos de objeto pegados con un objeto dentro**, el gólem de cobre solo deposita en él los
   objetos que coinciden con alguno de los marcos. Si lo que lleva no coincide, **ni se acerca ni lo abre**.
-- Los cofres **sin marcos** se comportan como siempre.
+- En un cofre con marcos mandan los marcos, no la regla de siempre: lo que coincide entra **aunque el cofre ya tenga
+  otras cosas dentro**, mientras quepa.
+- Los cofres **sin marcos** se comportan como siempre: solo reciben un objeto si están vacíos o ya tienen ese objeto.
 - En un cofre doble vale un marco en cualquiera de las dos mitades. Coincide el tipo de objeto (un pico gastado vale para
   un marco con un pico nuevo).
 
