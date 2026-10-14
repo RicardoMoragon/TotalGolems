@@ -36,6 +36,7 @@ import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -324,6 +325,98 @@ public class GolemUpgradeTests {
 			helper.assertContainerContains(CHEST, Items.OBSIDIAN);
 			helper.assertContainerContains(spongeChest, Items.WET_SPONGE);
 			helper.assertTrue(!sponge.isDraining() && !sponge.isActive(), "the sponge golem should be back at rest");
+		});
+	}
+
+	/**
+	 * A pool six by six and three deep, more than one sponge can take. Built in the air, clear of other
+	 * tests' water. No sponge may go into a layer while there is still water above it.
+	 */
+	@GameTest(maxTicks = 3000, padding = 24)
+	public void spongeGolemDrainsFromTheTopLayerDown(final GameTestHelper helper) {
+		ServerLevel level = helper.getLevel();
+		BlockPos base = helper.absolutePos(BlockPos.ZERO).above(16);
+		for (int x = 0; x <= 8; x++) {
+			for (int z = 0; z <= 8; z++) {
+				for (int y = -3; y <= 0; y++) {
+					boolean pool = x >= 2 && x <= 7 && z >= 2 && z <= 7 && y >= -2;
+					level.setBlockAndUpdate(base.offset(x, y, z), (pool ? Blocks.WATER : Blocks.STONE).defaultBlockState());
+				}
+			}
+		}
+
+		BlockPos chestPos = base.offset(0, 1, 4);
+		level.setBlockAndUpdate(chestPos, ModBlocks.SPONGE_CHEST.defaultBlockState());
+		((Container)level.getBlockEntity(chestPos)).setItem(0, new ItemStack(Items.SPONGE, 8));
+		SpongeGolem golem = ModEntities.SPONGE_GOLEM.create(level, EntitySpawnReason.COMMAND);
+		golem.snapTo(Vec3.atBottomCenterOf(base.offset(1, 1, 4)));
+		level.addFreshEntity(golem);
+		golem.setChestPos(chestPos);
+		FarmGolemTests.give(helper, golem, Items.BLUE_ORCHID);
+		int[] topWater = {Integer.MIN_VALUE};
+		int[] seen = {0};
+		String[] tooDeep = {null};
+		helper.onEachTick(() -> {
+			// The water the golem saw when it chose where to put the sponge is what was there at the end of the last tick.
+			if (golem.countSpongesPlaced() > seen[0]) {
+				seen[0] = golem.countSpongesPlaced();
+				if (golem.lastSponge().getY() < topWater[0]) {
+					tooDeep[0] = "a sponge went in at " + golem.lastSponge() + " with water still at height " + topWater[0];
+				}
+			}
+
+			topWater[0] = Integer.MIN_VALUE;
+			for (BlockPos pos : BlockPos.betweenClosed(base.offset(2, -2, 2), base.offset(7, 0, 7))) {
+				if (!level.getFluidState(pos).isEmpty()) {
+					topWater[0] = Math.max(topWater[0], pos.getY());
+				}
+			}
+		});
+		helper.succeedWhen(() -> {
+			helper.assertTrue(tooDeep[0] == null, String.valueOf(tooDeep[0]));
+			helper.assertTrue(topWater[0] == Integer.MIN_VALUE, "water left in the pool");
+			helper.assertTrue(golem.countSpongesPlaced() >= 2, "a pool this size takes more than one sponge");
+			helper.assertTrue(!golem.isActive(), "with no water left it should be idle");
+			golem.discard();
+		});
+	}
+
+	/**
+	 * A sponge golem drying a miner's diggings that end in a channel of water running on beyond them,
+	 * fed by a source too far down it for any sponge to reach. The water keeps coming back, so it gives up.
+	 */
+	@GameTest(maxTicks = 3000, padding = 24)
+	public void spongeGolemGivesUpOnWaterFedFromOutsideItsArea(final GameTestHelper helper) {
+		ServerLevel level = helper.getLevel();
+		BlockPos base = helper.absolutePos(BlockPos.ZERO).above(16);
+		for (int x = -2; x <= 14; x++) {
+			for (int z = 0; z <= 4; z++) {
+				level.setBlockAndUpdate(base.offset(x, -1, z), Blocks.STONE.defaultBlockState());
+				boolean channel = z == 2 && x >= 0 && x <= 9;
+				level.setBlockAndUpdate(base.offset(x, 0, z), (channel ? Blocks.WATER : Blocks.STONE).defaultBlockState());
+			}
+		}
+
+		BlockPos spongeChest = base.offset(1, 1, 0);
+		BlockPos minerChest = base.offset(2, 1, 0);
+		level.setBlockAndUpdate(spongeChest, ModBlocks.SPONGE_CHEST.defaultBlockState());
+		level.setBlockAndUpdate(minerChest, ModBlocks.IRON_CHEST.defaultBlockState());
+		((Container)level.getBlockEntity(spongeChest)).setItem(0, new ItemStack(Items.SPONGE, 8));
+		SpongeGolem golem = ModEntities.SPONGE_GOLEM.create(level, EntitySpawnReason.COMMAND);
+		golem.snapTo(Vec3.atBottomCenterOf(base.offset(1, 1, 1)));
+		level.addFreshEntity(golem);
+		golem.setChestPos(spongeChest);
+		FarmGolemTests.give(helper, golem, Items.BLUE_ORCHID);
+		// The miner's part: the first three blocks of the channel are its tunnel.
+		helper.assertTrue(golem.requestDrain(base.offset(1, 0, 2), BoundingBox.fromCorners(base.offset(0, 0, 2), base.offset(2, 0, 2))), "the job should be taken");
+		helper.succeedWhen(() -> {
+			helper.assertTrue(golem.isResting() && !golem.isDraining(), "it should have given up and let the miner go");
+			// The first ones lower the water for good; then three in a row leave it as it was, and that is enough.
+			int placed = golem.countSpongesPlaced();
+			helper.assertTrue(placed > SpongeGolem.FRUITLESS_SPONGES_BEFORE_GIVING_UP && placed <= SpongeGolem.FRUITLESS_SPONGES_BEFORE_GIVING_UP + 3, "it should give up after a few sponges, not " + placed);
+			helper.assertTrue(golem.position().distanceTo(Vec3.atCenterOf(spongeChest)) < 3.5 && !golem.isActive(), "it waits by its chest with its eyes off");
+			helper.assertTrue(level.getBlockState(base.offset(9, 0, 2)).is(Blocks.WATER), "the source is out of its reach and still there");
+			golem.discard();
 		});
 	}
 

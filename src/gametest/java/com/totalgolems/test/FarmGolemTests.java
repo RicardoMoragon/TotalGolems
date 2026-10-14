@@ -91,6 +91,7 @@ public class FarmGolemTests {
 
 			Container chest = container(helper, OWN_CHEST);
 			helper.assertTrue(chest.countItem(Items.WET_SPONGE) == 1, "the sponge should be back in the chest, wet");
+			helper.assertTrue(golem.countSpongesPlaced() == 1 && golem.lastSponge().getY() == helper.absolutePos(BlockPos.ZERO).getY(), "one sponge, in the top layer");
 			helper.assertTrue(!golem.isActive(), "with no water left it should be idle");
 		});
 	}

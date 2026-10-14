@@ -163,8 +163,14 @@ Calabaza sobre una **esponja seca**; deja un cofre de esponja. Se activa con una
 - Coge esponjas secas de su cofre (6 huecos de secas y 6 de mojadas) y va al agua más cercana.
 - En cada absorción coloca una esponja, deja que absorba y la recoge mojada: quita exactamente el agua que quitaría una
   esponja puesta a mano (hasta 6 bloques de distancia y 64 bloques de agua).
-- Elige el punto desde el que una esponja quitaría más agua, descontando un poco por la distancia. Los sitios donde ya
-  queda poca agua los deja para el final.
+- Trabaja **de arriba abajo**: solo coloca esponjas en la capa de agua más alta de su zona (o de la zona del minero
+  cuando drena para uno) y no baja a la siguiente hasta que en esa no queda agua, ni fuentes ni corrientes.
+- Dentro de esa capa elige el punto desde el que una esponja quitaría más agua, descontando un poco por la distancia, y
+  la coloca desde tierra firme cuando puede. Los sitios donde ya queda poca agua los deja para el final.
+- Antes de dar una capa por seca espera un par de segundos, por si el agua vuelve a entrar.
+- **Agua que no se acaba.** Si tras 3 esponjas seguidas el agua de la capa no ha bajado (porque entra desde fuera de su
+  zona), da el trabajo por imposible: vuelve a su cofre, se queda parado con los ojos apagados y lo vuelve a intentar a
+  los 30 segundos. Si estaba drenando para un minero, le avisa de que ha terminado para que no espere para siempre.
 - Cuando se queda sin secas vuelve al cofre, deja las mojadas y coge más. Si no hay secas, se queda parado junto a él.
 - El gólem de carbón seca las mojadas y las devuelve al cofre, así que con hornos y carbón el ciclo se mantiene solo.
 - **Hoguera.** Si hay una hoguera encendida pegada al cofre de esponja y **carbón en el cofre**, el gólem que vuelve con
