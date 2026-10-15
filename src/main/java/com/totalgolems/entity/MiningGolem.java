@@ -293,7 +293,7 @@ public class MiningGolem extends WorkerGolem {
 
 	@Override
 	protected void onActivated(final ServerLevel level, final Player player) {
-		this.startMining(level, player.getDirection());
+		this.startMining(level, player);
 	}
 
 	@Override
@@ -301,7 +301,8 @@ public class MiningGolem extends WorkerGolem {
 		this.stopMining(level);
 	}
 
-	private void startMining(final ServerLevel level, final Direction direction) {
+	private void startMining(final ServerLevel level, final Player player) {
+		Direction direction = player.getDirection();
 		this.clearBreaking(level);
 		this.halted = false;
 		this.needsBlocks = false;
@@ -325,6 +326,10 @@ public class MiningGolem extends WorkerGolem {
 			// Back in a pit it already started, the golem carries on with it and keeps using its staircase.
 			if (this.quarry == null || !this.quarry.isInsidePit(cell)) {
 				ChunkPos chunk = this.findFreeChunk(level, cell);
+				if (!chunk.equals(ChunkPos.containing(cell))) {
+					player.sendOverlayMessage(Component.translatable("message.totalgolems.chunk_taken"));
+				}
+
 				this.quarry = QuarryPlan.create(chunk.x(), chunk.z(), cell, this.chestPos, this.tier);
 			}
 

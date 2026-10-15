@@ -14,6 +14,7 @@
   "entity.totalgolems.sponge_golem": "Gólem de esponja",
   "entity.totalgolems.hay_golem": "Gólem de paja",
   "entity.totalgolems.bone_golem": "Gólem de hueso",
+  "message.totalgolems.chunk_taken": "Otro gólem ya pica este chunk: este se va al chunk libre más cercano",
   "message.totalgolems.golem_locked": "No acepta un patrón hasta que le des una rosa de Wither",
   "message.totalgolems.efficiency_needed": "Ahora necesita un libro de Eficiencia %s",
   "message.totalgolems.efficiency_max": "Ya tiene Eficiencia V"

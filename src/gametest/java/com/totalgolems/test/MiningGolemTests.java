@@ -30,6 +30,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
@@ -923,6 +924,66 @@ public class MiningGolemTests {
 			site.finish();
 			helper.succeed();
 		});
+	}
+
+	/** An iron golem on its own, with its chest across the border in the next chunk, quarries the chunk it stands in. */
+	@GameTest(padding = 24)
+	public void ironQuarryGolemDigsItsOwnChunkWithItsChestNextDoor(final GameTestHelper helper) {
+		ServerLevel level = helper.getLevel();
+		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(16);
+		int minX = (origin.getX() & ~15) + 16;
+		int minZ = origin.getZ() & ~15;
+		BlockPos golemPos = new BlockPos(minX + 1, origin.getY() + 1, minZ + 5);
+		BlockPos chestPos = new BlockPos(minX - 2, origin.getY() + 1, minZ + 5);
+		for (int x = -4; x <= 4; x++) {
+			level.setBlockAndUpdate(new BlockPos(minX + x, origin.getY(), minZ + 5), Blocks.STONE.defaultBlockState());
+		}
+
+		level.setBlockAndUpdate(chestPos, ModBlocks.IRON_CHEST.defaultBlockState());
+		MiningGolem golem = looseMiner(level, GolemTier.IRON, golemPos, chestPos);
+		give(helper, golem, new ItemStack(Items.DANDELION), Direction.WEST);
+		ChunkPos own = ChunkPos.containing(golemPos);
+		helper.assertTrue(own.equals(golem.getQuarryChunk()), "it should quarry " + own + ", not " + golem.getQuarryChunk());
+		golem.discard();
+		helper.succeed();
+	}
+
+	/**
+	 * A golem that quarried this chunk once and has had its flower taken away is not working it any more:
+	 * a new golem given a dandelion there quarries it, and does not go off to the next one.
+	 */
+	@GameTest(padding = 24)
+	public void idleMinerInTheChunkDoesNotSendANewOneAway(final GameTestHelper helper) {
+		ServerLevel level = helper.getLevel();
+		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(16);
+		int minX = origin.getX() & ~15;
+		int minZ = origin.getZ() & ~15;
+		for (int x = 2; x <= 10; x++) {
+			level.setBlockAndUpdate(new BlockPos(minX + x, origin.getY(), minZ + 5), Blocks.STONE.defaultBlockState());
+		}
+
+		BlockPos chestPos = new BlockPos(minX + 5, origin.getY() + 1, minZ + 5);
+		level.setBlockAndUpdate(chestPos, ModBlocks.IRON_CHEST.defaultBlockState());
+		MiningGolem idle = looseMiner(level, GolemTier.IRON, chestPos.east(), chestPos);
+		give(helper, idle, new ItemStack(Items.DANDELION), Direction.EAST);
+		give(helper, idle, ItemStack.EMPTY, Direction.EAST);
+		helper.assertTrue(idle.getQuarryChunk() == null, "a golem without its flower should hold no chunk");
+		MiningGolem fresh = looseMiner(level, GolemTier.IRON, chestPos.east(2), chestPos);
+		give(helper, fresh, new ItemStack(Items.DANDELION), Direction.EAST);
+		ChunkPos own = ChunkPos.containing(chestPos);
+		helper.assertTrue(own.equals(fresh.getQuarryChunk()), "it should quarry " + own + ", not " + fresh.getQuarryChunk());
+		idle.discard();
+		fresh.discard();
+		helper.succeed();
+	}
+
+	private static MiningGolem looseMiner(final ServerLevel level, final GolemTier tier, final BlockPos at, final BlockPos chestPos) {
+		MiningGolem golem = tier.entityType().create(level, EntitySpawnReason.COMMAND);
+		golem.snapTo(Vec3.atBottomCenterOf(at));
+		level.addFreshEntity(golem);
+		golem.setChestPos(chestPos);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_PICKAXE));
+		return golem;
 	}
 
 	/** A chunk of stone in the air, with a chest and a quarrying golem on top, ready to be given its dandelion. */

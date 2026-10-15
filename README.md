@@ -104,6 +104,9 @@ quitarlos.
   - Si le quitas la flor y se la vuelves a dar dentro del mismo pozo, sigue con la misma cantera y la misma escalera.
   - **Un gólem por chunk.** Si el chunk ya lo está picando otro gólem, el nuevo se queda con el chunk libre más cercano
     (hasta dos chunks de distancia) y va hasta él abriéndose paso. Así no se destrozan las escaleras ni el suelo entre ellos.
+    Cuando pasa, te lo dice un mensaje sobre la barra de acción. Solo cuenta como ocupado el chunk de un gólem que lleva
+    puesto el diente de león y no se ha parado; si no lo pica nadie, el gólem pica el chunk en el que está, aunque su cofre
+    esté en otro.
   - Deja una pasarela hasta todos los cofres de gólem que haya dentro del chunk, no solo el suyo.
   - No recorre las zonas de una capa donde no hay nada que picar: una capa de aire se da por hecha al momento.
   - **Cada vez que vuelve a bajar** (después de dejar cosas en el cofre o de ir a por un pico o bloques), repasa la capa
