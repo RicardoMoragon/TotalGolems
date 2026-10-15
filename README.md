@@ -132,11 +132,16 @@ encuentra, como haría un jugador:
   - **Si se queda sin bloques mientras quita agua**, pica uno de su capa: primero los que ya puso en el agua (donde ya no
     queda agua), y si no, el más cercano que no tenga una fuente al lado. Si está lejos, va hasta él. Solo si en la capa
     no queda ninguno vuelve al cofre a por más.
-- En una **mina en tiras** hace lo mismo con lo que tiene delante: tapa las fuentes que va a picar y tapia el agua que entra
-  por los lados o el techo de sus túneles.
+  - La **lava** la tapa siempre antes de picar el bloque de al lado. El **agua**, si hay un gólem de esponja vinculado a su
+    cofre, se la deja a él (ver más abajo).
+- En una **mina en tiras**, antes de romper cada bloque mira lo que hay alrededor del hueco que va a abrir: el techo, las
+  paredes y el suelo de la casilla a la que va a entrar. Si hay agua o lava (fuente o corriente), la tapa primero con un
+  bloque y luego rompe. Lo mismo al sacar mineral de una veta. También tapa las fuentes que hay en el bloque que va a
+  picar, salvo el agua cuando hay un gólem de esponja vinculado. El agua o la lava que ya está dentro de sus túneles no
+  la toca: eso es trabajo de la esponja.
 - Sin fuentes, el agua que quedaba se va sola.
-- Para esto usa los bloques de construcción que lleva encima. En una mina en tiras, si no lleva ninguno, sigue picando
-  dentro del agua.
+- Para esto usa los bloques de construcción que lleva encima. En una mina en tiras, si no le quedan, **no rompe el
+  bloque**: vuelve al cofre a por más y, si en el cofre tampoco hay, espera allí.
 
 Si aun así se queda dentro del agua y hay un **gólem de esponja con su cofre pegado al cofre del minero**, trabajan juntos:
 

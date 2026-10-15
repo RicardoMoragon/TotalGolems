@@ -26,6 +26,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
@@ -159,6 +160,9 @@ public class MiningGolem extends WorkerGolem {
 	private @Nullable BlockPos blockSource;
 	/** How many times it has gone back over a finished layer because water was still showing in it. */
 	private int dryPasses;
+	/** Whether a sponge golem is linked to its chest, which makes the water in a quarry the sponge golem's job. */
+	private boolean spongeLinked;
+	private int nextSpongeCheck;
 	/** The last tick it broke a block or got to a new cell; see {@link #checkProgress}. */
 	private int lastProgressTick;
 	private @Nullable BlockPos progressCell;
@@ -703,6 +707,11 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	private void tickWork(final ServerLevel level) {
+		if (this.tickCount >= this.nextSpongeCheck) {
+			this.spongeLinked = this.chestPos != null && SpongeGolem.linkedTo(level, this.chestPos) != null;
+			this.nextSpongeCheck = this.tickCount + SEAL_SCAN_INTERVAL;
+		}
+
 		if (this.returning && this.anchor != null && this.cellAt(this.anchor.getY()).equals(this.anchor) && this.digDownTo(level, this.anchor.getY(), this::mayDigUnderfoot)) {
 			// Right over the spot it is heading back to, with something in the way: gravel that fell in on it, say.
 			this.setMining(true);
@@ -954,7 +963,12 @@ public class MiningGolem extends WorkerGolem {
 
 		// What it has already started on first, or it would keep switching between two ores the same distance away.
 		ores.sort(Comparator.comparing((BlockPos pos) -> !this.breaking.containsKey(pos)).thenComparingDouble(pos -> pos.distToCenterSqr(eye)));
-		this.breakBlocks(level, new LinkedHashSet<>(ores.subList(0, Math.min(ores.size(), this.tier.blocksAtOnce()))));
+		List<BlockPos> targets = ores.subList(0, Math.min(ores.size(), this.tier.blocksAtOnce()));
+		// Taking the ore out opens a way in for whatever is behind it, as much as digging the tunnel does.
+		if (!this.sealFluids(level, targets)) {
+			this.breakBlocks(level, new LinkedHashSet<>(targets));
+		}
+
 		return true;
 	}
 
@@ -1246,23 +1260,22 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	/**
-	 * Water and lava do what a player would do about them: a source in what it is about to dig is filled
-	 * in with a block, to be dug out again like any other, and whatever flows in from beyond the diggings
-	 * is walled off for good where it comes in. Without its sources the rest of the water drains away by
-	 * itself. It goes from the top down, and only does so with blocks it is carrying.
+	 * Before it breaks anything it walls off the water and lava that would come in through the gap, the way
+	 * a player would. In a block it is about to dig, a source is filled in with a block, to be dug out again
+	 * like any other. Next to what it digs, anything running in from beyond its diggings (roof, walls, the
+	 * floor of the cell it is going into) is walled off for good where it comes in; inside a quarry's layer,
+	 * so are the sources. Without its sources the rest of the water drains away by itself. Water and lava
+	 * already inside its tunnels are left alone. While a sponge golem is linked to its chest the water is
+	 * the sponge golem's job: all of it in a quarry, and what is in the way of a tunnel, though not what
+	 * would run into it from outside. It goes from the top down, with the blocks it carries.
 	 * <p>
-	 * A quarrying golem only puts blocks within {@value #SEAL_REACH} blocks of itself, and short of blocks
-	 * it digs one out of its layer, where there is no water left, before it goes to its chest for more. A
-	 * strip-mining golem with none digs on through the water as it is. Returns true when it did anything
-	 * about the water this tick.
+	 * A quarrying golem only puts blocks within {@value #SEAL_REACH} blocks of itself, and short of blocks it
+	 * digs one out of its layer, where there is no water left, before it goes to its chest for more. A
+	 * strip-mining golem short of blocks goes to its chest for them straight away, and waits there if there
+	 * are none, rather than let anything in. Returns true when it did anything about it this tick.
 	 */
 	private boolean sealFluids(final ServerLevel level, final List<BlockPos> slice) {
 		boolean quarrying = this.quarry != null && this.miningDirection == null;
-		boolean hasBlocks = this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock);
-		if (!hasBlocks && !quarrying) {
-			return false;
-		}
-
 		Vec3 from = this.position().add(0.0, 1.0, 0.0);
 		Set<BlockPos> inSlice = new HashSet<>(slice);
 		Set<BlockPos> found = new HashSet<>();
@@ -1277,8 +1290,13 @@ public class MiningGolem extends WorkerGolem {
 
 			for (Direction direction : Direction.values()) {
 				BlockPos beside = pos.relative(direction);
-				// A source anywhere, or water still running in from outside.
-				if (!inSlice.contains(beside) && isFluid(level, beside, !this.isBeyondDiggings(beside))) {
+				if (inSlice.contains(beside)) {
+					continue;
+				}
+
+				// Anything from outside; inside a quarry's layer, the sources too.
+				boolean outside = this.isBeyondDiggings(beside);
+				if (outside ? isFluid(level, beside, false) : quarrying && isFluid(level, beside, true)) {
 					found.add(beside);
 				}
 			}
@@ -1287,6 +1305,7 @@ public class MiningGolem extends WorkerGolem {
 		// Never on top of itself, or of anyone else.
 		List<BlockPos> seal = found.stream()
 			.filter(pos -> !quarrying || pos.distToCenterSqr(from) <= SEAL_REACH * SEAL_REACH)
+			.filter(pos -> !this.spongeLinked || !level.getFluidState(pos).is(FluidTags.WATER) || !quarrying && !inSlice.contains(pos))
 			.filter(pos -> level.isUnobstructed(Blocks.STONE.defaultBlockState(), pos, CollisionContext.empty()))
 			.sorted(Comparator.comparingInt((BlockPos pos) -> -pos.getY()).thenComparingDouble(pos -> pos.distToCenterSqr(from)))
 			.toList();
@@ -1294,8 +1313,8 @@ public class MiningGolem extends WorkerGolem {
 			return false;
 		}
 
-		if (!hasBlocks) {
-			// Digs a block out to do it with, or failing that goes for some.
+		if (!this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock)) {
+			// A quarrying golem digs a block out to do it with; failing that, or in a strip mine, it goes for some.
 			this.placeBuildingBlock(level, seal.getFirst());
 			return true;
 		}

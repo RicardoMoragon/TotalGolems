@@ -986,6 +986,114 @@ public class MiningGolemTests {
 		return golem;
 	}
 
+	/**
+	 * A tunnel through stone with water sitting on top of one of the blocks it digs: the water is walled off
+	 * with a block before that block is broken, and none of it gets into the tunnel.
+	 */
+	@GameTest(maxTicks = 1200)
+	public void poppyWallsOffWaterAboveTheTunnelBeforeDigging(final GameTestHelper helper) {
+		tunnelUnderFluid(helper, new BlockPos(4, 3, 3), Blocks.WATER, true);
+	}
+
+	/** The same with lava against the side of the tunnel. */
+	@GameTest(maxTicks = 1200)
+	public void poppyWallsOffLavaBesideTheTunnelBeforeDigging(final GameTestHelper helper) {
+		tunnelUnderFluid(helper, new BlockPos(4, 1, 2), Blocks.LAVA, true);
+	}
+
+	/**
+	 * Water over the second block of the tunnel, and nothing to wall it off with: no blocks on the golem
+	 * and none in its chest. It goes to its chest for some and waits there, instead of letting the water in.
+	 */
+	@GameTest(maxTicks = 600)
+	public void poppyWithNoBlocksWaitsAtItsChestInsteadOfLettingWaterIn(final GameTestHelper helper) {
+		tunnelUnderFluid(helper, new BlockPos(3, 3, 3), Blocks.WATER, false);
+	}
+
+	/**
+	 * A tunnel east from the golem, two blocks of dirt and then stone to the bedrock at x 7, with {@code fluid}
+	 * at {@code at}, held in by stone. The dirt gives no blocks to build with; the stone does.
+	 */
+	private static void tunnelUnderFluid(final GameTestHelper helper, final BlockPos at, final Block fluid, final boolean blocks) {
+		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		for (int x = 2; x <= 6; x++) {
+			for (int z = 1; z <= 5; z++) {
+				for (int y = 1; y <= 4; y++) {
+					helper.setBlock(x, y, z, x <= 3 && z == 3 && y <= 2 && !blocks ? Blocks.DIRT : Blocks.STONE);
+				}
+			}
+		}
+
+		if (blocks) {
+			helper.setBlock(2, 1, 3, Blocks.STONE);
+			helper.setBlock(2, 2, 3, Blocks.STONE);
+		}
+
+		helper.setBlock(at, fluid);
+		stopper(helper, 7);
+		walls(helper, 3, 0, 7);
+		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
+		// The block of the tunnel next to the fluid.
+		BlockPos next = at.getY() > 2 ? at.below() : new BlockPos(at.getX(), at.getY(), 3);
+		helper.onEachTick(() -> {
+			if (helper.getBlockState(next).isAir()) {
+				helper.assertTrue(helper.getBlockState(at).getFluidState().isEmpty(), "the " + fluid.getName().getString() + " should have been walled off before " + next + " was dug");
+			}
+
+			for (int x = 1; x <= 6; x++) {
+				for (int y = 1; y <= 2; y++) {
+					helper.assertTrue(helper.getBlockState(new BlockPos(x, y, 3)).getFluidState().isEmpty(), "fluid got into the tunnel at " + x + ", " + y + ", 3");
+				}
+			}
+		});
+		if (blocks) {
+			helper.succeedWhen(() -> {
+				helper.assertTrue(golem.isHalted(), "it should have dug through to the bedrock");
+				helper.assertTrue(helper.getBlockState(at).isSolid(), "a block should stand where the " + fluid.getName().getString() + " was");
+			});
+		} else {
+			helper.runAtTickTime(500, () -> {
+				helper.assertBlockPresent(Blocks.DIRT, 3, 2, 3);
+				helper.assertBlockPresent(Blocks.WATER, at.getX(), at.getY(), at.getZ());
+				helper.assertTrue(!golem.isHalted(), "waiting for blocks is not giving up");
+				helper.assertTrue(golem.position().distanceTo(Vec3.atCenterOf(helper.absolutePos(CHEST))) < 3.0, "golem should wait at its chest");
+				helper.succeed();
+			});
+		}
+	}
+
+	/**
+	 * Lava against the outside of the chunk, beside the layer: walled off before the block of the pit next
+	 * to it is dug, and none of it gets into the pit.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemWallsOffLavaInTheSideOfThePitBeforeDigging(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		int top = site.top();
+		BlockPos lava = site.at(-1, top, 9);
+		BlockPos next = site.at(0, top, 9);
+		for (int dz = -1; dz <= 1; dz++) {
+			for (int dy = -1; dy <= 1; dy++) {
+				level.setBlockAndUpdate(site.at(-2, top + dy, 9 + dz), Blocks.STONE.defaultBlockState());
+				level.setBlockAndUpdate(site.at(-1, top + dy, 9 + dz), Blocks.STONE.defaultBlockState());
+			}
+		}
+
+		level.setBlockAndUpdate(lava, Blocks.LAVA.defaultBlockState());
+		helper.onEachTick(() -> {
+			if (level.getBlockState(next).isAir()) {
+				helper.assertTrue(level.getFluidState(lava).isEmpty(), "the lava should have been walled off before " + next + " was dug");
+			}
+		});
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			site.assertDug(helper);
+			helper.assertTrue(level.getBlockState(lava).isSolid(), "a block should stand where the lava was");
+			site.finish();
+		});
+	}
+
 	/** A chunk of stone in the air, with a chest and a quarrying golem on top, ready to be given its dandelion. */
 	private record QuarrySite(ServerLevel level, int minX, int minZ, int top, int depth, BlockPos chestPos, MiningGolem golem, QuarryPlan plan) {
 		BlockPos at(final int x, final int y, final int z) {
