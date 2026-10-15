@@ -494,6 +494,11 @@ public class MiningGolem extends WorkerGolem {
 		this.returning = true;
 		this.resetTravel();
 		this.playSound(SoundEvents.ITEM_PICKUP, 0.4F, 0.8F);
+		if (this.quarry != null && this.miningDirection == null) {
+			// Back down into the pit: first a look over all of it for new blocks and for water to wall off.
+			this.quarry.rescan();
+			this.nextSealScan = 0;
+		}
 	}
 
 	private boolean unloadInto(final Container chest) {
@@ -885,6 +890,11 @@ public class MiningGolem extends WorkerGolem {
 			}
 
 			this.placeBuildingBlock(level, pos);
+			if (this.quarry != null && this.miningDirection == null && this.quarry.contains(pos)) {
+				// The block filling the source has to be dug out again, wherever in the layer it is.
+				this.quarry.rescan();
+			}
+
 			if (++placed >= SEALS_AT_ONCE) {
 				break;
 			}

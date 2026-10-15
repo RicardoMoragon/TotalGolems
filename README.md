@@ -87,6 +87,10 @@ mineral, arena o grava).
     (hasta dos chunks de distancia) y va hasta él abriéndose paso. Así no se destrozan las escaleras ni el suelo entre ellos.
   - Deja una pasarela hasta todos los cofres de gólem que haya dentro del chunk, no solo el suyo.
   - No recorre las zonas de una capa donde no hay nada que picar: una capa de aire se da por hecha al momento.
+  - **Cada vez que vuelve a bajar** (después de dejar cosas en el cofre o de ir a por un pico o bloques), repasa la capa
+    entera: si han aparecido bloques en la parte ya picada (grava que ha caído, bloques puestos) los quita, y si ha
+    entrado agua la tapa con bloques y luego los pica. Si el agua que corre dentro del chunk no tiene fuente dentro, es que
+    entra desde fuera, y la tapia por fuera del chunk (ver *Agua*).
 
 Darle la flor que ya lleva reinicia el patrón desde donde está; darle la otra se la cambia y te devuelve la anterior.
 El resto de flores no tienen patrón y no las acepta.

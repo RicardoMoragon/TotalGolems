@@ -535,6 +535,40 @@ public class MiningGolemTests {
 		});
 	}
 
+	/**
+	 * Once the golem is well along the layer, cobblestone and a pocket of water turn up in the part it has
+	 * already dug, and its pickaxe is taken so that it has to go to its chest for another. Back down in the
+	 * pit it looks over the layer again: the water is walled off and dug out, and so is the cobblestone.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemClearsWhatTurnedUpInItsLayerWhileItWasAway(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		int y = site.top() - 1;
+		// At the far end of the first lane, once the golem is a few lanes on and back at the other end, far
+		// from the staircase: nothing takes it past there again.
+		BlockPos block = site.at(14, y, 1);
+		BlockPos water = site.at(12, y, 1);
+		boolean[] done = {false};
+		helper.onEachTick(() -> {
+			if (!done[0] && level.getBlockState(block).isAir() && level.getBlockState(water).isAir() && site.golem().getZ() - site.minZ() > 4 && site.golem().getX() - site.minX() < 6) {
+				done[0] = true;
+				level.setBlockAndUpdate(block, Blocks.COBBLESTONE.defaultBlockState());
+				level.setBlockAndUpdate(block.above(), Blocks.COBBLESTONE.defaultBlockState());
+				level.setBlockAndUpdate(water, Blocks.WATER.defaultBlockState());
+				((Container)level.getBlockEntity(site.chestPos())).setItem(1, site.golem().getMainHandItem().copy());
+				site.golem().setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+			}
+		});
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(done[0], "the golem never got far enough along the layer");
+			site.assertDug(helper);
+			helper.assertTrue(level.getFluidState(water).isEmpty() && level.getFluidState(water.above()).isEmpty(), "the water should be gone");
+			site.finish();
+		});
+	}
+
 	/** A tunnel through a pocket of water, with more water beside it: the tunnel ends up dry. */
 	@GameTest(maxTicks = 1500)
 	public void poppyTunnelsThroughWaterAndSealsItOff(final GameTestHelper helper) {

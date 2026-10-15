@@ -251,6 +251,15 @@ public class QuarryPlan {
 		this.stairsBuilt++;
 	}
 
+	/**
+	 * Goes over the layer being dug from the start again, so that anything that has turned up in the part
+	 * already done since (fallen gravel, blocks put there, water walled off) is dug out too. Cells with
+	 * nothing to dig are passed over at once, so this costs no walking where nothing has changed.
+	 */
+	public void rescan() {
+		this.routeIndex = 0;
+	}
+
 	public void startNextLayer() {
 		this.layer++;
 		this.routeIndex = 0;
