@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.fabricmc.fabric.api.tag.convention.v2.ConventionalBlockTags;
 import net.fabricmc.fabric.api.tag.convention.v2.ConventionalItemTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -31,6 +32,8 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.animal.golem.AbstractGolem;
@@ -43,6 +46,7 @@ import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -55,6 +59,8 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import org.jspecify.annotations.Nullable;
@@ -92,6 +98,12 @@ public class MiningGolem extends WorkerGolem {
 	private static final int SEALS_AT_ONCE = 4;
 	/** How often a quarrying golem looks over its layer for water and lava to wall off. */
 	private static final int SEAL_SCAN_INTERVAL = 40;
+	/** How far away a strip-mining golem mines ore that it can see. */
+	private static final double VEIN_REACH = 5.0;
+	/** How often it looks for ore in the walls while there is none in sight. */
+	private static final int VEIN_SCAN_INTERVAL = 10;
+	/** Far enough to cross the whole area of a strip mine. */
+	private static final double STRIP_TELEPORT_DISTANCE = 72.0;
 	/** How far away it can lay a missing floor block under the place it is heading for. */
 	private static final double FLOOR_REACH = 4.0;
 
@@ -103,6 +115,12 @@ public class MiningGolem extends WorkerGolem {
 	private @Nullable Direction miningDirection;
 	private @Nullable BlockPos tunnelOrigin;
 	private @Nullable QuarryPlan quarry;
+	/** The poppy's strip mine; see {@link StripPlan}. Set together with the mining direction and the tunnel origin. */
+	private @Nullable StripPlan strip;
+	/** When it next looks around for ore to mine out of the walls, while it has found none. */
+	private int nextVeinScan;
+	/** Ore it has gone after in the floor of its tunnels, to fill in once dug so that nothing falls in there. */
+	private final Set<BlockPos> veinFloor = new HashSet<>();
 	private boolean chestsProtected;
 	private @Nullable BlockPos approachCell;
 	private @Nullable BlockPos approachFrom;
@@ -181,6 +199,15 @@ public class MiningGolem extends WorkerGolem {
 		return ItemTags.PICKAXES;
 	}
 
+	/**
+	 * Buried by gravel or sand coming down in its diggings it digs itself out, which with a pickaxe can take
+	 * a while: it does not choke in there meanwhile.
+	 */
+	@Override
+	public boolean isInvulnerableTo(final ServerLevel level, final DamageSource source) {
+		return source.is(DamageTypes.IN_WALL) || super.isInvulnerableTo(level, source);
+	}
+
 	/** Currents do not carry it off; water only slows it down. */
 	@Override
 	public boolean isPushedByFluid() {
@@ -193,7 +220,7 @@ public class MiningGolem extends WorkerGolem {
 		}
 
 		ItemStack flower = this.getItemBySlot(FLOWER_SLOT);
-		return flower.is(Items.DANDELION) ? this.quarry != null : flower.is(Items.POPPY) && this.miningDirection != null && this.tunnelOrigin != null;
+		return flower.is(Items.DANDELION) ? this.quarry != null : flower.is(Items.POPPY) && this.strip != null;
 	}
 
 	@Override
@@ -278,6 +305,7 @@ public class MiningGolem extends WorkerGolem {
 			this.quarry = null;
 			this.miningDirection = direction;
 			this.tunnelOrigin = cell;
+			this.strip = StripPlan.create(cell, direction, this.tier);
 		}
 	}
 
@@ -320,6 +348,7 @@ public class MiningGolem extends WorkerGolem {
 		this.setMining(false);
 		this.miningDirection = null;
 		this.tunnelOrigin = null;
+		this.strip = null;
 		// The quarry plan is kept: its staircase is still the way out of the pit.
 		this.anchor = null;
 		this.returning = false;
@@ -389,16 +418,9 @@ public class MiningGolem extends WorkerGolem {
 		}
 	}
 
-	/** Everything it is digging out: the pit of its quarry, or its tunnel as far as it has got and a little beyond. */
+	/** Everything it is digging out: the pit of its quarry, or the area of its strip mine. */
 	private BoundingBox diggings() {
-		if (this.miningDirection == null || this.tunnelOrigin == null) {
-			return this.quarry.pit();
-		}
-
-		Direction side = this.miningDirection.getClockWise();
-		int radius = this.tier.tunnelRadius();
-		BlockPos front = this.snapToTunnel(this.cellAt(this.tunnelOrigin.getY()), this.miningDirection).relative(this.miningDirection, 2);
-		return BoundingBox.fromCorners(this.tunnelOrigin.relative(side, -radius), front.relative(side, radius).above(this.tier.tunnelHeight() - 1));
+		return this.strip != null ? this.strip.area() : this.quarry.pit();
 	}
 
 	/** Called by the sponge golem when no water is left. */
@@ -541,6 +563,12 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	private void tickWork(final ServerLevel level) {
+		if (this.returning && this.anchor != null && this.cellAt(this.anchor.getY()).equals(this.anchor) && this.digDownTo(level, this.anchor.getY(), this::mayDigUnderfoot)) {
+			// Right over the spot it is heading back to, with something in the way: gravel that fell in on it, say.
+			this.setMining(true);
+			return;
+		}
+
 		if (this.returning) {
 			if (this.anchor != null && !this.travelToAnchor(level)) {
 				this.setMining(false);
@@ -554,7 +582,7 @@ public class MiningGolem extends WorkerGolem {
 		if (this.miningDirection == null) {
 			this.tickQuarry(level, this.quarry);
 		} else {
-			this.tickTunnel(level);
+			this.tickStrip(level);
 		}
 	}
 
@@ -581,37 +609,194 @@ public class MiningGolem extends WorkerGolem {
 		return this.travelTo(level, this.anchor, 0.35);
 	}
 
-	/** Poppy: a straight tunnel that never leaves the height it was started at. */
-	private void tickTunnel(final ServerLevel level) {
-		Direction direction = this.miningDirection;
-		int y = this.tunnelOrigin.getY();
+	/** Poppy: strip mining at the height it was started at; see {@link StripPlan}. */
+	private void tickStrip(final ServerLevel level) {
+		StripPlan plan = this.strip;
+		int y = plan.y();
 		if (!this.isOnLevel(y)) {
-			this.returning = true;
+			if (!this.digDownTo(level, y, plan::isInDiggings)) {
+				this.returning = true;
+			}
+
 			return;
 		}
 
-		BlockPos cell = this.snapToTunnel(this.cellAt(y), direction);
-		if (!this.alignWithTunnel(cell, direction)) {
+		StripPlan.Leg leg = plan.currentLeg();
+		if (leg == null) {
+			// The whole mine is dug: home, to wait for a new flower.
+			this.halt(level);
+			return;
+		}
+
+		// Gravel or sand that came down on it: dug out before anything else.
+		BlockPos own = this.cellAt(y);
+		for (int up = 0; up < this.tier.tunnelHeight(); up++) {
+			BlockPos pos = own.above(up);
+			BlockState state = level.getBlockState(pos);
+			if (state.getBlock() instanceof FallingBlock && plan.isInDiggings(pos)) {
+				this.breakBlocks(level, new LinkedHashSet<>(List.of(pos)));
+				return;
+			}
+		}
+
+		BlockPos cell = plan.snap(own, leg);
+		double sideways = leg.direction().getAxis() == Direction.Axis.X ? this.getZ() - (cell.getZ() + 0.5) : this.getX() - (cell.getX() + 0.5);
+		if (!leg.main() && Math.abs(sideways) > 1.5) {
+			// A branch it never got to, because its way along the main tunnel was blocked short of it.
+			plan.skipBranch();
+			return;
+		}
+
+		if (!this.alignWithTunnel(cell, leg.direction())) {
 			return;
 		}
 
 		this.anchor = cell;
-		BlockPos next = cell.relative(direction);
+		Direction heading = plan.heading(cell, leg);
+		if (heading == null) {
+			plan.nextLeg();
+			return;
+		}
+
+		// Ore in sight comes first, then back to the route.
+		if (this.mineVein(level, plan)) {
+			return;
+		}
+
+		BlockPos next = cell.relative(heading);
 		if (!level.isLoaded(next)) {
 			this.setMining(false);
 			return;
 		}
 
-		List<BlockPos> slice = new ArrayList<>();
-		Direction side = direction.getClockWise();
-		for (int height = this.tier.tunnelHeight() - 1; height >= 0; height--) {
-			for (int offset = -this.tier.tunnelRadius(); offset <= this.tier.tunnelRadius(); offset++) {
-				slice.add(next.above(height).relative(side, offset));
+		// Something it cannot dig right in its way ends this run; a run along the main tunnel takes its branch with it.
+		if (!plan.contains(next) || this.isBlockedAt(level, next)) {
+			this.clearBreaking(level);
+			this.setMining(false);
+			if (leg.main() && plan.legIndex() > 1) {
+				plan.skipBranch();
+			} else {
+				plan.nextLeg();
+			}
+
+			return;
+		}
+
+		this.advance(level, next, plan.slice(next, heading), false);
+	}
+
+	/**
+	 * Standing a block above the height it works at, on something that has turned up in its diggings
+	 * (gravel that fell in, a block put there): it digs that out from under its feet and drops back down,
+	 * instead of trying to walk to where it already is. Returns true while it is doing so.
+	 */
+	private boolean digDownTo(final ServerLevel level, final int y, final java.util.function.Predicate<BlockPos> mayDig) {
+		if (this.getY() < y + 0.75 || this.getY() > y + 1.25) {
+			return false;
+		}
+
+		BlockPos below = this.cellAt(y);
+		BlockState state = level.getBlockState(below);
+		if (state.getCollisionShape(level, below).isEmpty() || state.getDestroySpeed(level, below) < 0.0F || state.hasBlockEntity() || !mayDig.test(below)) {
+			return false;
+		}
+
+		this.breakBlocks(level, new LinkedHashSet<>(List.of(below)));
+		return true;
+	}
+
+	/** Whether a block under the golem's feet is one of its own diggings, which it may clear. */
+	private boolean mayDigUnderfoot(final BlockPos pos) {
+		if (this.strip != null) {
+			return this.strip.isInDiggings(pos);
+		}
+
+		return this.quarry != null && this.quarry.contains(pos) && !this.quarry.isProtected(pos);
+	}
+
+	/**
+	 * A strip mine is a long way round, and the way home can be cut off by lava or a cave. A golem stuck
+	 * anywhere in its mine may jump back to its chest or its tunnel; others only over a short distance.
+	 */
+	@Override
+	protected boolean mayTeleportTo(final BlockPos target, final double distance) {
+		return distance <= (this.strip != null ? STRIP_TELEPORT_DISTANCE : MAX_TELEPORT_DISTANCE);
+	}
+
+	/** Whether the golem cannot get into {@code cell}: a block it cannot break, or a chest, stands where it would. */
+	private boolean isBlockedAt(final ServerLevel level, final BlockPos cell) {
+		for (int up = 0; up < this.tier.tunnelHeight(); up++) {
+			BlockPos pos = cell.above(up);
+			BlockState state = level.getBlockState(pos);
+			if (!state.getCollisionShape(level, pos).isEmpty() && (state.getDestroySpeed(level, pos) < 0.0F || state.hasBlockEntity())) {
+				return true;
 			}
 		}
 
-		// Anything it cannot break ends the tunnel: the golem goes home.
-		this.advance(level, next, slice, true);
+		return false;
+	}
+
+	/**
+	 * Mines out the ore it can see from where it stands, nearest first, a vein at a time: each block dug
+	 * shows the next one behind it. Ore further than {@value #VEIN_REACH} blocks off, or outside the area of
+	 * the mine, is left. Returns true while there is ore to mine.
+	 */
+	private boolean mineVein(final ServerLevel level, final StripPlan plan) {
+		if (this.tickCount < this.nextVeinScan) {
+			return false;
+		}
+
+		Vec3 eye = this.getEyePosition();
+		BlockPos centre = BlockPos.containing(eye);
+		int reach = Mth.ceil(VEIN_REACH);
+		// Ore dug out of the floor of a tunnel leaves a hole to fall into: it fills those back in first.
+		Iterator<BlockPos> holes = this.veinFloor.iterator();
+		while (holes.hasNext()) {
+			BlockPos pos = holes.next();
+			BlockState state = level.getBlockState(pos);
+			if (!state.getCollisionShape(level, pos).isEmpty() && !state.is(ConventionalBlockTags.ORES)) {
+				holes.remove();
+			} else if (state.getCollisionShape(level, pos).isEmpty()
+				&& this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock)
+				&& level.isUnobstructed(Blocks.STONE.defaultBlockState(), pos, CollisionContext.empty())) {
+				holes.remove();
+				this.placeBuildingBlock(level, pos);
+				return true;
+			}
+		}
+
+		BlockPos underfoot = this.cellAt(plan.y()).below();
+		List<BlockPos> ores = new ArrayList<>();
+		for (BlockPos pos : BlockPos.betweenClosed(centre.offset(-reach, -reach, -reach), centre.offset(reach, reach, reach))) {
+			// Not what it stands on: it would fall in. That one it gets from the next cell along.
+			if (pos.distToCenterSqr(eye) > VEIN_REACH * VEIN_REACH || !plan.contains(pos) || pos.equals(underfoot)) {
+				continue;
+			}
+
+			BlockState state = level.getBlockState(pos);
+			if (state.is(ConventionalBlockTags.ORES) && state.getDestroySpeed(level, pos) >= 0.0F && this.canSee(level, eye, pos)) {
+				ores.add(pos.immutable());
+				if (pos.getY() == plan.y() - 1 && plan.isInDiggings(pos.above())) {
+					this.veinFloor.add(pos.immutable());
+				}
+			}
+		}
+
+		if (ores.isEmpty()) {
+			this.nextVeinScan = this.tickCount + VEIN_SCAN_INTERVAL;
+			return false;
+		}
+
+		// What it has already started on first, or it would keep switching between two ores the same distance away.
+		ores.sort(Comparator.comparing((BlockPos pos) -> !this.breaking.containsKey(pos)).thenComparingDouble(pos -> pos.distToCenterSqr(eye)));
+		this.breakBlocks(level, new LinkedHashSet<>(ores.subList(0, Math.min(ores.size(), this.tier.blocksAtOnce()))));
+		return true;
+	}
+
+	/** Whether nothing but {@code pos} itself stands between the golem's eyes and the middle of that block. */
+	private boolean canSee(final ServerLevel level, final Vec3 eye, final BlockPos pos) {
+		BlockHitResult hit = level.clip(new ClipContext(eye, Vec3.atCenterOf(pos), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+		return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(pos);
 	}
 
 	/** Dandelion: clear the chunk one layer at a time, building the staircase down between layers. */
@@ -660,6 +845,10 @@ public class MiningGolem extends WorkerGolem {
 		if (approaching && this.isOnLevel(y)) {
 			this.anchor = cell;
 			this.approach(level, plan, cell);
+			return;
+		}
+
+		if (!this.isOnLevel(y) && plan.contains(cell) && this.digDownTo(level, y, pos -> !plan.isProtected(pos))) {
 			return;
 		}
 
@@ -914,17 +1103,13 @@ public class MiningGolem extends WorkerGolem {
 		return state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity();
 	}
 
-	/** Whether {@code pos} is outside everything this golem will ever dig: beyond its chunk, or beside its tunnel. */
+	/** Whether {@code pos} is outside everything this golem will ever dig: beyond its chunk, or beside its tunnels. */
 	private boolean isBeyondDiggings(final BlockPos pos) {
-		if (this.miningDirection == null || this.tunnelOrigin == null) {
-			return this.quarry == null || !this.quarry.contains(pos);
+		if (this.strip != null) {
+			return !this.strip.isInDiggings(pos);
 		}
 
-		Direction side = this.miningDirection.getClockWise();
-		BlockPos offset = pos.subtract(this.tunnelOrigin);
-		int across = offset.getX() * side.getStepX() + offset.getZ() * side.getStepZ();
-		int along = offset.getX() * this.miningDirection.getStepX() + offset.getZ() * this.miningDirection.getStepZ();
-		return along < 0 || Math.abs(across) > this.tier.tunnelRadius() || offset.getY() < 0 || offset.getY() >= this.tier.tunnelHeight();
+		return this.quarry == null || !this.quarry.contains(pos);
 	}
 
 	private void breakBlocks(final ServerLevel level, final LinkedHashSet<BlockPos> targets) {
@@ -1037,12 +1222,6 @@ public class MiningGolem extends WorkerGolem {
 		return this.isOnLevel(cell.getY()) && this.cellAt(cell.getY()).equals(cell);
 	}
 
-	private BlockPos snapToTunnel(final BlockPos pos, final Direction direction) {
-		return direction.getAxis() == Direction.Axis.X
-			? new BlockPos(pos.getX(), pos.getY(), this.tunnelOrigin.getZ())
-			: new BlockPos(this.tunnelOrigin.getX(), pos.getY(), pos.getZ());
-	}
-
 	/** Keeps the golem on the tunnel line if something pushed it sideways. Returns whether it is on it. */
 	private boolean alignWithTunnel(final BlockPos cell, final Direction direction) {
 		double centerX = cell.getX() + 0.5;
@@ -1070,6 +1249,9 @@ public class MiningGolem extends WorkerGolem {
 		super.addAdditionalSaveData(output);
 		output.storeNullable("mining_direction", Direction.CODEC, this.miningDirection);
 		output.storeNullable("tunnel_origin", BlockPos.CODEC, this.tunnelOrigin);
+		if (this.strip != null) {
+			output.putInt("strip_leg", this.strip.legIndex());
+		}
 		output.storeNullable("anchor", BlockPos.CODEC, this.anchor);
 		if (this.quarry != null) {
 			output.putIntArray("quarry", this.quarry.save());
@@ -1091,6 +1273,9 @@ public class MiningGolem extends WorkerGolem {
 		super.readAdditionalSaveData(input);
 		this.miningDirection = input.read("mining_direction", Direction.CODEC).filter(direction -> direction.getAxis().isHorizontal()).orElse(null);
 		this.tunnelOrigin = input.read("tunnel_origin", BlockPos.CODEC).orElse(null);
+		this.strip = this.miningDirection != null && this.tunnelOrigin != null
+			? StripPlan.load(this.tunnelOrigin, this.miningDirection, this.tier, input.getIntOr("strip_leg", 0))
+			: null;
 		this.anchor = input.read("anchor", BlockPos.CODEC).orElse(null);
 		this.quarry = input.getIntArray("quarry").map(data -> QuarryPlan.load(data, this.tier, this.chestPos)).orElse(null);
 		this.returning = input.getBooleanOr("returning", false);

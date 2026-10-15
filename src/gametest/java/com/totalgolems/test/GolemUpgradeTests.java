@@ -80,6 +80,7 @@ public class GolemUpgradeTests {
 		}
 
 		stopper(helper, 6);
+		MiningGolemTests.walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			for (int x = 2; x <= 5; x++) {
@@ -103,6 +104,7 @@ public class GolemUpgradeTests {
 		helper.setBlock(5, 1, 3, Blocks.DEEPSLATE);
 		helper.setBlock(6, 1, 3, Blocks.COBBLESTONE);
 		stopper(helper, 7);
+		MiningGolemTests.walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.AIR, 6, 1, 3);
@@ -148,6 +150,7 @@ public class GolemUpgradeTests {
 		MiningGolem golem = miner(helper, GolemTier.IRON, CHEST, new ItemStack(Items.WOODEN_PICKAXE));
 		helper.setBlock(2, 1, 3, Blocks.IRON_ORE);
 		stopper(helper, 3);
+		MiningGolemTests.walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.AIR, 2, 1, 3);
@@ -265,6 +268,7 @@ public class GolemUpgradeTests {
 		helper.assertTrue(ChestGroup.positions(level, helper.absolutePos(CHEST)).size() == 2, "only chests of the same kind join up");
 		helper.setBlock(2, 1, 3, Blocks.STONE);
 		stopper(helper, 3);
+		MiningGolemTests.walls(helper, 3, 1, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.AIR, 2, 1, 3);
@@ -303,6 +307,7 @@ public class GolemUpgradeTests {
 		SpongeGolem sponge = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 5));
 		sponge.setChestPos(helper.absolutePos(spongeChest));
 		FarmGolemTests.give(helper, sponge, Items.BLUE_ORCHID);
+		MiningGolemTests.walls(helper, 3, 2, 7);
 		give(helper, miner, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.assertTrue(sponge.isLinked(helper.getLevel()), "chests side by side should link the two golems");
 

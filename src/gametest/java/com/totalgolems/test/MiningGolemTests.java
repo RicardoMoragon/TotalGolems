@@ -4,6 +4,7 @@ import com.totalgolems.entity.CoalGolem;
 import com.totalgolems.entity.LumberGolem;
 import com.totalgolems.entity.MiningGolem;
 import com.totalgolems.entity.QuarryPlan;
+import com.totalgolems.entity.StripPlan;
 import com.totalgolems.entity.WorkerGolem;
 import com.totalgolems.GolemTier;
 import com.totalgolems.registry.ModBlocks;
@@ -108,6 +109,7 @@ public class MiningGolemTests {
 		stopper(helper, 4);
 		helper.runAfterDelay(5, () -> {
 			helper.assertTrue(!golem.isActive(), "a golem without a flower has nothing to do");
+			walls(helper, 3, 0, 7);
 			give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		});
 		boolean[] wasActive = {false};
@@ -224,6 +226,7 @@ public class MiningGolemTests {
 		// Blocks beside and above the tunnel must be left alone.
 		helper.setBlock(2, 1, 2, Blocks.STONE);
 		helper.setBlock(2, 3, 3, Blocks.STONE);
+		walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.assertTrue(golem.hasFlower(), "golem should wear the flower");
 
@@ -332,6 +335,7 @@ public class MiningGolemTests {
 		digPit(helper, 3, 4);
 		chest(helper).setItem(0, new ItemStack(Items.DIRT, 10));
 		stopper(helper, 6);
+		walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.COBBLESTONE, 3, 0, 3);
@@ -363,6 +367,7 @@ public class MiningGolemTests {
 		stopper(helper, 3);
 		give(helper, golem, new ItemStack(Items.ENCHANTED_BOOK), Direction.EAST);
 		helper.assertTrue(golem.getTool().is(Items.IRON_PICKAXE), "books are no longer anything to a golem");
+		walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		// With Silk Touch stone drops as stone, not cobblestone.
 		helper.succeedWhen(() -> helper.assertContainerContains(CHEST, Items.STONE));
@@ -569,6 +574,18 @@ public class MiningGolemTests {
 		});
 	}
 
+	/** Gravel coming down on a miner buries it until it has dug itself out, but does not choke it. */
+	@GameTest
+	public void minersDoNotSuffocateInWhatFallsOnThem(final GameTestHelper helper) {
+		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		golem.hurtServer(helper.getLevel(), helper.getLevel().damageSources().inWall(), 10.0F);
+		helper.assertTrue(golem.getHealth() == golem.getMaxHealth(), "being buried should not hurt it");
+		golem.hurtServer(helper.getLevel(), helper.getLevel().damageSources().generic(), 10.0F);
+		helper.assertTrue(golem.getHealth() < golem.getMaxHealth(), "anything else still does");
+		golem.discard();
+		helper.succeed();
+	}
+
 	/** A tunnel through a pocket of water, with more water beside it: the tunnel ends up dry. */
 	@GameTest(maxTicks = 1500)
 	public void poppyTunnelsThroughWaterAndSealsItOff(final GameTestHelper helper) {
@@ -588,6 +605,7 @@ public class MiningGolemTests {
 		helper.setBlock(4, 1, 2, Blocks.WATER);
 		helper.setBlock(7, 1, 3, Blocks.BEDROCK);
 		helper.setBlock(7, 2, 3, Blocks.BEDROCK);
+		walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			for (int x = 2; x <= 6; x++) {
@@ -599,6 +617,104 @@ public class MiningGolemTests {
 			helper.assertTrue(helper.getBlockState(new BlockPos(4, 1, 2)).isSolid(), "the water beside the tunnel should have been walled off");
 			helper.assertTrue(golem.isHalted(), "it should have stopped at the bedrock");
 		});
+	}
+
+	/**
+	 * Strip mining in a block of stone fifteen wide, walled in with bedrock: a main tunnel east and west
+	 * through where the golem starts, branches north and south every four blocks with three blocks of
+	 * stone left between them. A vein of iron ore showing in the side of the main tunnel is mined out to
+	 * the end; ore it cannot see, behind the stone between two branches, is left.
+	 */
+	@GameTest(maxTicks = 6000, padding = 24)
+	public void poppyStripMinesWithThreeBlocksBetweenBranches(final GameTestHelper helper) {
+		stripMine(helper, GolemTier.IRON, 15);
+	}
+
+	/** The same with a diamond golem: tunnels three wide and three high, so its branches are six apart. */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void diamondGolemStripMinesThreeWideBranchesSixApart(final GameTestHelper helper) {
+		stripMine(helper, GolemTier.DIAMOND, 17);
+	}
+
+	private static void stripMine(final GameTestHelper helper, final GolemTier tier, final int size) {
+		ServerLevel level = helper.getLevel();
+		BlockPos base = helper.absolutePos(BlockPos.ZERO).above(16);
+		int height = tier.tunnelHeight();
+		int radius = tier.tunnelRadius();
+		int middle = size / 2;
+		for (int x = -1; x <= size; x++) {
+			for (int z = -1; z <= size; z++) {
+				boolean edge = x < 0 || z < 0 || x >= size || z >= size;
+				level.setBlockAndUpdate(base.offset(x, 0, z), Blocks.STONE.defaultBlockState());
+				for (int y = 1; y <= height + 1; y++) {
+					level.setBlockAndUpdate(base.offset(x, y, z), (edge ? Blocks.BEDROCK : y <= height ? Blocks.STONE : Blocks.AIR).defaultBlockState());
+				}
+			}
+		}
+
+		forceChunks(level, base, size, true);
+		BlockPos start = base.offset(middle, 1, middle);
+		for (int y = 0; y < height; y++) {
+			level.setBlockAndUpdate(start.above(y), Blocks.AIR.defaultBlockState());
+		}
+
+		// The chest against the side of the main tunnel, the ore in the stone between the first branches east.
+		int gapX = middle + radius + 2;
+		BlockPos chestPos = base.offset(middle - radius - 2, 1, middle + radius + 1);
+		level.setBlockAndUpdate(chestPos, tier.chestBlock().defaultBlockState());
+		List<BlockPos> vein = List.of(base.offset(gapX, 1, middle + radius + 1), base.offset(gapX, 1, middle + radius + 2), base.offset(gapX, 1, middle + radius + 3));
+		BlockPos hidden = base.offset(gapX, 1, size - 2);
+		vein.forEach(pos -> level.setBlockAndUpdate(pos, Blocks.IRON_ORE.defaultBlockState()));
+		// A column of gravel standing in the way of the main tunnel and up through the roof: it keeps coming down as it is dug.
+		for (int y = 1; y <= height + 6; y++) {
+			level.setBlockAndUpdate(base.offset(middle + 3, y, middle), Blocks.GRAVEL.defaultBlockState());
+		}
+
+		level.setBlockAndUpdate(hidden, Blocks.IRON_ORE.defaultBlockState());
+
+		MiningGolem golem = tier.entityType().create(level, EntitySpawnReason.COMMAND);
+		golem.snapTo(Vec3.atBottomCenterOf(start));
+		level.addFreshEntity(golem);
+		golem.setChestPos(chestPos);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, tirelessPickaxe(helper));
+		if (tier.startsLocked()) {
+			give(helper, golem, new ItemStack(MiningGolem.UNLOCK_FLOWER), Direction.EAST);
+		}
+
+		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
+		int pitch = 2 * radius + 1 + StripPlan.GAP;
+		helper.succeedWhen(() -> {
+			helper.assertTrue(golem.isHalted(), "it should have finished the whole mine");
+			for (int x = 0; x < size; x++) {
+				for (int z = 0; z < size; z++) {
+					BlockPos pos = base.offset(x, 1, z);
+					if (pos.equals(chestPos) || vein.contains(pos) || pos.equals(hidden)) {
+						continue;
+					}
+
+					int offset = Math.floorMod(x - middle, pitch);
+					boolean dug = Math.abs(z - middle) <= radius || Math.min(offset, pitch - offset) <= radius;
+					for (int y = 0; y < height; y++) {
+						helper.assertTrue(level.getBlockState(pos.above(y)).isAir() == dug, (dug ? "left standing in a tunnel at " : "dug between the tunnels at ") + (x + ", " + (y + 1) + ", " + z));
+					}
+				}
+			}
+
+			vein.forEach(pos -> helper.assertTrue(level.getBlockState(pos).isAir(), "the vein of ore should have been mined out, but not at " + pos.subtract(base)));
+			helper.assertTrue(level.getBlockState(hidden).is(Blocks.IRON_ORE), "ore it could not see should be left");
+			helper.assertTrue(((Container)level.getBlockEntity(chestPos)).hasAnyMatching(stack -> stack.is(Items.RAW_IRON)), "the ore should be in the chest");
+			golem.discard();
+			forceChunks(level, base, size, false);
+		});
+	}
+
+	/** Keeps every chunk of the mine loaded, from {@code base} to {@code size} blocks east and south of it and the wall around. */
+	private static void forceChunks(final ServerLevel level, final BlockPos base, final int size, final boolean forced) {
+		for (int chunkX = (base.getX() - 1) >> 4; chunkX <= (base.getX() + size) >> 4; chunkX++) {
+			for (int chunkZ = (base.getZ() - 1) >> 4; chunkZ <= (base.getZ() + size) >> 4; chunkZ++) {
+				level.setChunkForced(chunkX, chunkZ, forced);
+			}
+		}
 	}
 
 	/** A chunk of stone in the air, with a chest and a quarrying golem on top, ready to be given its dandelion. */
@@ -699,6 +815,23 @@ public class MiningGolemTests {
 	}
 
 	/** A bedrock wall the golem cannot break, so it stays inside the test area. */
+	/**
+	 * Bedrock two blocks to each side of the lane of a strip-mining golem whose chest is at {@code chestZ},
+	 * wherever there is only air, so that its branch tunnels end there instead of running off across the
+	 * other tests.
+	 */
+	static void walls(final GameTestHelper helper, final int chestZ, final int fromX, final int toX) {
+		for (int x = fromX; x <= toX; x++) {
+			for (int y = 1; y <= 4; y++) {
+				for (int z : new int[]{chestZ - 2, chestZ + 2}) {
+					if (helper.getBlockState(new BlockPos(x, y, z)).isAir()) {
+						helper.setBlock(x, y, z, Blocks.BEDROCK);
+					}
+				}
+			}
+		}
+	}
+
 	static void stopper(final GameTestHelper helper, final int x) {
 		for (int z = 0; z <= 7; z++) {
 			for (int y = 1; y <= 4; y++) {
