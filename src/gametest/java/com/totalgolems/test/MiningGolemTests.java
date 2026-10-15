@@ -36,6 +36,7 @@ import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public class MiningGolemTests {
@@ -759,6 +760,103 @@ public class MiningGolemTests {
 				level.setChunkForced(chunkX, chunkZ, forced);
 			}
 		}
+	}
+
+	/**
+	 * A quarry with a big pocket of water in the layer it digs, and more in the floor under it, and no sponge
+	 * golem to call. The golem gets the layer dug, and never goes up and down on the spot over and over.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemInWaterNeverBobsUpAndDownInPlace(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.DIAMOND, 1);
+		ServerLevel level = helper.getLevel();
+		int top = site.top();
+		int layer = top - GolemTier.DIAMOND.tunnelHeight() + 1;
+		for (int x = 3; x <= 12; x++) {
+			for (int z = 3; z <= 12; z++) {
+				for (int y = layer; y <= top; y++) {
+					level.setBlockAndUpdate(site.at(x, y, z), Blocks.WATER.defaultBlockState());
+				}
+
+				// Water under the layer too, one deep, with stone under it.
+				level.setBlockAndUpdate(site.at(x, layer - 1, z), Blocks.WATER.defaultBlockState());
+				level.setBlockAndUpdate(site.at(x, layer - 2, z), Blocks.STONE.defaultBlockState());
+			}
+		}
+
+		watchForBobbing(helper, site, layer);
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			site.assertDug(helper);
+			site.finish();
+		});
+	}
+
+	/**
+	 * Water it cannot do anything about: a spring on top of a bedrock pillar in the middle of the chunk, out
+	 * of its reach over its layer, keeps running down into it. The golem works on in the running water, gets
+	 * the layer dug, and never goes up and down on the spot over and over.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemInRunningWaterNeverBobsUpAndDownInPlace(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		int top = site.top();
+		int layer = top - 1;
+		BlockPos pillar = site.at(8, layer, 8);
+		for (int y = 0; y <= 2; y++) {
+			level.setBlockAndUpdate(pillar.above(y), Blocks.BEDROCK.defaultBlockState());
+		}
+
+		level.setBlockAndUpdate(pillar.above(3), Blocks.WATER.defaultBlockState());
+		watchForBobbing(helper, site, layer);
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			for (int x = 0; x < 16; x++) {
+				for (int z = 0; z < 16; z++) {
+					for (int y = layer; y <= top; y++) {
+						BlockPos pos = site.at(x, y, z);
+						BlockState state = level.getBlockState(pos);
+						boolean kept = site.plan().isProtected(pos) || pos.getX() == pillar.getX() && pos.getZ() == pillar.getZ();
+						helper.assertTrue(kept || !state.isSolid(), "block left at " + pos);
+					}
+				}
+			}
+
+			site.finish();
+		});
+	}
+
+	/**
+	 * Fails the test as soon as the golem has gone up a block and back down in the same cell of its layer
+	 * more than a handful of times in a row.
+	 */
+	private static void watchForBobbing(final GameTestHelper helper, final QuarrySite site, final int layer) {
+		MiningGolem golem = site.golem();
+		BlockPos[] cell = {null};
+		boolean[] up = {false};
+		int[] bobs = {0};
+		helper.onEachTick(() -> {
+			if (golem.isRemoved() || golem.getY() < layer - 0.5 || golem.getY() > layer + 2.0) {
+				return;
+			}
+
+			BlockPos here = BlockPos.containing(golem.getX(), layer, golem.getZ());
+			if (!here.equals(cell[0])) {
+				cell[0] = here;
+				bobs[0] = 0;
+				up[0] = golem.getY() > layer + 0.6;
+				return;
+			}
+
+			boolean nowUp = golem.getY() > layer + 0.6;
+			if (up[0] && !nowUp) {
+				bobs[0]++;
+				helper.assertTrue(bobs[0] <= 6, "the golem went up and down " + bobs[0] + " times in a row at " + here);
+			}
+
+			up[0] = nowUp;
+		});
 	}
 
 	/** A chunk of stone in the air, with a chest and a quarrying golem on top, ready to be given its dandelion. */

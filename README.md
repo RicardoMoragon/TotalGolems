@@ -143,6 +143,9 @@ Si aun así se queda dentro del agua y hay un **gólem de esponja con su cofre p
    tiras.
 3. Cuando no queda agua, avisa al minero y vuelve a su cofre. El minero **reanuda el trabajo donde lo dejó**.
 
+Los gólems flotan: en agua profunda el minero sigue trabajando aunque flote por encima de la altura de su capa, en vez
+de intentar volver una y otra vez al sitio en el que ya está.
+
 Si la esponja se queda sin esponjas secas a medias, el minero sigue esperando hasta que haya más. Sin gólem de esponja
 vinculado (o si no lleva su flor), el minero sigue picando dentro del agua.
 

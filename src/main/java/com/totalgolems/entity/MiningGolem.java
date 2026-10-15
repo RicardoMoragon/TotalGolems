@@ -112,6 +112,10 @@ public class MiningGolem extends WorkerGolem {
 	private static final double FLOOR_REACH = 4.0;
 	/** How far away a quarrying golem walls off water and lava, or digs out a block to do it with. */
 	private static final double SEAL_REACH = 4.5;
+	/** Twenty seconds at work without breaking a block or getting to a new cell, and it stops trying where it is. */
+	private static final int TICKS_WITHOUT_PROGRESS = 400;
+	/** After this many times stuck in a row with nothing achieved in between, it gives up and goes home. */
+	private static final int STUCK_TIMES_BEFORE_HALT = 3;
 
 	private final GolemTier tier;
 	private final SimpleContainer inventory;
@@ -155,6 +159,11 @@ public class MiningGolem extends WorkerGolem {
 	private @Nullable BlockPos blockSource;
 	/** How many times it has gone back over a finished layer because water was still showing in it. */
 	private int dryPasses;
+	/** The last tick it broke a block or got to a new cell; see {@link #checkProgress}. */
+	private int lastProgressTick;
+	private @Nullable BlockPos progressCell;
+	private @Nullable BlockPos previousCell;
+	private int timesStuck;
 	/** Standing at its chest with nothing it can do: no pickaxe, or the sponge golem still drying the diggings. */
 	private boolean waiting;
 	private boolean waitingForDrain;
@@ -308,6 +317,8 @@ public class MiningGolem extends WorkerGolem {
 		this.fillers.clear();
 		this.blockSource = null;
 		this.dryPasses = 0;
+		this.timesStuck = 0;
+		this.lastProgressTick = this.tickCount;
 		// A golem that is on its way to unload finishes that first, then comes back here.
 		this.returning = this.depositing;
 		if (this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
@@ -465,12 +476,58 @@ public class MiningGolem extends WorkerGolem {
 		}
 
 		if (this.depositing) {
+			this.lastProgressTick = this.tickCount;
 			this.tickDeposit(level);
 		} else if (this.isWorking()) {
-			this.tickWork(level);
+			if (!this.checkProgress(level)) {
+				this.tickWork(level);
+			}
 		} else {
 			this.setMining(false);
 		}
+	}
+
+	/**
+	 * The safeguard against going through the same motions for ever: at work for {@value #TICKS_WITHOUT_PROGRESS}
+	 * ticks without breaking a block or getting to a cell it was not in just before, it stops trying there. A
+	 * quarrying golem in its layer passes over the place it was making for; anywhere else it goes back to its
+	 * chest and starts again from there. Stuck {@value #STUCK_TIMES_BEFORE_HALT} times running, it gives up
+	 * and waits at its chest for a new flower. Returns true when it did any of that this tick.
+	 */
+	private boolean checkProgress(final ServerLevel level) {
+		BlockPos cell = this.feetPos();
+		if (!cell.equals(this.progressCell)) {
+			// Back to where it was a moment ago is no headway: that is how going back and forth looks.
+			if (!cell.equals(this.previousCell)) {
+				this.madeProgress();
+			}
+
+			this.previousCell = this.progressCell;
+			this.progressCell = cell;
+		}
+
+		if (this.tickCount - this.lastProgressTick < TICKS_WITHOUT_PROGRESS) {
+			return false;
+		}
+
+		this.lastProgressTick = this.tickCount;
+		if (++this.timesStuck >= STUCK_TIMES_BEFORE_HALT) {
+			this.halt(level);
+		} else if (this.quarry != null && this.miningDirection == null && !this.quarry.isDescending() && !this.returning) {
+			this.clearBreaking(level);
+			this.setMining(false);
+			this.blockSource = null;
+			this.quarry.skipTarget();
+		} else {
+			this.beginDeposit(level);
+		}
+
+		return true;
+	}
+
+	private void madeProgress() {
+		this.lastProgressTick = this.tickCount;
+		this.timesStuck = 0;
 	}
 
 	private void beginDeposit(final ServerLevel level) {
@@ -691,7 +748,7 @@ public class MiningGolem extends WorkerGolem {
 	private void tickStrip(final ServerLevel level) {
 		StripPlan plan = this.strip;
 		int y = plan.y();
-		if (!this.isOnLevel(y)) {
+		if (!this.isWorkingAt(y)) {
 			if (!this.digDownTo(level, y, plan::isInDiggings)) {
 				this.returning = true;
 			}
@@ -951,17 +1008,17 @@ public class MiningGolem extends WorkerGolem {
 		BlockPos cell = this.cellAt(y);
 		// A golem given a neighbouring chunk first has to get there.
 		boolean approaching = plan.isOnFirstLayer() && !plan.contains(cell);
-		if (approaching && this.isOnLevel(y)) {
+		if (approaching && this.isWorkingAt(y)) {
 			this.anchor = cell;
 			this.approach(level, plan, cell);
 			return;
 		}
 
-		if (!this.isOnLevel(y) && plan.contains(cell) && this.digDownTo(level, y, pos -> !plan.isProtected(pos))) {
+		if (!this.isWorkingAt(y) && plan.contains(cell) && this.digDownTo(level, y, pos -> !plan.isProtected(pos))) {
 			return;
 		}
 
-		if (!this.isOnLevel(y) || !plan.contains(cell)) {
+		if (!this.isWorkingAt(y) || !plan.contains(cell)) {
 			if (this.anchor == null || !approaching && (this.anchor.getY() != y || !plan.contains(this.anchor))) {
 				this.anchor = plan.stairStand(plan.stairsBuilt());
 			}
@@ -1374,6 +1431,7 @@ public class MiningGolem extends WorkerGolem {
 			level.destroyBlockProgress(progress.crackId, pos, -1);
 			this.breaking.remove(pos);
 			level.destroyBlock(pos, false, this);
+			this.madeProgress();
 			for (ItemStack drop : drops) {
 				ItemStack leftover = this.inventory.addItem(drop);
 				if (!leftover.isEmpty()) {
@@ -1433,6 +1491,15 @@ public class MiningGolem extends WorkerGolem {
 	/** Whether the golem stands at working height {@code y}, give or take a slab. */
 	private boolean isOnLevel(final int y) {
 		return Math.abs(this.getY() - y) <= 0.75;
+	}
+
+	/**
+	 * Whether the golem is at work at height {@code y}: standing there, or afloat in water over it, no higher
+	 * than its tunnels are. Golems float, so in deep water it would otherwise never be at its working height,
+	 * and would keep heading back to where it already is.
+	 */
+	private boolean isWorkingAt(final int y) {
+		return this.isOnLevel(y) || this.isInWater() && this.getY() > y && this.getY() < y + this.tier.tunnelHeight();
 	}
 
 	private boolean isAt(final BlockPos cell) {

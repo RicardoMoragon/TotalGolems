@@ -260,6 +260,11 @@ public class QuarryPlan {
 		this.routeIndex = 0;
 	}
 
+	/** Gives up on the place in the layer the golem was making for, and goes on to the next one. */
+	public void skipTarget() {
+		this.routeIndex++;
+	}
+
 	public void startNextLayer() {
 		this.layer++;
 		this.routeIndex = 0;
