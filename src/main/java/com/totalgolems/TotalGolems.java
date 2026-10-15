@@ -14,6 +14,7 @@ public class TotalGolems implements ModInitializer {
 		ModBlocks.init();
 		ModBlockEntities.init();
 		ModEntities.init();
+		CopperGolemEfficiency.init();
 	}
 
 	public static Identifier id(final String path) {

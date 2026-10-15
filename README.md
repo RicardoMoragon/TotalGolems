@@ -126,15 +126,37 @@ un radio de 16 bloques alrededor del punto donde se la des.
 - **Hogueras.** A cada cofre de esponja que tenga una **hoguera encendida pegada** le mantiene **8 de carbón**, que saca
   de los cofres de los mineros. Es lo que quema el gólem de esponja para secar sus esponjas (ver más abajo).
 
-## Gólem de cobre (el de siempre): filtro con marcos
+## Gólem de cobre (el de siempre): marcos y Eficiencia
 
 El gólem de cobre de Minecraft reparte lo que hay en los cofres de cobre. Con este mod puedes decirle dónde va cada cosa:
 
 - Si un cofre tiene **uno o más marcos de objeto pegados con un objeto dentro**, el gólem de cobre solo deposita en él los
   objetos que coinciden con alguno de los marcos. Si lo que lleva no coincide, **ni se acerca ni lo abre**.
-- Los cofres **sin marcos** se comportan como siempre.
+- En un cofre con marcos mandan los marcos, no la regla de siempre: lo que coincide entra **aunque el cofre ya tenga
+  otras cosas dentro**, mientras quepa.
+- Los cofres **sin marcos** se comportan como siempre: solo reciben un objeto si están vacíos o ya tienen ese objeto.
 - En un cofre doble vale un marco en cualquiera de las dos mitades. Coincide el tipo de objeto (un pico gastado vale para
   un marco con un pico nuevo).
+
+### Eficiencia
+
+Dale al gólem de cobre un **libro encantado de Eficiencia** con clic derecho. El libro se gasta y el gólem sube de nivel.
+Los niveles van **en orden estricto**: sin nivel solo acepta Eficiencia I, con I solo II, y así hasta V. Cualquier otro
+libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qué nivel necesita.
+
+| Nivel | Efecto (acumulativo) |
+|---|---|
+| I | Lleva hasta **32** objetos por viaje (16 sin encantar) |
+| II | Hasta **48** |
+| III | Hasta **64**, una pila entera. Nunca más de lo que admite la pila del objeto (16 en perlas de ender, huevos, carteles...) |
+| IV | Las esperas al abrir un cofre, coger y dejar duran **la mitad** |
+| V | Esas esperas se reducen **al mínimo** y anda un **20 % más rápido** |
+
+- Con cualquier nivel, la **antena brilla** como un objeto encantado, y en la frente se encienden de **1 a 5 puntos de
+  cobre**, uno por nivel.
+- El nivel se guarda con el gólem. Si se oxida del todo y se convierte en **estatua**, la estatua lo conserva y el gólem lo
+  recupera al revivirlo con un hacha. (Si picas la estatua y la recoges como objeto, el nivel se pierde.)
+- Al **morir** suelta un libro de Eficiencia de su nivel.
 
 ## Gólem de amatista (leñador)
 
@@ -161,8 +183,14 @@ Calabaza sobre una **esponja seca**; deja un cofre de esponja. Se activa con una
 - Coge esponjas secas de su cofre (6 huecos de secas y 6 de mojadas) y va al agua más cercana.
 - En cada absorción coloca una esponja, deja que absorba y la recoge mojada: quita exactamente el agua que quitaría una
   esponja puesta a mano (hasta 6 bloques de distancia y 64 bloques de agua).
-- Elige el punto desde el que una esponja quitaría más agua, descontando un poco por la distancia. Los sitios donde ya
-  queda poca agua los deja para el final.
+- Trabaja **de arriba abajo**: solo coloca esponjas en la capa de agua más alta de su zona (o de la zona del minero
+  cuando drena para uno) y no baja a la siguiente hasta que en esa no queda agua, ni fuentes ni corrientes.
+- Dentro de esa capa elige el punto desde el que una esponja quitaría más agua, descontando un poco por la distancia, y
+  la coloca desde tierra firme cuando puede. Los sitios donde ya queda poca agua los deja para el final.
+- Antes de dar una capa por seca espera un par de segundos, por si el agua vuelve a entrar.
+- **Agua que no se acaba.** Si tras 3 esponjas seguidas el agua de la capa no ha bajado (porque entra desde fuera de su
+  zona), da el trabajo por imposible: vuelve a su cofre, se queda parado con los ojos apagados y lo vuelve a intentar a
+  los 30 segundos. Si estaba drenando para un minero, le avisa de que ha terminado para que no espere para siempre.
 - Cuando se queda sin secas vuelve al cofre, deja las mojadas y coge más. Si no hay secas, se queda parado junto a él.
 - El gólem de carbón seca las mojadas y las devuelve al cofre, así que con hornos y carbón el ciclo se mantiene solo.
 - **Hoguera.** Si hay una hoguera encendida pegada al cofre de esponja y **carbón en el cofre**, el gólem que vuelve con
@@ -207,7 +235,8 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 - **Alimenta** a los animales adultos del recinto con la comida de su especie, que coge de su cofre, para que críen.
   Solo coge comida que coma algún animal del recinto.
 - Con **20 animales o menos nunca mata**. Con más, mata adultos hasta volver a 20. Las crías cuentan para el total pero
-  nunca se matan, y tampoco las mascotas ni los animales con nombre.
+  nunca se matan, y tampoco las mascotas ni los animales con nombre. Entre un sacrificio y el siguiente espera 10
+  segundos, para dar tiempo a que el rebaño críe. Los animales que acaban encima de la valla también cuentan.
 - **Recoge lo que hay en el suelo** del recinto y lo deja en su cofre.
 - El cofre de hueso es el punto de encuentro de la granja: el gólem de heno deja en él el trigo, el de hueso lo usa para
   alimentar, y el de carbón se lleva de él la carne cruda para cocinarla y todo lo que no sea comida de tus animales.
@@ -226,7 +255,7 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 
 ## Instalación
 
-Copia `build/libs/totalgolems-1.4.0.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
+Copia `build/libs/totalgolems-1.4.1.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
 
 ## Compilar
 

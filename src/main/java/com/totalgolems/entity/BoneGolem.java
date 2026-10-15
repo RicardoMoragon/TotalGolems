@@ -43,12 +43,15 @@ public class BoneGolem extends PenGolem {
 	private static final int DROP_SLOTS = 9;
 	/** After a trip to the chest that achieved nothing (it is full), how long before trying again. */
 	private static final int RETRY_TICKS = 200;
+	/** Ten seconds between one cull and the next, to give the herd time to breed. */
+	private static final int CULL_INTERVAL = 200;
 
 	private final SimpleContainer food = new SimpleContainer(FOOD_SLOTS);
 	private final SimpleContainer drops = new SimpleContainer(DROP_SLOTS);
 	private @Nullable Errand errand;
 	private @Nullable Entity target;
 	private int storeRetryTick;
+	private int nextCullTick;
 
 	private enum Errand {
 		STORE,
@@ -100,6 +103,7 @@ public class BoneGolem extends PenGolem {
 			&& !level.getEntitiesOfClass(Animal.class, pen.bounds(), animal -> animal.isAlive() && pen.holds(animal.position()) && animal.isFood(stack)).isEmpty();
 	}
 
+	/** The animals alive in its pen and not escaped from it. */
 	private List<Animal> animals(final ServerLevel level) {
 		return level.getEntitiesOfClass(Animal.class, this.pen.bounds(), animal -> animal.isAlive() && this.pen.holds(animal.position()));
 	}
@@ -152,7 +156,8 @@ public class BoneGolem extends PenGolem {
 		}
 
 		// Twenty or fewer and nothing dies. Babies count towards the total but are never the ones to go.
-		if (this.hasTool() && animals.size() > MAX_ANIMALS) {
+		// And not one after another: the herd gets time to breed between culls.
+		if (this.hasTool() && animals.size() > MAX_ANIMALS && this.tickCount >= this.nextCullTick) {
 			Animal surplus = this.nearest(animals, BoneGolem::canBeCulled);
 			if (surplus != null) {
 				return this.start(Errand.CULL, surplus);
@@ -223,6 +228,7 @@ public class BoneGolem extends PenGolem {
 			animal.hurtServer(level, this.cullingBlow(level), Float.MAX_VALUE);
 			Weapon weapon = this.getTool().get(DataComponents.WEAPON);
 			this.wearTool(weapon != null ? weapon.itemDamagePerAttack() : 1);
+			this.nextCullTick = this.tickCount + CULL_INTERVAL;
 		}
 
 		return true;

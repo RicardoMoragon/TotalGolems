@@ -63,7 +63,7 @@ public class FarmGolemTests {
 	 * A pool five by five and two deep is fifty blocks of water: one sponge's worth, but only from the
 	 * middle. From a corner the far side is out of a sponge's reach, and one sponge is all it gets.
 	 */
-	@GameTest(maxTicks = 1200)
+	@GameTest(maxTicks = 1200, padding = 16)
 	public void spongeGolemDrainsPoolWithAsFewSpongesAsPossible(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		for (int x = 1; x <= 7; x++) {
@@ -91,11 +91,12 @@ public class FarmGolemTests {
 
 			Container chest = container(helper, OWN_CHEST);
 			helper.assertTrue(chest.countItem(Items.WET_SPONGE) == 1, "the sponge should be back in the chest, wet");
+			helper.assertTrue(golem.countSpongesPlaced() == 1 && golem.lastSponge().getY() == helper.absolutePos(BlockPos.ZERO).getY(), "one sponge, in the top layer");
 			helper.assertTrue(!golem.isActive(), "with no water left it should be idle");
 		});
 	}
 
-	@GameTest(maxTicks = 300)
+	@GameTest(maxTicks = 300, padding = 16)
 	public void spongeGolemWaitsByChestWithoutDrySponges(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		helper.setBlock(5, 1, 5, Blocks.WATER);
@@ -241,25 +242,43 @@ public class FarmGolemTests {
 		herd(helper, 23, 3);
 		give(helper, golem, Items.WHITE_TULIP);
 		int[] fewest = {Integer.MAX_VALUE};
-		helper.onEachTick(() -> fewest[0] = Math.min(fewest[0], animals(helper).size()));
+		// Each cull wears the sword by one: when the last one was, and the shortest time between two.
+		int[] culls = {0};
+		long[] lastCull = {-1};
+		long[] shortestGap = {Long.MAX_VALUE};
+		helper.onEachTick(() -> {
+			fewest[0] = Math.min(fewest[0], animals(helper).size());
+			int worn = golem.getTool().getDamageValue();
+			if (worn > culls[0]) {
+				long now = helper.getTick();
+				if (lastCull[0] >= 0) {
+					shortestGap[0] = Math.min(shortestGap[0], now - lastCull[0]);
+				}
+
+				lastCull[0] = now;
+				culls[0] = worn;
+			}
+		});
 		helper.succeedWhen(() -> {
+			helper.assertTrue(shortestGap[0] >= 200, "it should wait ten seconds between culls, not " + shortestGap[0] + " ticks");
+			helper.assertTrue(penned(helper).size() == BoneGolem.MAX_ANIMALS, "expected 20 animals in the pen, found " + penned(helper).size());
 			List<Animal> animals = animals(helper);
-			helper.assertTrue(animals.size() == BoneGolem.MAX_ANIMALS, "expected 20 animals, found " + animals.size());
 			helper.assertTrue(animals.stream().filter(Animal::isBaby).count() == 3, "the three calves must all be alive");
 			helper.assertContainerContains(OWN_CHEST, Items.BEEF);
 			helper.assertItemEntityNotPresent(Items.BEEF);
 			helper.assertTrue(container(helper, OWN_CHEST).countItem(Items.COOKED_BEEF) == 0, "Fire Aspect must not cook the meat");
 			helper.assertItemEntityNotPresent(Items.COOKED_BEEF);
-			helper.assertTrue(fewest[0] == BoneGolem.MAX_ANIMALS, "it must stop at twenty, but the herd got down to " + fewest[0]);
-			// Six cows killed, six uses of the sword.
-			helper.assertTrue(golem.getTool().getDamageValue() == 6, "the sword should be worn by 6, not " + golem.getTool().getDamageValue());
+			helper.assertTrue(fewest[0] >= BoneGolem.MAX_ANIMALS, "it must stop at twenty, but the herd got down to " + fewest[0]);
+			// One use of the sword for each cow killed: six, or one fewer for each shoved onto the fence.
+			int killed = 26 - animals.size();
+			helper.assertTrue(golem.getTool().getDamageValue() == killed, "the sword should be worn by " + killed + ", not " + golem.getTool().getDamageValue());
 		});
 	}
 
 	// ------------------------------------------------------------------------------------ coal
 
 	/** One of each kind of furnace, and one chest of each kind of thing to smelt. */
-	@GameTest(maxTicks = 6000)
+	@GameTest(maxTicks = 6000, padding = 16)
 	public void coalGolemSortsOresMeatAndSpongesIntoTheRightFurnaces(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos spongeChest = new BlockPos(0, 1, 1);
@@ -428,6 +447,12 @@ public class FarmGolemTests {
 		BlockPos corner = helper.absolutePos(new BlockPos(0, 0, 0));
 		BlockPos opposite = helper.absolutePos(new BlockPos(7, 4, 7));
 		return helper.getLevel().getEntitiesOfClass(Animal.class, AABB.encapsulatingFullBlocks(corner, opposite), Animal::isAlive);
+	}
+
+	/** The animals the pen holds, as the golems see it: those up on the fence too. */
+	static List<Animal> penned(final GameTestHelper helper) {
+		Enclosure pen = Enclosure.find(helper.getLevel(), helper.absolutePos(new BlockPos(3, 1, 3)));
+		return pen == null ? List.of() : helper.getLevel().getEntitiesOfClass(Animal.class, pen.bounds(), animal -> animal.isAlive() && pen.holds(animal.position()));
 	}
 
 	static Container container(final GameTestHelper helper, final BlockPos pos) {

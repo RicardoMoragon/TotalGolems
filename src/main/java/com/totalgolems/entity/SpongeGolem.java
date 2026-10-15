@@ -52,6 +52,11 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * It floats, and so sinks with the water it soaks up. Where it can it works from dry land instead,
  * and from the bottom of what it has drained it is allowed to jump home however far that is.
+ * <p>
+ * It drains from the top down: sponges only go in the highest layer of water in its area, and it
+ * moves down a layer only once there is no water left in that one. Water that keeps coming in from
+ * outside the area is a job it cannot finish: when three sponges in a row leave as much water in
+ * the layer as there was, it gives up, waits by its chest and tries again thirty seconds later.
  */
 public class SpongeGolem extends WorkerGolem {
 	private static final int SLOTS = 6;
@@ -74,6 +79,12 @@ public class SpongeGolem extends WorkerGolem {
 	/** How much coal the coal golem keeps in a sponge chest that has a fire to feed. */
 	public static final int CAMPFIRE_COAL_KEPT = 8;
 	private static final double CAMPFIRE_REACH = 2.0;
+	/** How long the water is given to settle before a layer that looks dry is taken to be dry. */
+	private static final int SETTLE_TICKS = 60;
+	/** Sponges in a row that leave the layer no drier before it decides the water is coming in from outside. */
+	public static final int FRUITLESS_SPONGES_BEFORE_GIVING_UP = 3;
+	/** How long it waits by its chest after giving up before it tries again. */
+	public static final int RETRY_TICKS = 600;
 	private static final double LINK_SEARCH_RANGE = 48.0;
 	private static final double MINER_SEARCH_RANGE = 160.0;
 
@@ -92,6 +103,17 @@ public class SpongeGolem extends WorkerGolem {
 	private @Nullable BoundingBox drainArea;
 	private @Nullable BlockPos drainSpot;
 	private boolean drainStarted;
+	/** The layer it is draining, and the least water it has seen in it just before putting a sponge down. */
+	private @Nullable Integer layerY;
+	private int leastWaterInLayer;
+	private int fruitlessSponges;
+	/** When the area looked dry: it waits a moment to see whether the water comes back before calling it done. */
+	private int dryLookingSince = -1;
+	private boolean dryConfirmed;
+	/** It has given up on water that keeps coming back, and waits until this tick to try again. */
+	private int restUntil;
+	private int spongesPlaced;
+	private @Nullable BlockPos lastSponge;
 
 	public SpongeGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
@@ -133,9 +155,23 @@ public class SpongeGolem extends WorkerGolem {
 		return this.wet.countItem(Items.WET_SPONGE);
 	}
 
+	/** How many sponges it has put down, and where the last one went. */
+	public int countSpongesPlaced() {
+		return this.spongesPlaced;
+	}
+
+	public @Nullable BlockPos lastSponge() {
+		return this.lastSponge;
+	}
+
+	/** Whether it gave up on water that keeps coming in and is waiting to try again. */
+	public boolean isResting() {
+		return this.tickCount < this.restUntil;
+	}
+
 	@Override
 	protected boolean isBusy() {
-		return this.spot != null || this.goingHome || this.campfire != null;
+		return this.spot != null || this.goingHome || this.campfire != null || this.dryLookingSince >= 0 && !this.dryConfirmed;
 	}
 
 	@Override
@@ -168,7 +204,17 @@ public class SpongeGolem extends WorkerGolem {
 		this.stand = null;
 		this.goingHome = false;
 		this.campfire = null;
+		this.restUntil = 0;
+		this.forgetLayer();
 		this.resetTravel();
+	}
+
+	/** Starts afresh: no layer being drained, and no judgement yet on whether the area is dry. */
+	private void forgetLayer() {
+		this.layerY = null;
+		this.fruitlessSponges = 0;
+		this.dryLookingSince = -1;
+		this.dryConfirmed = false;
 	}
 
 	// ------------------------------------------------------------------------------------ miners
@@ -223,6 +269,7 @@ public class SpongeGolem extends WorkerGolem {
 		this.drainSpot = where;
 		this.drainStarted = false;
 		this.spot = null;
+		this.forgetLayer();
 		return true;
 	}
 
@@ -254,7 +301,7 @@ public class SpongeGolem extends WorkerGolem {
 			this.tickChest(level);
 		} else if (this.spot != null) {
 			this.tickAbsorb(level, this.spot);
-		} else if (this.tickCount % PLAN_INTERVAL == 0) {
+		} else if (this.tickCount % PLAN_INTERVAL == 0 && !this.isResting()) {
 			this.plan(level);
 		}
 	}
@@ -286,7 +333,23 @@ public class SpongeGolem extends WorkerGolem {
 		this.spot = this.bestSpot(level);
 		this.stand = this.spot == null ? null : this.dryStandFor(level, this.spot);
 		if (this.spot != null) {
+			this.dryLookingSince = -1;
+			this.dryConfirmed = false;
 			return;
+		}
+
+		// Water flowing back in takes a moment: only once it has stayed dry for a while is the job done.
+		if (!this.dryConfirmed) {
+			if (this.dryLookingSince < 0) {
+				this.dryLookingSince = this.tickCount;
+			}
+
+			if (this.tickCount - this.dryLookingSince < SETTLE_TICKS) {
+				return;
+			}
+
+			this.dryConfirmed = true;
+			this.layerY = null;
 		}
 
 		// No water left: tell the miner, if this was for one, and put away what it is carrying.
@@ -443,6 +506,11 @@ public class SpongeGolem extends WorkerGolem {
 			return;
 		}
 
+		if (!this.worthAnotherSponge(level, pos.getY())) {
+			this.giveUp(level);
+			return;
+		}
+
 		// Put a sponge down, let it drink as any sponge does, and pick it up again.
 		level.setBlockAndUpdate(pos, Blocks.SPONGE.defaultBlockState());
 		boolean soaked = level.getBlockState(pos).is(Blocks.WET_SPONGE);
@@ -453,7 +521,56 @@ public class SpongeGolem extends WorkerGolem {
 		}
 
 		this.drainStarted = true;
+		this.spongesPlaced++;
+		this.lastSponge = pos;
 		this.plan(level);
+	}
+
+	/**
+	 * Keeps count of how much water there is in the layer each time a sponge is about to go down in it.
+	 * Returns false when the last three sponges have not brought it below the least seen: the water is
+	 * coming in from outside as fast as it is taken away.
+	 */
+	private boolean worthAnotherSponge(final ServerLevel level, final int y) {
+		int water = this.waterInLayer(level, y);
+		if (this.layerY == null || this.layerY != y) {
+			this.layerY = y;
+			this.leastWaterInLayer = water;
+			this.fruitlessSponges = 0;
+		} else if (water < this.leastWaterInLayer) {
+			this.leastWaterInLayer = water;
+			this.fruitlessSponges = 0;
+		} else if (++this.fruitlessSponges >= FRUITLESS_SPONGES_BEFORE_GIVING_UP) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/** The job cannot be finished: home, eyes off, and another go in thirty seconds. A miner waiting for it is told. */
+	private void giveUp(final ServerLevel level) {
+		if (this.drainArea != null) {
+			this.finishDrain(level);
+		}
+
+		this.spot = null;
+		this.stand = null;
+		this.forgetLayer();
+		this.restUntil = this.tickCount + RETRY_TICKS;
+		this.goingHome = this.chestPos != null;
+		this.resetTravel();
+	}
+
+	private int waterInLayer(final ServerLevel level, final int y) {
+		BoundingBox area = this.workArea();
+		int water = 0;
+		for (BlockPos pos : BlockPos.betweenClosed(area.minX(), y, area.minZ(), area.maxX(), y, area.maxZ())) {
+			if (level.isLoaded(pos) && this.isWater(level, pos)) {
+				water++;
+			}
+		}
+
+		return water;
 	}
 
 	private boolean canPlaceAt(final BlockPos pos) {
@@ -530,9 +647,10 @@ public class SpongeGolem extends WorkerGolem {
 	}
 
 	/**
-	 * Where to put the next sponge: in the body of water nearest the golem, the place from which a
-	 * sponge would soak up the most, giving a little for being closer. Spots with little water left
-	 * around them lose to fuller ones, so they are mopped up last.
+	 * Where to put the next sponge: always in the highest layer of water in the area, and there in the
+	 * body of water nearest the golem, the place from which a sponge would soak up the most, giving a
+	 * little for being closer. Spots with little water left around them lose to fuller ones, so they are
+	 * mopped up last.
 	 */
 	private @Nullable BlockPos bestSpot(final ServerLevel level) {
 		BoundingBox area = this.workArea();
@@ -541,8 +659,13 @@ public class SpongeGolem extends WorkerGolem {
 		BlockPos nearest = null;
 		double nearestDistance = Double.MAX_VALUE;
 		for (BlockPos pos : BlockPos.betweenClosed(area.minX(), area.minY(), area.minZ(), area.maxX(), area.maxY(), area.maxZ())) {
+			if (nearest != null && pos.getY() < nearest.getY() || !level.isLoaded(pos) || !this.isWater(level, pos)) {
+				continue;
+			}
+
+			// A higher layer wins whatever the distance; within the layer, the nearest.
 			double distance = pos.distToCenterSqr(from);
-			if (distance < nearestDistance && level.isLoaded(pos) && this.isWater(level, pos)) {
+			if (nearest == null || pos.getY() > nearest.getY() || distance < nearestDistance) {
 				nearest = pos.immutable();
 				nearestDistance = distance;
 			}
@@ -555,9 +678,11 @@ public class SpongeGolem extends WorkerGolem {
 		Set<BlockPos> body = this.waterBody(level, area, nearest);
 		BlockPos best = null;
 		double bestValue = -Double.MAX_VALUE;
+		int top = nearest.getY();
 		for (BlockPos pos : body) {
-			// In a big pool a sample is plenty: neighbouring spots soak up nearly the same water.
-			if (body.size() > 8 * SPONGE_CAPACITY && ((pos.getX() | pos.getZ() | pos.getY()) & 1) != 0) {
+			// Nothing below the top layer until that is dry. In a big pool a sample is plenty: neighbouring
+			// spots soak up nearly the same water.
+			if (pos.getY() != top || body.size() > 8 * SPONGE_CAPACITY && ((pos.getX() | pos.getZ()) & 1) != 0) {
 				continue;
 			}
 

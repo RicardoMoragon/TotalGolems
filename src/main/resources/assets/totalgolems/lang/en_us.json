@@ -14,5 +14,7 @@
   "entity.totalgolems.sponge_golem": "Sponge Golem",
   "entity.totalgolems.hay_golem": "Hay Golem",
   "entity.totalgolems.bone_golem": "Bone Golem",
-  "message.totalgolems.golem_locked": "It will not take a pattern until it has been given a wither rose"
+  "message.totalgolems.golem_locked": "It will not take a pattern until it has been given a wither rose",
+  "message.totalgolems.efficiency_needed": "It needs an Efficiency %s book next",
+  "message.totalgolems.efficiency_max": "It already has Efficiency V"
 }
