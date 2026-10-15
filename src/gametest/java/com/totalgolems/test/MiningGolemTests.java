@@ -859,6 +859,72 @@ public class MiningGolemTests {
 		});
 	}
 
+	/**
+	 * Once the golem is at work in its layer it is shut in a glass box up beside its chest, and the bottom
+	 * step of its staircase, where it would head for, is blocked with bedrock. Round that step there is
+	 * nothing to stand on, only water just under the layer, inside the chunk and outside it. Unable to walk
+	 * there it would jump; it must not jump anywhere it would sink below its layer.
+	 */
+	@GameTest(maxTicks = 2400, padding = 24)
+	public void quarryGolemNeverTeleportsBelowItsLayer(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		MiningGolem golem = site.golem();
+		int top = site.top();
+		int layer = top - 1;
+		BlockPos bottomStep = site.plan().stairStand(2);
+		helper.assertTrue(bottomStep.getY() == layer, "the staircase should reach the layer at its third step");
+		for (Direction side : Direction.Plane.HORIZONTAL) {
+			BlockPos beside = bottomStep.relative(side);
+			if (site.plan().isProtected(beside.below())) {
+				continue;
+			}
+
+			// Outside the chunk there is only air: stone round the water to hold it in there.
+			for (Direction around : Direction.Plane.HORIZONTAL) {
+				BlockPos wall = beside.below().relative(around);
+				if (!site.plan().contains(wall)) {
+					level.setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
+				}
+			}
+
+			level.setBlockAndUpdate(beside.below(), Blocks.WATER.defaultBlockState());
+			level.setBlockAndUpdate(beside.below(2), Blocks.STONE.defaultBlockState());
+		}
+
+		BlockPos box = site.at(12, top + 1, 12);
+		long[] boxedAt = {-1};
+		helper.onEachTick(() -> {
+			if (boxedAt[0] < 0 && Math.abs(golem.getY() - layer) < 0.3 && golem.getZ() - site.minZ() < 4.0 && golem.getX() - site.minX() < 9.0) {
+				boxedAt[0] = level.getGameTime();
+				level.setBlockAndUpdate(bottomStep, Blocks.BEDROCK.defaultBlockState());
+				level.setBlockAndUpdate(bottomStep.above(), Blocks.BEDROCK.defaultBlockState());
+				for (int dx = -1; dx <= 1; dx++) {
+					for (int dz = -1; dz <= 1; dz++) {
+						for (int dy = 0; dy <= 2; dy++) {
+							if (dx != 0 || dz != 0 || dy == 2) {
+								level.setBlockAndUpdate(box.offset(dx, dy, dz), Blocks.GLASS.defaultBlockState());
+							}
+						}
+					}
+				}
+
+				golem.teleportTo(box.getX() + 0.5, box.getY(), box.getZ() + 0.5);
+			}
+
+			if (boxedAt[0] >= 0) {
+				// Floating in water is fine, so long as its feet are not in the block under the layer.
+				helper.assertTrue(golem.getY() > layer - 0.01, "the golem ended up below its layer, at " + golem.position());
+			}
+		});
+		site.start(helper);
+		helper.runAtTickTime(2300, () -> {
+			helper.assertTrue(boxedAt[0] >= 0, "the golem never got to work in its layer");
+			site.finish();
+			helper.succeed();
+		});
+	}
+
 	/** A chunk of stone in the air, with a chest and a quarrying golem on top, ready to be given its dandelion. */
 	private record QuarrySite(ServerLevel level, int minX, int minZ, int top, int depth, BlockPos chestPos, MiningGolem golem, QuarryPlan plan) {
 		BlockPos at(final int x, final int y, final int z) {

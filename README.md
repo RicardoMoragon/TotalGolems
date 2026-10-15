@@ -296,6 +296,12 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 - Si lleva diez segundos sin poder moverse hacia donde va, se teletransporta a su destino, siempre que esté a **16
   bloques o menos**. Más lejos se queda donde está y lo sigue intentando a pie. La excepción es el gólem de esponja al
   volver a su cofre.
+- Un minero nunca se teletransporta por debajo de la altura a la que trabaja (su capa, sus túneles o, bajando la
+  escalera, el peldaño al que va), ni a una casilla con agua o lava, ni a una sin suelo firme. Si no hay ningún sitio
+  así, no se teletransporta.
+- Si un minero pasa **20 segundos trabajando sin romper ningún bloque ni llegar a una casilla nueva** (ir y volver
+  entre dos no cuenta), deja de insistir: en una cantera se salta el sitio al que iba y sigue con la capa; si no, vuelve
+  al cofre y empieza de nuevo desde ahí. Si le pasa 3 veces seguidas, lo deja y espera en el cofre a que le des otra flor.
 - Los cofres también se fabrican: un cofre rodeado de 8 lingotes de hierro, diamantes, lingotes de netherita, fragmentos
   de amatista, esponjas, trigo o huesos. Se unen en cofres dobles.
 - Un gólem invocado con `/summon` adopta el cofre de gólem más cercano (8 bloques) al recibir la flor.

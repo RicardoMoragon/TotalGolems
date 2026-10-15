@@ -872,6 +872,35 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	/**
+	 * Never anywhere below the height it works at, nor into water or lava, nor where there is nothing solid
+	 * to stand on: wherever it landed it would only sink or drop further down, out of its diggings.
+	 */
+	@Override
+	protected boolean mayLandAt(final ServerLevel level, final BlockPos spot) {
+		BlockPos floor = spot.below();
+		return spot.getY() >= this.lowestLanding()
+			&& level.getFluidState(spot).isEmpty()
+			&& level.getFluidState(floor).isEmpty()
+			&& !level.getBlockState(floor).getCollisionShape(level, floor).isEmpty();
+	}
+
+	/**
+	 * The height it works at: its tunnels, the layer of its quarry or, while it goes down the staircase to
+	 * one, the step it is about to step onto.
+	 */
+	private int lowestLanding() {
+		if (this.strip != null) {
+			return this.strip.y();
+		}
+
+		if (this.quarry != null && this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
+			return this.quarry.isDescending() ? this.quarry.stairStand(this.quarry.stairsBuilt() + 1).getY() : this.quarry.layerFeetY();
+		}
+
+		return Integer.MIN_VALUE;
+	}
+
+	/**
 	 * Mines out every vein of ore it sees from where it stands, to the last block, nearest first: ore it can
 	 * see within {@value #VEIN_REACH} blocks, and all the ore connected to that, however far it goes on, as
 	 * long as it is inside the area of the mine. Returns true while there is ore to mine.
@@ -1138,7 +1167,9 @@ public class MiningGolem extends WorkerGolem {
 		double z = next.getZ() + 0.5;
 		if (++this.stepTicks > STEP_TICKS_BEFORE_TELEPORT) {
 			this.stepTicks = 0;
-			this.teleportTo(x, next.getY(), z);
+			if (this.mayLandAt(level, next)) {
+				this.teleportTo(x, next.getY(), z);
+			}
 		} else {
 			this.getMoveControl().setWantedPosition(x, next.getY(), z, 1.0);
 		}
@@ -1308,7 +1339,10 @@ public class MiningGolem extends WorkerGolem {
 			BlockPos column = new BlockPos(pos.getX(), this.quarry.layerFeetY(), pos.getZ());
 			BlockPos spot = Direction.Plane.HORIZONTAL.stream()
 				.map(column::relative)
-				.filter(cell -> this.quarry.contains(cell) && level.getBlockState(cell).getCollisionShape(level, cell).isEmpty() && level.getBlockState(cell.above()).getCollisionShape(level, cell.above()).isEmpty())
+				.filter(cell -> this.quarry.contains(cell)
+					&& level.getBlockState(cell).getCollisionShape(level, cell).isEmpty()
+					&& level.getBlockState(cell.above()).getCollisionShape(level, cell.above()).isEmpty()
+					&& !level.getBlockState(cell.below()).getCollisionShape(level, cell.below()).isEmpty())
 				.min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position())))
 				.orElse(column);
 			this.anchor = spot;
