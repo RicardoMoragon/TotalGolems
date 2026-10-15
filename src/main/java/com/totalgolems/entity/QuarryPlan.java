@@ -12,6 +12,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.jspecify.annotations.Nullable;
 
@@ -19,9 +20,9 @@ import org.jspecify.annotations.Nullable;
  * The dandelion pattern: dig out one chunk layer by layer.
  * <p>
  * The golem sweeps the inner 14x14 of the chunk in lanes, reaching into the outer ring of cells from
- * there. That ring is kept for a spiral staircase that goes down one block per cell: one block of
- * every ring column is left in place (or placed) as a step, which is how the golem gets back to its
- * chest. Local coordinates below are 0..15 inside the chunk.
+ * there. That ring is kept for a spiral staircase that goes down one block per cell: two blocks of
+ * every ring column are left in place (or placed), the step and the one under it, which is how the
+ * golem gets back to its chest. Local coordinates below are 0..15 inside the chunk.
  */
 public class QuarryPlan {
 	private static final int SIZE = 16;
@@ -255,13 +256,75 @@ public class QuarryPlan {
 		this.routeIndex = 0;
 	}
 
+	/**
+	 * Water and lava the golem has to wall off before it digs the current layer: every source in the
+	 * layer, anything running in over the top of the pit, and anything at all against the outside of the
+	 * chunk from the layer up to there. With those gone nothing can flow into the pit or spring up again
+	 * in it as it is dug out.
+	 */
+	public List<BlockPos> fluidsToSeal(final Level level) {
+		List<BlockPos> found = new ArrayList<>();
+		int bottom = this.layerFeetY();
+		int roof = this.topY + this.height;
+		for (int y = bottom; y <= roof; y++) {
+			boolean inLayer = y < bottom + this.height;
+			for (int x = -1; x <= SIZE; x++) {
+				for (int z = -1; z <= SIZE; z++) {
+					boolean inside = isInside(x, z);
+					if (inside && !inLayer && y != roof) {
+						continue;
+					}
+
+					BlockPos pos = new BlockPos(this.minX + x, y, this.minZ + z);
+					FluidState fluid = level.getFluidState(pos);
+					if (fluid.isEmpty() || inside && y != roof && !fluid.isSource() || inside && this.isProtected(pos)) {
+						continue;
+					}
+
+					BlockState state = level.getBlockState(pos);
+					if (state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity()) {
+						found.add(pos);
+					}
+				}
+			}
+		}
+
+		return found;
+	}
+
+	/**
+	 * Blocks of the walkway and of the staircase built so far that are missing: where the ground had a hole
+	 * to begin with, or something broke them. Without them the way to the chest has a gap to fall through.
+	 */
+	public List<BlockPos> pathGaps(final Level level) {
+		List<BlockPos> gaps = new ArrayList<>();
+		for (BlockPos pos : this.walkway) {
+			if (level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()) {
+				gaps.add(pos);
+			}
+		}
+
+		for (int step = 0; step <= this.stairsBuilt; step++) {
+			BlockPos floor = this.stairStand(step).below();
+			if (level.getBlockState(floor).getCollisionShape(level, floor).isEmpty()) {
+				gaps.add(floor);
+			}
+		}
+
+		return gaps;
+	}
+
 	/** Where the golem stands on step {@code step} of the staircase; step 0 is the top. */
 	public BlockPos stairStand(final int step) {
 		int[] cell = ringCell(Math.floorMod(this.stairStart + step, RING_LENGTH));
 		return new BlockPos(this.minX + cell[0], this.topY - step, this.minZ + cell[1]);
 	}
 
-	/** Blocks the golem never breaks: the staircase steps and the walkway to its chest. */
+	/**
+	 * Blocks the golem never breaks: the staircase steps, the block under each step, and the walkway to its
+	 * chest. Under a step a golem would fit, but with the step right over its head it could not jump up to
+	 * the next one, and it would pace about in there trying.
+	 */
 	public boolean isProtected(final BlockPos pos) {
 		if (this.walkway.contains(pos)) {
 			return true;
@@ -271,7 +334,7 @@ public class QuarryPlan {
 		int z = pos.getZ() - this.minZ;
 		int index = isInside(x, z) ? ringIndex(x, z) : -1;
 		int step = this.topY - 1 - pos.getY();
-		return index >= 0 && step >= 0 && Math.floorMod(this.stairStart + step, RING_LENGTH) == index;
+		return index >= 0 && (step >= 0 && Math.floorMod(this.stairStart + step, RING_LENGTH) == index || step >= 1 && Math.floorMod(this.stairStart + step - 1, RING_LENGTH) == index);
 	}
 
 	/**

@@ -441,6 +441,193 @@ public class MiningGolemTests {
 		});
 	}
 
+	/**
+	 * A quarry with a pocket of water in the layer it digs and a pond just outside the chunk, against the
+	 * side of the pit. The pocket is filled in and dug out, the pond walled off, and the pit ends up dry.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemWallsOffWaterAndLeavesThePitDry(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		int top = site.top();
+		List<BlockPos> pocket = List.of(site.at(6, top, 6), site.at(7, top, 6), site.at(6, top, 7), site.at(7, top, 7), site.at(6, top - 1, 6));
+		pocket.forEach(pos -> level.setBlockAndUpdate(pos, Blocks.WATER.defaultBlockState()));
+		// The pond: two blocks deep in glass, against the west side of the chunk.
+		List<BlockPos> pond = new java.util.ArrayList<>();
+		for (int z = 3; z <= 5; z++) {
+			for (int y = top - 1; y <= top; y++) {
+				pond.add(site.at(-1, y, z));
+				level.setBlockAndUpdate(site.at(-2, y, z), Blocks.GLASS.defaultBlockState());
+			}
+
+			level.setBlockAndUpdate(site.at(-1, top - 2, z), Blocks.GLASS.defaultBlockState());
+		}
+
+		for (int y = top - 1; y <= top; y++) {
+			level.setBlockAndUpdate(site.at(-1, y, 2), Blocks.GLASS.defaultBlockState());
+			level.setBlockAndUpdate(site.at(-1, y, 6), Blocks.GLASS.defaultBlockState());
+		}
+
+		pond.forEach(pos -> level.setBlockAndUpdate(pos, Blocks.WATER.defaultBlockState()));
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			site.assertDug(helper);
+			for (int x = 0; x < 16; x++) {
+				for (int z = 0; z < 16; z++) {
+					for (int y = top - 1; y <= top + 1; y++) {
+						helper.assertTrue(level.getFluidState(site.at(x, y, z)).isEmpty(), "water left in the pit at " + site.at(x, y, z));
+					}
+				}
+			}
+
+			helper.assertTrue(pond.stream().anyMatch(pos -> level.getBlockState(pos).isSolid()), "the pond should have been walled off");
+			site.finish();
+		});
+	}
+
+	/**
+	 * Where the ground dips under the top of the staircase there is nothing to stand on there: the golem
+	 * puts a block in before it goes down, and does not fall into the hole and stay there.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemPutsAFloorUnderTheTopStep(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		BlockPos topStep = site.plan().stairStand(0);
+		level.setBlockAndUpdate(topStep.below(), Blocks.AIR.defaultBlockState());
+		level.setBlockAndUpdate(topStep.below(2), Blocks.AIR.defaultBlockState());
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			site.assertDug(helper);
+			helper.assertTrue(level.getBlockState(topStep.below()).isSolid(), "the top step should have a floor");
+			site.finish();
+		});
+	}
+
+	/**
+	 * The ground under the walkway from the staircase to the chest has a hole in it. The golem fills it in
+	 * on its way, instead of falling into the pit each time it tries to get to its chest.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemMendsTheWalkwayToItsChest(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		Container chest = (Container)level.getBlockEntity(site.chestPos());
+		chest.clearContent();
+		BlockPos topStep = site.plan().stairStand(0).below();
+		List<BlockPos> walkway = new java.util.ArrayList<>();
+		for (int x = 0; x < 16; x++) {
+			for (int z = 0; z < 16; z++) {
+				BlockPos pos = site.at(x, site.top(), z);
+				if (site.plan().isProtected(pos) && !pos.equals(topStep) && !pos.equals(site.chestPos().below())) {
+					walkway.add(pos);
+				}
+			}
+		}
+
+		helper.assertTrue(!walkway.isEmpty(), "the chest should have a walkway");
+		walkway.forEach(pos -> level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState()));
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			site.assertDug(helper);
+			helper.assertTrue(chest.hasAnyMatching(stack -> stack.is(Items.COBBLESTONE)), "it should have got to its chest");
+			site.finish();
+		});
+	}
+
+	/** A tunnel through a pocket of water, with more water beside it: the tunnel ends up dry. */
+	@GameTest(maxTicks = 1500)
+	public void poppyTunnelsThroughWaterAndSealsItOff(final GameTestHelper helper) {
+		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		chest(helper).setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+		for (int x = 2; x <= 6; x++) {
+			for (int z = 2; z <= 4; z++) {
+				for (int y = 1; y <= 3; y++) {
+					helper.setBlock(x, y, z, Blocks.STONE);
+				}
+			}
+		}
+
+		helper.setBlock(4, 1, 1, Blocks.STONE);
+		helper.setBlock(4, 1, 3, Blocks.WATER);
+		helper.setBlock(4, 2, 3, Blocks.WATER);
+		helper.setBlock(4, 1, 2, Blocks.WATER);
+		helper.setBlock(7, 1, 3, Blocks.BEDROCK);
+		helper.setBlock(7, 2, 3, Blocks.BEDROCK);
+		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
+		helper.succeedWhen(() -> {
+			for (int x = 2; x <= 6; x++) {
+				for (int y = 1; y <= 2; y++) {
+					helper.assertBlockPresent(Blocks.AIR, x, y, 3);
+				}
+			}
+
+			helper.assertTrue(helper.getBlockState(new BlockPos(4, 1, 2)).isSolid(), "the water beside the tunnel should have been walled off");
+			helper.assertTrue(golem.isHalted(), "it should have stopped at the bedrock");
+		});
+	}
+
+	/** A chunk of stone in the air, with a chest and a quarrying golem on top, ready to be given its dandelion. */
+	private record QuarrySite(ServerLevel level, int minX, int minZ, int top, int depth, BlockPos chestPos, MiningGolem golem, QuarryPlan plan) {
+		BlockPos at(final int x, final int y, final int z) {
+			return new BlockPos(this.minX + x, y, this.minZ + z);
+		}
+
+		void start(final GameTestHelper helper) {
+			if (this.golem.getTier().startsLocked()) {
+				give(helper, this.golem, new ItemStack(MiningGolem.UNLOCK_FLOWER), Direction.EAST);
+			}
+
+			give(helper, this.golem, new ItemStack(Items.DANDELION), Direction.EAST);
+		}
+
+		/** Everything in the layers dug out but the stairs and the walkway. */
+		void assertDug(final GameTestHelper helper) {
+			for (int x = 0; x < 16; x++) {
+				for (int z = 0; z < 16; z++) {
+					for (int y = this.top - this.depth + 1; y <= this.top; y++) {
+						BlockPos pos = this.at(x, y, z);
+						boolean kept = this.plan.isProtected(pos);
+						helper.assertTrue(this.level.getBlockState(pos).isAir() != kept, (kept ? "stair or walkway block dug at " : "block left at ") + pos);
+					}
+				}
+			}
+		}
+
+		void finish() {
+			this.golem.discard();
+			this.level.setChunkForced(this.minX >> 4, this.minZ >> 4, false);
+		}
+	}
+
+	private static QuarrySite quarrySite(final GameTestHelper helper, final GolemTier tier, final int layers) {
+		ServerLevel level = helper.getLevel();
+		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(16);
+		int minX = origin.getX() & ~15;
+		int minZ = origin.getZ() & ~15;
+		int depth = layers * tier.tunnelHeight();
+		int top = origin.getY() + depth;
+		for (int x = 0; x < 16; x++) {
+			for (int z = 0; z < 16; z++) {
+				for (int y = origin.getY(); y <= top; y++) {
+					level.setBlockAndUpdate(new BlockPos(minX + x, y, minZ + z), Blocks.STONE.defaultBlockState());
+				}
+			}
+		}
+
+		BlockPos chestPos = new BlockPos(minX + 5, top + 1, minZ + 5);
+		BlockPos golemPos = chestPos.east();
+		level.setBlockAndUpdate(chestPos, tier.chestBlock().defaultBlockState());
+		((Container)level.getBlockEntity(chestPos)).setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+		level.setChunkForced(minX >> 4, minZ >> 4, true);
+		MiningGolem golem = tier.entityType().create(level, EntitySpawnReason.COMMAND);
+		golem.snapTo(Vec3.atBottomCenterOf(golemPos));
+		level.addFreshEntity(golem);
+		golem.setChestPos(chestPos);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, tirelessPickaxe(helper));
+		return new QuarrySite(level, minX, minZ, top, depth, chestPos, golem, QuarryPlan.create(golemPos, chestPos, tier));
+	}
+
 	static <T extends WorkerGolem> T setUp(final GameTestHelper helper, final EntityType<T> type, final Block chest) {
 		for (int x = 0; x <= 7; x++) {
 			for (int z = 0; z <= 7; z++) {

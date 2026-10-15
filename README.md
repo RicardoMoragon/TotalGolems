@@ -76,8 +76,11 @@ mineral, arena o grava).
 - **Diente de león**: cantera del chunk en el que está. Pica toda la capa a su altura, baja tantos bloques como alto es su
   túnel (2 el de hierro, 3 los otros) y repite, hasta llegar a la roca madre.
   - El anillo exterior del chunk queda reservado para una **escalera en espiral**: de cada columna del borde el gólem deja
-    (o coloca) un bloque como peldaño, y por ella sube y baja al cofre.
+    (o coloca) un bloque como peldaño y el de debajo, y por ella sube y baja al cofre. Si bajo un peldaño había un hueco
+    (una cueva, un desnivel del terreno), lo rellena: sin él podría meterse debajo y quedarse sin poder subir.
   - Si el cofre está dentro del chunk y a su misma altura, deja también una pasarela desde lo alto de la escalera hasta él.
+  - Si a la escalera o a la pasarela les falta algún bloque (porque el terreno tenía un hueco o algo lo rompió), lo repone
+    al pasar cerca, para no caerse al pozo cada vez que va al cofre.
   - Los cofres y bloques irrompibles que encuentra los rodea y los deja en pie.
   - Si le quitas la flor y se la vuelves a dar dentro del mismo pozo, sigue con la misma cantera y la misma escalera.
   - **Un gólem por chunk.** Si el chunk ya lo está picando otro gólem, el nuevo se queda con el chunk libre más cercano
@@ -90,8 +93,21 @@ El resto de flores no tienen patrón y no las acepta.
 
 ### Agua
 
-Las corrientes no arrastran a los mineros: el agua solo los ralentiza. Si además hay un **gólem de esponja con su cofre
-pegado al cofre del minero**, trabajan juntos:
+Las corrientes no arrastran a los mineros: el agua solo los ralentiza. Además, **el minero sella el agua y la lava** que se
+encuentra, como haría un jugador:
+
+- En una **cantera**, antes de picar cada capa tapa con un bloque todas las fuentes de esa capa dentro del chunk. Luego pica
+  esos bloques como cualquier otro. Así el agua no vuelve a formar fuentes nuevas mientras pica (lo que hacía que un
+  acuífero fuera imposible de vaciar).
+- Por donde entra agua o lava desde fuera de su zona (por los lados del chunk, o cayendo desde arriba, como bajo el mar o
+  junto a un río) pone un bloque que se queda ahí como pared.
+- En un **túnel** hace lo mismo con lo que tiene delante: tapa las fuentes que va a picar y tapia el agua que entra por los
+  lados o el techo.
+- Sin fuentes, el agua que quedaba se va sola.
+- Para esto usa los bloques de construcción que lleva encima (al picar piedra casi siempre lleva adoquín). Si no lleva
+  ninguno, sigue picando dentro del agua.
+
+Si aun así se queda dentro del agua y hay un **gólem de esponja con su cofre pegado al cofre del minero**, trabajan juntos:
 
 1. Cuando el minero pasa **5 segundos seguidos dentro del agua**, deja de picar, vuelve a su cofre y avisa a la esponja.
 2. El gólem de esponja va al punto donde el minero encontró el agua y quita **toda el agua, fuentes y corrientes**, de la
@@ -99,7 +115,7 @@ pegado al cofre del minero**, trabajan juntos:
 3. Cuando no queda agua, avisa al minero y vuelve a su cofre. El minero **reanuda el trabajo donde lo dejó**.
 
 Si la esponja se queda sin esponjas secas a medias, el minero sigue esperando hasta que haya más. Sin gólem de esponja
-vinculado (o si no lleva su flor), el minero sigue picando dentro del agua como antes.
+vinculado (o si no lleva su flor), el minero sigue picando dentro del agua.
 
 ## Gólem de carbón (fundidor)
 

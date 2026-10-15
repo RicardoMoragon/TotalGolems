@@ -277,9 +277,10 @@ public class GolemUpgradeTests {
 	// ------------------------------------------------------------------------------------ water
 
 	/**
-	 * A tunnel in a channel one block deep, so that the water stays in it. Two blocks in the golem breaks
-	 * into a pocket of water and then meets obsidian, slow enough to keep it standing there. It must go
-	 * home, the sponge golem next door must dry the tunnel, and then the miner must finish it.
+	 * A tunnel in a channel one block deep, so that the water stays in it. Two blocks of glass in, the golem
+	 * breaks into a pocket of water and then meets obsidian, slow enough to keep it standing there. Glass
+	 * leaves it nothing to wall the water off with, so it must go home, the sponge golem next door must dry
+	 * the tunnel, and then the miner must finish it.
 	 */
 	@GameTest(maxTicks = 4000, padding = 16)
 	public void minerCallsSpongeGolemToDrainFloodedTunnel(final GameTestHelper helper) {
@@ -292,8 +293,8 @@ public class GolemUpgradeTests {
 			helper.setBlock(x, 1, 4, Blocks.STONE);
 		}
 
-		helper.setBlock(2, 1, 3, Blocks.STONE);
-		helper.setBlock(3, 1, 3, Blocks.STONE);
+		helper.setBlock(2, 1, 3, Blocks.GLASS);
+		helper.setBlock(3, 1, 3, Blocks.GLASS);
 		helper.setBlock(4, 1, 3, Blocks.WATER);
 		helper.setBlock(5, 1, 3, Blocks.WATER);
 		helper.setBlock(6, 1, 3, Blocks.OBSIDIAN);
