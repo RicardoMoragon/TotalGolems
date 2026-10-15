@@ -266,39 +266,47 @@ public class QuarryPlan {
 	}
 
 	/**
-	 * Water and lava the golem has to wall off before it digs the current layer: every source in the
-	 * layer, anything running in over the top of the pit, and anything at all against the outside of the
-	 * chunk from the layer up to there. With those gone nothing can flow into the pit or spring up again
-	 * in it as it is dug out.
+	 * Water and lava the golem has to wall off in the layer it is digging, and only in that one: every
+	 * source in the layer, and anything at all right against the outside of the chunk at the height of
+	 * the layer. On the first layer, also anything running in over the top of the pit. With those gone
+	 * nothing can flow into the layer or spring up again in it as it is dug out; the layers above were
+	 * seen to when they were dug.
 	 */
 	public List<BlockPos> fluidsToSeal(final Level level) {
 		List<BlockPos> found = new ArrayList<>();
 		int bottom = this.layerFeetY();
-		int roof = this.topY + this.height;
+		int top = bottom + this.height - 1;
+		int roof = this.layer == 0 ? top + 1 : top;
 		for (int y = bottom; y <= roof; y++) {
-			boolean inLayer = y < bottom + this.height;
 			for (int x = -1; x <= SIZE; x++) {
 				for (int z = -1; z <= SIZE; z++) {
-					boolean inside = isInside(x, z);
-					if (inside && !inLayer && y != roof) {
-						continue;
-					}
-
 					BlockPos pos = new BlockPos(this.minX + x, y, this.minZ + z);
-					FluidState fluid = level.getFluidState(pos);
-					if (fluid.isEmpty() || inside && y != roof && !fluid.isSource() || inside && this.isProtected(pos)) {
-						continue;
-					}
-
-					BlockState state = level.getBlockState(pos);
-					if (state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity()) {
-						found.add(pos);
+					if (isInside(x, z) || x >= 0 && x < SIZE || z >= 0 && z < SIZE) {
+						// Corners outside the chunk touch none of it.
+						if (this.needsSealing(level, pos, y > top)) {
+							found.add(pos);
+						}
 					}
 				}
 			}
 		}
 
 		return found;
+	}
+
+	/**
+	 * Whether {@code pos} has water or lava the golem must wall off: a source inside the chunk, or any
+	 * at all outside it or, with {@code any}, inside.
+	 */
+	private boolean needsSealing(final Level level, final BlockPos pos, final boolean any) {
+		FluidState fluid = level.getFluidState(pos);
+		boolean inside = this.contains(pos);
+		if (fluid.isEmpty() || inside && !any && !fluid.isSource() || inside && this.isProtected(pos)) {
+			return false;
+		}
+
+		BlockState state = level.getBlockState(pos);
+		return state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity();
 	}
 
 	/**
@@ -392,13 +400,26 @@ public class QuarryPlan {
 		return null;
 	}
 
-	/** Whether standing next to this cell of the layer there would be anything for the golem to break. */
+	/**
+	 * Whether standing next to this cell of the layer there would be anything for the golem to break, or
+	 * water or lava to wall off: it only does that from close by, so it has to go there.
+	 */
 	private boolean hasWork(final Level level, final int x, final int z, final int y) {
 		BlockPos cell = new BlockPos(this.minX + x, y, this.minZ + z);
 		for (BlockPos pos : this.slice(cell.west(), cell)) {
 			BlockState state = level.getBlockState(pos);
 			if (!state.isAir() && !state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity() && state.getDestroySpeed(level, pos) >= 0.0F) {
 				return true;
+			}
+
+			if (this.needsSealing(level, pos, false)) {
+				return true;
+			}
+
+			for (int[] offset : NEIGHBOURS) {
+				if (this.needsSealing(level, pos.offset(offset[0], 0, offset[1]), false)) {
+					return true;
+				}
 			}
 		}
 

@@ -66,9 +66,10 @@ Si el cofre está lleno (o lo han roto) se queda esperando junto a él y no sigu
 ### Flores
 
 El gólem trabaja siempre a la altura a la que está cuando recibe la flor y nunca pisa una casilla sin suelo: si falta,
-coloca un bloque de su inventario. Si no tiene bloques, vuelve al cofre, deja lo que lleve y coge hasta 64; si en el cofre
-tampoco hay, se queda esperando allí. Para el suelo solo usa bloques completos corrientes (nada de menas, bloques de
-mineral, arena o grava).
+coloca un bloque de su inventario. Si no tiene bloques, vuelve al cofre, deja lo que lleve y coge hasta 128; si en el
+cofre tampoco hay, se queda esperando allí. Solo usa bloques completos corrientes que se pican con pico (piedra, adoquín,
+pizarra, ladrillos...; nada de tierra, madera, menas, bloques de mineral, arena o grava), así siempre puede volver a
+quitarlos.
 
 - **Amapola**: **mina en tiras** (*strip mining*) en la capa en la que está, y solo dentro de los **3x3 chunks** que hay
   alrededor del suyo.
@@ -88,8 +89,11 @@ mineral, arena o grava).
     estar en su túnel, lo pica y vuelve a bajar. Los mineros no se asfixian enterrados: siguen picando hasta salir.
   - **Final:** cuando termina toda la mina vuelve al cofre y espera allí a que le des otra flor. Si se queda sin camino de
     vuelta (lava, una cueva) dentro de su zona, se teletransporta al cofre o al túnel.
-- **Diente de león**: cantera del chunk en el que está. Pica toda la capa a su altura, baja tantos bloques como alto es su
-  túnel (2 el de hierro, 3 los otros) y repite, hasta llegar a la roca madre.
+- **Diente de león**: cantera del chunk en el que está, **capa a capa**. Pica toda la capa a su altura, baja tantos bloques
+  como alto es su túnel (2 el de hierro, 3 los otros) y repite, hasta llegar a la roca madre. No empieza la capa siguiente
+  mientras quede agua en la que está.
+  - **Siempre lleva 2 huecos de bloques** (los más llenos, hasta 128 bloques) que no deja en el cofre: son los que usa para
+    tapar el agua y poner suelo. Solo va al cofre a por bloques si no puede sacarlos de la capa que está picando.
   - El anillo exterior del chunk queda reservado para una **escalera en espiral**: de cada columna del borde el gólem deja
     (o coloca) un bloque como peldaño y el de debajo, y por ella sube y baja al cofre. Si bajo un peldaño había un hueco
     (una cueva, un desnivel del terreno), lo rellena: sin él podría meterse debajo y quedarse sin poder subir.
@@ -115,16 +119,21 @@ El resto de flores no tienen patrón y no las acepta.
 Las corrientes no arrastran a los mineros: el agua solo los ralentiza. Además, **el minero sella el agua y la lava** que se
 encuentra, como haría un jugador:
 
-- En una **cantera**, antes de picar cada capa tapa con un bloque todas las fuentes de esa capa dentro del chunk. Luego pica
-  esos bloques como cualquier otro. Así el agua no vuelve a formar fuentes nuevas mientras pica (lo que hacía que un
-  acuífero fuera imposible de vaciar).
-- Por donde entra agua o lava desde fuera de su zona (por los lados del chunk, o cayendo desde arriba, como bajo el mar o
-  junto a un río) pone un bloque que se queda ahí como pared.
+- En una **cantera** quita el agua **capa a capa**, igual que pica: solo se ocupa del agua de la capa en la que está, y
+  dentro de ella empieza por arriba.
+  - Tapa con un bloque las fuentes de esa capa dentro del chunk y luego pica esos bloques como cualquier otro. Así el agua
+    no vuelve a formar fuentes nuevas mientras pica (lo que hacía que un acuífero fuera imposible de vaciar).
+  - Por donde entra agua o lava desde fuera del chunk, a la altura de la capa, pone un bloque que se queda ahí como
+    pared. En la primera capa también tapa la que cae desde arriba (bajo el mar o junto a un río).
+  - **No pone bloques lejos:** solo a unos 4 bloques de donde está, así que va hasta el agua para taparla.
+  - **Si se queda sin bloques mientras quita agua**, pica uno de su capa: primero los que ya puso en el agua (donde ya no
+    queda agua), y si no, el más cercano que no tenga una fuente al lado. Si está lejos, va hasta él. Solo si en la capa
+    no queda ninguno vuelve al cofre a por más.
 - En una **mina en tiras** hace lo mismo con lo que tiene delante: tapa las fuentes que va a picar y tapia el agua que entra
   por los lados o el techo de sus túneles.
 - Sin fuentes, el agua que quedaba se va sola.
-- Para esto usa los bloques de construcción que lleva encima (al picar piedra casi siempre lleva adoquín). Si no lleva
-  ninguno, sigue picando dentro del agua.
+- Para esto usa los bloques de construcción que lleva encima. En una mina en tiras, si no lleva ninguno, sigue picando
+  dentro del agua.
 
 Si aun así se queda dentro del agua y hay un **gólem de esponja con su cofre pegado al cofre del minero**, trabajan juntos:
 

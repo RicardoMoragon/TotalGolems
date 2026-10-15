@@ -333,13 +333,13 @@ public class MiningGolemTests {
 		// One cobblestone to mine, then a pit two blocks long and three deep. The second block has to come from the chest.
 		helper.setBlock(2, 1, 3, Blocks.STONE);
 		digPit(helper, 3, 4);
-		chest(helper).setItem(0, new ItemStack(Items.DIRT, 10));
+		chest(helper).setItem(0, new ItemStack(Items.STONE_BRICKS, 10));
 		stopper(helper, 6);
 		walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.COBBLESTONE, 3, 0, 3);
-			helper.assertBlockPresent(Blocks.DIRT, 4, 0, 3);
+			helper.assertBlockPresent(Blocks.STONE_BRICKS, 4, 0, 3);
 			helper.assertTrue(golem.isHalted(), "golem should have crossed the bridge and reached the bedrock");
 		});
 	}
@@ -452,11 +452,50 @@ public class MiningGolemTests {
 	 */
 	@GameTest(maxTicks = 8000, padding = 24)
 	public void quarryGolemWallsOffWaterAndLeavesThePitDry(final GameTestHelper helper) {
+		quarryWater(helper, false);
+	}
+
+	/**
+	 * The pond again, with nothing in the chest to build with and nothing in the golem's pockets, and the
+	 * layer empty but for a little stone: it digs that out to wall the pond off. Were it to go to its chest
+	 * for blocks it would wait there for good.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemDigsBlocksOutOfItsLayerToWallOffWater(final GameTestHelper helper) {
+		quarryWater(helper, true);
+	}
+
+	private static void quarryWater(final GameTestHelper helper, final boolean noBlocks) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
 		int top = site.top();
-		List<BlockPos> pocket = List.of(site.at(6, top, 6), site.at(7, top, 6), site.at(6, top, 7), site.at(7, top, 7), site.at(6, top - 1, 6));
-		pocket.forEach(pos -> level.setBlockAndUpdate(pos, Blocks.WATER.defaultBlockState()));
+		if (noBlocks) {
+			// Nothing in the layer but its stairs and walkway, and a little stone near the pond: all there is to wall it off with.
+			((Container)level.getBlockEntity(site.chestPos())).clearContent();
+			for (int x = 0; x < 16; x++) {
+				for (int z = 0; z < 16; z++) {
+					for (int y = top - 1; y <= top; y++) {
+						BlockPos pos = site.at(x, y, z);
+						boolean stone = x >= 2 && x <= 4 && z >= 5 && z <= 6;
+						if (!stone && !site.plan().isProtected(pos)) {
+							level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+						}
+					}
+				}
+			}
+
+			// Glass round the outside, or the water would run off the edge of the layer into the open air.
+			for (int i = -1; i <= 16; i++) {
+				for (int y = top - 1; y <= top; y++) {
+					for (BlockPos pos : List.of(site.at(i, y, -1), site.at(i, y, 16), site.at(-1, y, i), site.at(16, y, i))) {
+						level.setBlockAndUpdate(pos, Blocks.GLASS.defaultBlockState());
+					}
+				}
+			}
+		} else {
+			List<BlockPos> pocket = List.of(site.at(6, top, 6), site.at(7, top, 6), site.at(6, top, 7), site.at(7, top, 7), site.at(6, top - 1, 6));
+			pocket.forEach(pos -> level.setBlockAndUpdate(pos, Blocks.WATER.defaultBlockState()));
+		}
 		// The pond: two blocks deep in glass, against the west side of the chunk.
 		List<BlockPos> pond = new java.util.ArrayList<>();
 		for (int z = 3; z <= 5; z++) {

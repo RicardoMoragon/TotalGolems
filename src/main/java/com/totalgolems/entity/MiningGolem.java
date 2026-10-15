@@ -94,7 +94,8 @@ public class MiningGolem extends WorkerGolem {
 	/** How many chunks away a golem will go to find one that no other golem is quarrying. */
 	private static final int CLAIM_CHUNK_RANGE = 2;
 	private static final int CHEST_PROTECTION_INTERVAL = 200;
-	private static final int BLOCKS_FETCHED_PER_TRIP = 64;
+	/** How many slots of blocks it always keeps for walling off water and laying floor, instead of unloading them. */
+	private static final int RESERVE_SLOTS = 2;
 	/** How many blocks of water or lava it walls off in one go. */
 	private static final int SEALS_AT_ONCE = 4;
 	/** How often a quarrying golem looks over its layer for water and lava to wall off. */
@@ -109,6 +110,8 @@ public class MiningGolem extends WorkerGolem {
 	private static final double STRIP_TELEPORT_DISTANCE = 72.0;
 	/** How far away it can lay a missing floor block under the place it is heading for. */
 	private static final double FLOOR_REACH = 4.0;
+	/** How far away a quarrying golem walls off water and lava, or digs out a block to do it with. */
+	private static final double SEAL_REACH = 4.5;
 
 	private final GolemTier tier;
 	private final SimpleContainer inventory;
@@ -146,6 +149,12 @@ public class MiningGolem extends WorkerGolem {
 	/** Water and lava around the layer it is quarrying, still to be walled off; see {@link QuarryPlan#fluidsToSeal}. */
 	private List<BlockPos> layerSeals = List.of();
 	private int nextSealScan;
+	/** Blocks it put into water inside the pit, the first it digs out again when it needs one to wall off more. */
+	private final Set<BlockPos> fillers = new HashSet<>();
+	/** The block it is getting out of its layer to wall off water with, having none left. */
+	private @Nullable BlockPos blockSource;
+	/** How many times it has gone back over a finished layer because water was still showing in it. */
+	private int dryPasses;
 	/** Standing at its chest with nothing it can do: no pickaxe, or the sponge golem still drying the diggings. */
 	private boolean waiting;
 	private boolean waitingForDrain;
@@ -296,6 +305,9 @@ public class MiningGolem extends WorkerGolem {
 		BlockPos cell = this.feetPos();
 		this.anchor = cell;
 		this.vein.clear();
+		this.fillers.clear();
+		this.blockSource = null;
+		this.dryPasses = 0;
 		// A golem that is on its way to unload finishes that first, then comes back here.
 		this.returning = this.depositing;
 		if (this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
@@ -439,7 +451,7 @@ public class MiningGolem extends WorkerGolem {
 	@Override
 	protected void serverStep(final ServerLevel level) {
 		// Without a flower the golem still takes home whatever it was carrying.
-		if (!this.depositing && (!this.overflow.isEmpty() || !this.isWorking() && !this.inventory.isEmpty() && this.chestPos != null)) {
+		if (!this.depositing && (!this.overflow.isEmpty() || !this.isWorking() && this.hasLoot() && this.chestPos != null)) {
 			this.beginDeposit(level);
 		}
 
@@ -529,10 +541,12 @@ public class MiningGolem extends WorkerGolem {
 		}
 	}
 
+	/** Unloads everything but its reserve of blocks. Returns whether that is all it has left. */
 	private boolean unloadInto(final Container chest) {
+		Set<Integer> reserve = this.reserveSlots();
 		for (int slot = 0; slot < this.inventory.getContainerSize(); slot++) {
 			ItemStack stack = this.inventory.getItem(slot);
-			if (!stack.isEmpty()) {
+			if (!stack.isEmpty() && !reserve.contains(slot)) {
 				this.inventory.setItem(slot, HopperBlockEntity.addItem(null, chest, stack, null));
 			}
 		}
@@ -540,11 +554,63 @@ public class MiningGolem extends WorkerGolem {
 		this.overflow.replaceAll(stack -> HopperBlockEntity.addItem(null, chest, stack, null));
 		this.overflow.removeIf(ItemStack::isEmpty);
 		chest.setChanged();
-		return this.inventory.isEmpty() && this.overflow.isEmpty();
+		return !this.hasLoot() && this.overflow.isEmpty();
 	}
 
+	/**
+	 * The slots of blocks a quarrying golem keeps, the fullest {@value #RESERVE_SLOTS}, topped up from the
+	 * other blocks it carries of the same kind. Other golems keep nothing.
+	 */
+	private Set<Integer> reserveSlots() {
+		if (!this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
+			return Set.of();
+		}
+
+		List<Integer> slots = new ArrayList<>();
+		for (int slot = 0; slot < this.inventory.getContainerSize(); slot++) {
+			if (isBuildingBlock(this.inventory.getItem(slot))) {
+				slots.add(slot);
+			}
+		}
+
+		slots.sort(Comparator.comparingInt((Integer slot) -> this.inventory.getItem(slot).getCount()).reversed());
+		List<Integer> kept = slots.subList(0, Math.min(RESERVE_SLOTS, slots.size()));
+		for (int keep : kept) {
+			ItemStack stack = this.inventory.getItem(keep);
+			for (int other : slots) {
+				ItemStack more = this.inventory.getItem(other);
+				if (!kept.contains(other) && ItemStack.isSameItemSameComponents(stack, more)) {
+					int moved = Math.min(more.getCount(), stack.getMaxStackSize() - stack.getCount());
+					stack.grow(moved);
+					more.shrink(moved);
+				}
+			}
+		}
+
+		return new HashSet<>(kept);
+	}
+
+	/** Whether it carries anything besides its reserve of blocks. */
+	private boolean hasLoot() {
+		Set<Integer> reserve = this.reserveSlots();
+		for (int slot = 0; slot < this.inventory.getContainerSize(); slot++) {
+			if (!this.inventory.getItem(slot).isEmpty() && !reserve.contains(slot)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** Fills its reserve of blocks up from the chest. Returns whether it has any blocks now. */
 	private boolean takeBuildingBlocks(final Container chest) {
-		int wanted = BLOCKS_FETCHED_PER_TRIP;
+		int carried = 0;
+		for (int slot = 0; slot < this.inventory.getContainerSize(); slot++) {
+			ItemStack stack = this.inventory.getItem(slot);
+			carried += isBuildingBlock(stack) ? stack.getCount() : 0;
+		}
+
+		int wanted = RESERVE_SLOTS * Item.DEFAULT_MAX_STACK_SIZE - carried;
 		for (int slot = 0; slot < chest.getContainerSize() && wanted > 0; slot++) {
 			ItemStack stack = chest.getItem(slot);
 			if (isBuildingBlock(stack)) {
@@ -555,17 +621,23 @@ public class MiningGolem extends WorkerGolem {
 		}
 
 		chest.setChanged();
-		return wanted < BLOCKS_FETCHED_PER_TRIP;
+		return this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock);
 	}
 
-	/** Plain full blocks the golem may lay as floor: nothing that falls, holds data or is worth keeping. */
+	/**
+	 * Plain full blocks the golem may lay as floor or put into water: nothing that falls, holds data or is
+	 * worth keeping, and only what a pickaxe digs, so that it can always take them out again.
+	 */
 	public static boolean isBuildingBlock(final ItemStack stack) {
 		if (!(stack.getItem() instanceof BlockItem blockItem) || stack.is(ConventionalItemTags.ORES) || stack.is(ConventionalItemTags.STORAGE_BLOCKS)) {
 			return false;
 		}
 
 		BlockState state = blockItem.getBlock().defaultBlockState();
-		return !(state.getBlock() instanceof FallingBlock) && !state.hasBlockEntity() && state.isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
+		return !(state.getBlock() instanceof FallingBlock)
+			&& !state.hasBlockEntity()
+			&& state.is(BlockTags.MINEABLE_WITH_PICKAXE)
+			&& state.isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
 	}
 
 	private void tickWork(final ServerLevel level) {
@@ -841,6 +913,13 @@ public class MiningGolem extends WorkerGolem {
 			this.chestsProtected = true;
 		}
 
+		// Once it has gone after a block to wall off water with, it gets it before anything else.
+		if (this.blockSource != null && this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock)) {
+			this.blockSource = null;
+		} else if (this.blockSource != null && this.digForBlocks(level)) {
+			return;
+		}
+
 		if (plan.isDescending()) {
 			BlockPos stand = plan.stairStand(plan.stairsBuilt());
 			BlockPos nextStand = plan.stairStand(plan.stairsBuilt() + 1);
@@ -893,7 +972,14 @@ public class MiningGolem extends WorkerGolem {
 
 		this.anchor = cell;
 		BlockPos next = plan.nextStep(level, cell);
-		if (next == null) {
+		if (next == null && this.dryPasses < 2 && !plan.fluidsToSeal(level).isEmpty()) {
+			// Water still showing in the layer: over it again to wall that off before going any deeper.
+			this.dryPasses++;
+			plan.rescan();
+		} else if (next == null) {
+			this.dryPasses = 0;
+			this.fillers.clear();
+			this.blockSource = null;
 			plan.startNextLayer();
 		} else {
 			// Chests and unbreakable blocks are simply left standing.
@@ -1041,8 +1127,9 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	/**
-	 * Lays one of the blocks it carries at {@code pos}. With none left it goes to unload and bring some
-	 * from the chest, and returns false.
+	 * Lays one of the blocks it carries at {@code pos}. With none left it returns false: a quarrying golem
+	 * digs one out of its layer, and only with none to be had there does a golem go to unload and bring
+	 * some from the chest.
 	 */
 	private boolean placeBuildingBlock(final ServerLevel level, final BlockPos pos) {
 		for (int slot = 0; slot < this.inventory.getContainerSize(); slot++) {
@@ -1056,6 +1143,10 @@ public class MiningGolem extends WorkerGolem {
 			}
 		}
 
+		if (this.quarry != null && this.miningDirection == null && this.digForBlocks(level)) {
+			return false;
+		}
+
 		this.needsBlocks = true;
 		this.beginDeposit(level);
 		return false;
@@ -1065,52 +1156,67 @@ public class MiningGolem extends WorkerGolem {
 	 * Water and lava do what a player would do about them: a source in what it is about to dig is filled
 	 * in with a block, to be dug out again like any other, and whatever flows in from beyond the diggings
 	 * is walled off for good where it comes in. Without its sources the rest of the water drains away by
-	 * itself. It only does so with blocks it is carrying, which it nearly always is after digging stone;
-	 * with none it digs on through the water as it is. Returns true when it sealed anything this tick.
+	 * itself. It goes from the top down, and only does so with blocks it is carrying.
+	 * <p>
+	 * A quarrying golem only puts blocks within {@value #SEAL_REACH} blocks of itself, and short of blocks
+	 * it digs one out of its layer, where there is no water left, before it goes to its chest for more. A
+	 * strip-mining golem with none digs on through the water as it is. Returns true when it did anything
+	 * about the water this tick.
 	 */
 	private boolean sealFluids(final ServerLevel level, final List<BlockPos> slice) {
-		if (!this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock)) {
+		boolean quarrying = this.quarry != null && this.miningDirection == null;
+		boolean hasBlocks = this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock);
+		if (!hasBlocks && !quarrying) {
 			return false;
 		}
 
+		Vec3 from = this.position().add(0.0, 1.0, 0.0);
 		Set<BlockPos> inSlice = new HashSet<>(slice);
-		LinkedHashSet<BlockPos> seal = new LinkedHashSet<>();
-		// A quarry seals its whole layer, nearest first, before it digs on.
-		if (this.miningDirection == null) {
-			this.layerSeals.stream()
-				.filter(pos -> isFluid(level, pos, false))
-				.sorted(Comparator.comparingDouble(pos -> pos.distToCenterSqr(this.position())))
-				.forEach(seal::add);
+		Set<BlockPos> found = new HashSet<>();
+		if (quarrying) {
+			this.layerSeals.stream().filter(pos -> isFluid(level, pos, false)).forEach(found::add);
 		}
 
 		for (BlockPos pos : slice) {
 			if (isFluid(level, pos, true)) {
-				seal.add(pos);
+				found.add(pos);
 			}
 
 			for (Direction direction : Direction.values()) {
 				BlockPos beside = pos.relative(direction);
 				// A source anywhere, or water still running in from outside.
 				if (!inSlice.contains(beside) && isFluid(level, beside, !this.isBeyondDiggings(beside))) {
-					seal.add(beside);
+					found.add(beside);
 				}
 			}
 		}
 
+		// Never on top of itself, or of anyone else.
+		List<BlockPos> seal = found.stream()
+			.filter(pos -> !quarrying || pos.distToCenterSqr(from) <= SEAL_REACH * SEAL_REACH)
+			.filter(pos -> level.isUnobstructed(Blocks.STONE.defaultBlockState(), pos, CollisionContext.empty()))
+			.sorted(Comparator.comparingInt((BlockPos pos) -> -pos.getY()).thenComparingDouble(pos -> pos.distToCenterSqr(from)))
+			.toList();
+		if (seal.isEmpty()) {
+			return false;
+		}
+
+		if (!hasBlocks) {
+			// Digs a block out to do it with, or failing that goes for some.
+			this.placeBuildingBlock(level, seal.getFirst());
+			return true;
+		}
+
 		int placed = 0;
 		for (BlockPos pos : seal) {
-			// Never on top of itself, or of anyone else.
-			if (!level.isUnobstructed(Blocks.STONE.defaultBlockState(), pos, CollisionContext.empty())) {
-				continue;
-			}
-
 			if (!this.inventory.hasAnyMatching(MiningGolem::isBuildingBlock)) {
 				break;
 			}
 
 			this.placeBuildingBlock(level, pos);
-			if (this.quarry != null && this.miningDirection == null && this.quarry.contains(pos)) {
+			if (quarrying && this.quarry.contains(pos)) {
 				// The block filling the source has to be dug out again, wherever in the layer it is.
+				this.fillers.add(pos);
 				this.quarry.rescan();
 			}
 
@@ -1119,7 +1225,88 @@ public class MiningGolem extends WorkerGolem {
 			}
 		}
 
-		return placed > 0;
+		return true;
+	}
+
+	/**
+	 * A quarrying golem out of blocks digs one out of its layer, one it put into the water first, then the
+	 * nearest: nothing with a source of water or lava next to it, which would only let that back in. What
+	 * is left running about drains away once the sources are gone. It walks over to a block out of reach,
+	 * and keeps to the one it picked until it has dug it. Returns whether there was one to be had.
+	 */
+	private boolean digForBlocks(final ServerLevel level) {
+		if (this.blockSource == null || !this.isBlockSource(level, this.blockSource)) {
+			this.blockSource = this.findBlockSource(level);
+		}
+
+		if (this.blockSource == null) {
+			return false;
+		}
+
+		BlockPos pos = this.blockSource;
+		if (pos.distToCenterSqr(this.position().add(0.0, 1.0, 0.0)) > SEAL_REACH * SEAL_REACH) {
+			this.clearBreaking(level);
+			this.setMining(false);
+			// To an open cell beside it on the floor of the layer, if there is one: a path cannot end in stone.
+			BlockPos column = new BlockPos(pos.getX(), this.quarry.layerFeetY(), pos.getZ());
+			BlockPos spot = Direction.Plane.HORIZONTAL.stream()
+				.map(column::relative)
+				.filter(cell -> this.quarry.contains(cell) && level.getBlockState(cell).getCollisionShape(level, cell).isEmpty() && level.getBlockState(cell.above()).getCollisionShape(level, cell.above()).isEmpty())
+				.min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position())))
+				.orElse(column);
+			this.anchor = spot;
+			this.returning = true;
+		} else {
+			this.getNavigation().stop();
+			this.breakBlocks(level, new LinkedHashSet<>(List.of(pos)));
+		}
+
+		return true;
+	}
+
+	private @Nullable BlockPos findBlockSource(final ServerLevel level) {
+		QuarryPlan plan = this.quarry;
+		int bottom = plan.layerFeetY();
+		Vec3 from = this.position().add(0.0, 1.0, 0.0);
+		List<BlockPos> candidates = new ArrayList<>();
+		BlockPos corner = new BlockPos(plan.chunkX() << 4, bottom, plan.chunkZ() << 4);
+		for (BlockPos pos : BlockPos.betweenClosed(corner, corner.offset(15, this.tier.tunnelHeight() - 1, 15))) {
+			if (this.isBlockSource(level, pos)) {
+				candidates.add(pos.immutable());
+			}
+		}
+
+		candidates.sort(Comparator.comparing((BlockPos pos) -> !this.fillers.contains(pos)).thenComparingDouble(pos -> pos.distToCenterSqr(from)));
+		ItemStack tool = this.getTool();
+		for (BlockPos pos : candidates) {
+			// Only what comes out as a block it can use: stone, but not ore.
+			if (Block.getDrops(level.getBlockState(pos), level, pos, null, this, tool).stream().anyMatch(MiningGolem::isBuildingBlock)) {
+				return pos;
+			}
+		}
+
+		return null;
+	}
+
+	private boolean isBlockSource(final ServerLevel level, final BlockPos pos) {
+		QuarryPlan plan = this.quarry;
+		int bottom = plan.layerFeetY();
+		if (!plan.contains(pos) || plan.isProtected(pos) || pos.getY() < bottom || pos.getY() >= bottom + this.tier.tunnelHeight() || pos.equals(this.feetPos().below())) {
+			return false;
+		}
+
+		BlockState state = level.getBlockState(pos);
+		if (state.getCollisionShape(level, pos).isEmpty() || state.getDestroySpeed(level, pos) < 0.0F || state.hasBlockEntity() || !state.is(BlockTags.MINEABLE_WITH_PICKAXE)) {
+			return false;
+		}
+
+		for (Direction direction : Direction.values()) {
+			if (isFluid(level, pos.relative(direction), true)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/** Water or lava in a block with nothing solid in it, a source only if {@code sourceOnly}. */
