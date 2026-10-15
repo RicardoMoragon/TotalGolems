@@ -623,7 +623,8 @@ public class MiningGolemTests {
 	 * Strip mining in a block of stone fifteen wide, walled in with bedrock: a main tunnel east and west
 	 * through where the golem starts, branches north and south every four blocks with three blocks of
 	 * stone left between them. A vein of iron ore showing in the side of the main tunnel is mined out to
-	 * the end; ore it cannot see, behind the stone between two branches, is left.
+	 * the last block, however far from the tunnel it runs. A lone ore it cannot see, behind the stone
+	 * between two branches, is left.
 	 */
 	@GameTest(maxTicks = 6000, padding = 24)
 	public void poppyStripMinesWithThreeBlocksBetweenBranches(final GameTestHelper helper) {
@@ -662,8 +663,12 @@ public class MiningGolemTests {
 		int gapX = middle + radius + 2;
 		BlockPos chestPos = base.offset(middle - radius - 2, 1, middle + radius + 1);
 		level.setBlockAndUpdate(chestPos, tier.chestBlock().defaultBlockState());
-		List<BlockPos> vein = List.of(base.offset(gapX, 1, middle + radius + 1), base.offset(gapX, 1, middle + radius + 2), base.offset(gapX, 1, middle + radius + 3));
-		BlockPos hidden = base.offset(gapX, 1, size - 2);
+		List<BlockPos> vein = new java.util.ArrayList<>();
+		for (int z = middle + radius + 1; z <= size - 3; z++) {
+			vein.add(base.offset(gapX, 1, z));
+		}
+
+		BlockPos hidden = base.offset(middle - radius - 2, 1, size - 2);
 		vein.forEach(pos -> level.setBlockAndUpdate(pos, Blocks.IRON_ORE.defaultBlockState()));
 		// A column of gravel standing in the way of the main tunnel and up through the roof: it keeps coming down as it is dug.
 		for (int y = 1; y <= height + 6; y++) {

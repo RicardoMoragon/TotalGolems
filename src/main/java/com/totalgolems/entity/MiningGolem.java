@@ -2,6 +2,7 @@ package com.totalgolems.entity;
 
 import com.totalgolems.GolemTier;
 import com.totalgolems.block.MetalChestBlock;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -98,8 +99,10 @@ public class MiningGolem extends WorkerGolem {
 	private static final int SEALS_AT_ONCE = 4;
 	/** How often a quarrying golem looks over its layer for water and lava to wall off. */
 	private static final int SEAL_SCAN_INTERVAL = 40;
-	/** How far away a strip-mining golem mines ore that it can see. */
+	/** How far away a strip-mining golem notices ore that it can see. */
 	private static final double VEIN_REACH = 5.0;
+	/** The most blocks of ore it follows a single vein through. */
+	private static final int VEIN_LIMIT = 256;
 	/** How often it looks for ore in the walls while there is none in sight. */
 	private static final int VEIN_SCAN_INTERVAL = 10;
 	/** Far enough to cross the whole area of a strip mine. */
@@ -119,6 +122,8 @@ public class MiningGolem extends WorkerGolem {
 	private @Nullable StripPlan strip;
 	/** When it next looks around for ore to mine out of the walls, while it has found none. */
 	private int nextVeinScan;
+	/** The rest of the veins of ore it has seen, connected block to block, which it mines out to the last one. */
+	private final Set<BlockPos> vein = new LinkedHashSet<>();
 	/** Ore it has gone after in the floor of its tunnels, to fill in once dug so that nothing falls in there. */
 	private final Set<BlockPos> veinFloor = new HashSet<>();
 	private boolean chestsProtected;
@@ -290,6 +295,7 @@ public class MiningGolem extends WorkerGolem {
 
 		BlockPos cell = this.feetPos();
 		this.anchor = cell;
+		this.vein.clear();
 		// A golem that is on its way to unload finishes that first, then comes back here.
 		this.returning = this.depositing;
 		if (this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
@@ -737,9 +743,9 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	/**
-	 * Mines out the ore it can see from where it stands, nearest first, a vein at a time: each block dug
-	 * shows the next one behind it. Ore further than {@value #VEIN_REACH} blocks off, or outside the area of
-	 * the mine, is left. Returns true while there is ore to mine.
+	 * Mines out every vein of ore it sees from where it stands, to the last block, nearest first: ore it can
+	 * see within {@value #VEIN_REACH} blocks, and all the ore connected to that, however far it goes on, as
+	 * long as it is inside the area of the mine. Returns true while there is ore to mine.
 	 */
 	private boolean mineVein(final ServerLevel level, final StripPlan plan) {
 		if (this.tickCount < this.nextVeinScan) {
@@ -765,23 +771,19 @@ public class MiningGolem extends WorkerGolem {
 			}
 		}
 
+		// Not what it stands on: it would fall in. That one it gets from the next cell along.
 		BlockPos underfoot = this.cellAt(plan.y()).below();
-		List<BlockPos> ores = new ArrayList<>();
-		for (BlockPos pos : BlockPos.betweenClosed(centre.offset(-reach, -reach, -reach), centre.offset(reach, reach, reach))) {
-			// Not what it stands on: it would fall in. That one it gets from the next cell along.
-			if (pos.distToCenterSqr(eye) > VEIN_REACH * VEIN_REACH || !plan.contains(pos) || pos.equals(underfoot)) {
-				continue;
-			}
-
-			BlockState state = level.getBlockState(pos);
-			if (state.is(ConventionalBlockTags.ORES) && state.getDestroySpeed(level, pos) >= 0.0F && this.canSee(level, eye, pos)) {
-				ores.add(pos.immutable());
-				if (pos.getY() == plan.y() - 1 && plan.isInDiggings(pos.above())) {
-					this.veinFloor.add(pos.immutable());
+		this.vein.removeIf(pos -> !isOre(level, pos));
+		if (this.vein.isEmpty()) {
+			for (BlockPos pos : BlockPos.betweenClosed(centre.offset(-reach, -reach, -reach), centre.offset(reach, reach, reach))) {
+				if (pos.distToCenterSqr(eye) <= VEIN_REACH * VEIN_REACH && plan.contains(pos) && !pos.equals(underfoot) && isOre(level, pos) && this.canSee(level, eye, pos)) {
+					this.followVein(level, plan, pos.immutable());
 				}
 			}
 		}
 
+		List<BlockPos> ores = new ArrayList<>(this.vein);
+		ores.remove(underfoot);
 		if (ores.isEmpty()) {
 			this.nextVeinScan = this.tickCount + VEIN_SCAN_INTERVAL;
 			return false;
@@ -791,6 +793,34 @@ public class MiningGolem extends WorkerGolem {
 		ores.sort(Comparator.comparing((BlockPos pos) -> !this.breaking.containsKey(pos)).thenComparingDouble(pos -> pos.distToCenterSqr(eye)));
 		this.breakBlocks(level, new LinkedHashSet<>(ores.subList(0, Math.min(ores.size(), this.tier.blocksAtOnce()))));
 		return true;
+	}
+
+	/**
+	 * Adds the whole vein that {@code start} belongs to: every block of ore touching it, edges and corners
+	 * included, and every block touching those, within the area of the mine.
+	 */
+	private void followVein(final ServerLevel level, final StripPlan plan, final BlockPos start) {
+		ArrayDeque<BlockPos> queue = new ArrayDeque<>(List.of(start));
+		this.vein.add(start);
+		while (!queue.isEmpty() && this.vein.size() < VEIN_LIMIT) {
+			BlockPos pos = queue.poll();
+			if (pos.getY() == plan.y() - 1 && plan.isInDiggings(pos.above())) {
+				this.veinFloor.add(pos);
+			}
+
+			for (BlockPos near : BlockPos.betweenClosed(pos.offset(-1, -1, -1), pos.offset(1, 1, 1))) {
+				if (plan.contains(near) && !this.vein.contains(near) && isOre(level, near)) {
+					BlockPos found = near.immutable();
+					this.vein.add(found);
+					queue.add(found);
+				}
+			}
+		}
+	}
+
+	private static boolean isOre(final Level level, final BlockPos pos) {
+		BlockState state = level.getBlockState(pos);
+		return state.is(ConventionalBlockTags.ORES) && state.getDestroySpeed(level, pos) >= 0.0F;
 	}
 
 	/** Whether nothing but {@code pos} itself stands between the golem's eyes and the middle of that block. */
