@@ -24,8 +24,9 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
 
 /**
- * What Efficiency shows on a copper golem: an enchantment glint on its antenna, and a lit copper dot
- * on its forehead for each level.
+ * What Efficiency shows on a copper golem: an enchantment glint on its antenna, and on its back four
+ * copper dots, the middle two by two pixels, that light up one by one from the top left to the bottom
+ * right. At Efficiency IV all four are lit, dimly; at V they shine.
  */
 public class CopperGolemEfficiencyLayer extends RenderLayer<CopperGolemRenderState, CopperGolemModel> {
 	public static final RenderStateDataKey<Integer> EFFICIENCY = RenderStateDataKey.create(() -> "totalgolems:copper_golem_efficiency");
