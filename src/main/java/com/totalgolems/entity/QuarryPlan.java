@@ -198,13 +198,16 @@ public class QuarryPlan {
 		return cells;
 	}
 
-	/** Protects the floor from the ring cell {@code ringIndex} to the chest, in a straight line or an L. */
+	/** Protects the floor from the ring cell {@code ringIndex} to the chest, in a straight line or an L, and under the chest. */
 	private void addWalkway(final BlockPos chest, final int ringIndex) {
 		Set<BlockPos> blocks = this.walkway;
 		if (chest.getY() != this.topY || !this.contains(chest)) {
 			return;
 		}
 
+		// The chest stands on a block of the walkway too: dug out from under it, the chest would hang in the air
+		// with nothing to stand on to get at it.
+		blocks.add(chest.below());
 		int[] start = ringCell(ringIndex);
 		int x = start[0];
 		int z = start[1];

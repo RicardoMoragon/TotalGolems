@@ -97,7 +97,8 @@ quitarlos.
   - El anillo exterior del chunk queda reservado para una **escalera en espiral**: de cada columna del borde el gólem deja
     (o coloca) un bloque como peldaño y el de debajo, y por ella sube y baja al cofre. Si bajo un peldaño había un hueco
     (una cueva, un desnivel del terreno), lo rellena: sin él podría meterse debajo y quedarse sin poder subir.
-  - Si el cofre está dentro del chunk y a su misma altura, deja también una pasarela desde lo alto de la escalera hasta él.
+  - Si el cofre está dentro del chunk y a su misma altura, deja también una pasarela desde lo alto de la escalera hasta él,
+    y el bloque sobre el que está el cofre.
   - Si a la escalera o a la pasarela les falta algún bloque (porque el terreno tenía un hueco o algo lo rompió), lo repone
     al pasar cerca, para no caerse al pozo cada vez que va al cofre.
   - Los cofres y bloques irrompibles que encuentra los rodea y los deja en pie.
@@ -131,7 +132,8 @@ encuentra, como haría un jugador:
   - **No pone bloques lejos:** solo a unos 4 bloques de donde está, así que va hasta el agua para taparla.
   - **Si se queda sin bloques mientras quita agua**, pica uno de su capa: primero los que ya puso en el agua (donde ya no
     queda agua), y si no, el más cercano que no tenga una fuente al lado. Si está lejos, va hasta él. Solo si en la capa
-    no queda ninguno vuelve al cofre a por más.
+    no queda ninguno vuelve al cofre a por más. Solo coge bloques a los que puede llegar: al alcance, o con una casilla al
+    lado en la que pueda estar.
   - La **lava** la tapa siempre antes de picar el bloque de al lado. El **agua**, si hay un gólem de esponja vinculado a su
     cofre, se la deja a él (ver más abajo).
 - En una **mina en tiras**, antes de romper cada bloque mira lo que hay alrededor del hueco que va a abrir: el techo, las
@@ -307,9 +309,11 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 - Un minero nunca se teletransporta por debajo de la altura a la que trabaja (su capa, sus túneles o, bajando la
   escalera, el peldaño al que va), ni a una casilla con agua o lava, ni a una sin suelo firme. Si no hay ningún sitio
   así, no se teletransporta.
-- Si un minero pasa **20 segundos trabajando sin romper ningún bloque ni llegar a una casilla nueva** (ir y volver
-  entre dos no cuenta), deja de insistir: en una cantera se salta el sitio al que iba y sigue con la capa; si no, vuelve
-  al cofre y empieza de nuevo desde ahí. Si le pasa 3 veces seguidas, lo deja y espera en el cofre a que le des otra flor.
+- Si un minero pasa **20 segundos trabajando sin romper ningún bloque ni llegar a una casilla nueva** (dar vueltas por
+  las mismas casillas, o subir y bajar un peldaño, no cuenta), deja de insistir: en una cantera se salta el sitio al que
+  iba y sigue con la capa; si estaba volviendo a un sitio al que no consigue llegar, va a la casilla de su capa más
+  cercana en la que se pueda estar; si no, vuelve al cofre y empieza de nuevo desde ahí. Si le pasa 3 veces seguidas sin
+  romper un solo bloque entre medias, lo deja y espera en el cofre a que le des otra flor.
 - Los cofres también se fabrican: un cofre rodeado de 8 lingotes de hierro, diamantes, lingotes de netherita, fragmentos
   de amatista, esponjas, trigo o huesos. Se unen en cofres dobles.
 - Un gólem invocado con `/summon` adopta el cofre de gólem más cercano (8 bloques) al recibir la flor.

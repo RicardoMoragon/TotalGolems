@@ -117,6 +117,8 @@ public class MiningGolem extends WorkerGolem {
 	private static final int TICKS_WITHOUT_PROGRESS = 400;
 	/** After this many times stuck in a row with nothing achieved in between, it gives up and goes home. */
 	private static final int STUCK_TIMES_BEFORE_HALT = 3;
+	/** How many of the cells it was last in count as somewhere it has already been. */
+	private static final int RECENT_CELLS = 8;
 
 	private final GolemTier tier;
 	private final SimpleContainer inventory;
@@ -165,8 +167,8 @@ public class MiningGolem extends WorkerGolem {
 	private int nextSpongeCheck;
 	/** The last tick it broke a block or got to a new cell; see {@link #checkProgress}. */
 	private int lastProgressTick;
-	private @Nullable BlockPos progressCell;
-	private @Nullable BlockPos previousCell;
+	/** The last few cells it has been in, to tell getting somewhere from going round in circles. */
+	private final java.util.ArrayDeque<BlockPos> recentCells = new java.util.ArrayDeque<>();
 	private int timesStuck;
 	/** Standing at its chest with nothing it can do: no pickaxe, or the sponge golem still drying the diggings. */
 	private boolean waiting;
@@ -324,6 +326,7 @@ public class MiningGolem extends WorkerGolem {
 		this.dryPasses = 0;
 		this.timesStuck = 0;
 		this.lastProgressTick = this.tickCount;
+		this.recentCells.clear();
 		// A golem that is on its way to unload finishes that first, then comes back here.
 		this.returning = this.depositing;
 		if (this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
@@ -402,6 +405,31 @@ public class MiningGolem extends WorkerGolem {
 		this.waitingForDrain = false;
 		this.waterTicks = 0;
 		this.setWaitingForTool(false);
+	}
+
+	/** Whether the golem fits into {@code cell} and has something to stand on there, out of any spring. */
+	private boolean isStandable(final ServerLevel level, final BlockPos cell) {
+		BlockPos floor = cell.below();
+		return level.getBlockState(cell).getCollisionShape(level, cell).isEmpty()
+			&& level.getBlockState(cell.above()).getCollisionShape(level, cell.above()).isEmpty()
+			&& !level.getBlockState(floor).getCollisionShape(level, floor).isEmpty()
+			&& !level.getFluidState(cell).isSource();
+	}
+
+	/** The cell of its quarry's chunk at height {@code y} nearest to the golem that it can stand in, other than {@code not}. */
+	private @Nullable BlockPos nearestStandable(final ServerLevel level, final int y, final @Nullable BlockPos not) {
+		BlockPos corner = new BlockPos(this.quarry.chunkX() << 4, y, this.quarry.chunkZ() << 4);
+		BlockPos best = null;
+		double bestDistance = Double.MAX_VALUE;
+		for (BlockPos pos : BlockPos.betweenClosed(corner, corner.offset(15, 0, 15))) {
+			double distance = pos.distToCenterSqr(this.position());
+			if (distance < bestDistance && !pos.equals(not) && !this.quarry.isProtected(pos) && this.isStandable(level, pos)) {
+				best = pos.immutable();
+				bestDistance = distance;
+			}
+		}
+
+		return best;
 	}
 
 	/** Gives up on the current job and walks home, where it waits until it is given a flower again. */
@@ -505,14 +533,17 @@ public class MiningGolem extends WorkerGolem {
 	 */
 	private boolean checkProgress(final ServerLevel level) {
 		BlockPos cell = this.feetPos();
-		if (!cell.equals(this.progressCell)) {
-			// Back to where it was a moment ago is no headway: that is how going back and forth looks.
-			if (!cell.equals(this.previousCell)) {
-				this.madeProgress();
+		if (!cell.equals(this.recentCells.peekLast())) {
+			// Back to one of the cells it was in a moment ago is no headway: that is how going round in
+			// circles, or up a step and down again, looks.
+			if (!this.recentCells.contains(cell)) {
+				this.lastProgressTick = this.tickCount;
 			}
 
-			this.previousCell = this.progressCell;
-			this.progressCell = cell;
+			this.recentCells.addLast(cell);
+			if (this.recentCells.size() > RECENT_CELLS) {
+				this.recentCells.removeFirst();
+			}
 		}
 
 		if (this.tickCount - this.lastProgressTick < TICKS_WITHOUT_PROGRESS) {
@@ -520,13 +551,19 @@ public class MiningGolem extends WorkerGolem {
 		}
 
 		this.lastProgressTick = this.tickCount;
+		this.recentCells.clear();
+		this.clearBreaking(level);
+		this.setMining(false);
+		this.blockSource = null;
+		BlockPos elsewhere = this.quarry != null && this.miningDirection == null ? this.nearestStandable(level, this.quarry.layerFeetY(), this.anchor) : null;
 		if (++this.timesStuck >= STUCK_TIMES_BEFORE_HALT) {
 			this.halt(level);
 		} else if (this.quarry != null && this.miningDirection == null && !this.quarry.isDescending() && !this.returning) {
-			this.clearBreaking(level);
-			this.setMining(false);
-			this.blockSource = null;
 			this.quarry.skipTarget();
+		} else if (this.returning && elsewhere != null) {
+			// The place it was heading back to cannot be got at: somewhere in its layer that can.
+			this.anchor = elsewhere;
+			this.resetTravel();
 		} else {
 			this.beginDeposit(level);
 		}
@@ -534,6 +571,7 @@ public class MiningGolem extends WorkerGolem {
 		return true;
 	}
 
+	/** It broke a block: that is getting something done, whatever else it is doing. */
 	private void madeProgress() {
 		this.lastProgressTick = this.tickCount;
 		this.timesStuck = 0;
@@ -1071,6 +1109,14 @@ public class MiningGolem extends WorkerGolem {
 				this.anchor = plan.stairStand(plan.stairsBuilt());
 			}
 
+			// Somewhere it can stand: the top of the stairs may still be inside a hill nobody has dug yet.
+			if (!approaching && !this.isStandable(level, this.anchor)) {
+				BlockPos standable = this.nearestStandable(level, y, null);
+				if (standable != null) {
+					this.anchor = standable;
+				}
+			}
+
 			this.returning = true;
 			return;
 		}
@@ -1356,19 +1402,15 @@ public class MiningGolem extends WorkerGolem {
 		}
 
 		BlockPos pos = this.blockSource;
-		if (pos.distToCenterSqr(this.position().add(0.0, 1.0, 0.0)) > SEAL_REACH * SEAL_REACH) {
+		if (!this.isWithinReach(pos)) {
+			BlockPos spot = this.spotBeside(level, pos);
+			if (spot == null) {
+				this.blockSource = null;
+				return false;
+			}
+
 			this.clearBreaking(level);
 			this.setMining(false);
-			// To an open cell beside it on the floor of the layer, if there is one: a path cannot end in stone.
-			BlockPos column = new BlockPos(pos.getX(), this.quarry.layerFeetY(), pos.getZ());
-			BlockPos spot = Direction.Plane.HORIZONTAL.stream()
-				.map(column::relative)
-				.filter(cell -> this.quarry.contains(cell)
-					&& level.getBlockState(cell).getCollisionShape(level, cell).isEmpty()
-					&& level.getBlockState(cell.above()).getCollisionShape(level, cell.above()).isEmpty()
-					&& !level.getBlockState(cell.below()).getCollisionShape(level, cell.below()).isEmpty())
-				.min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position())))
-				.orElse(column);
 			this.anchor = spot;
 			this.returning = true;
 		} else {
@@ -1394,13 +1436,32 @@ public class MiningGolem extends WorkerGolem {
 		candidates.sort(Comparator.comparing((BlockPos pos) -> !this.fillers.contains(pos)).thenComparingDouble(pos -> pos.distToCenterSqr(from)));
 		ItemStack tool = this.getTool();
 		for (BlockPos pos : candidates) {
-			// Only what comes out as a block it can use: stone, but not ore.
-			if (Block.getDrops(level.getBlockState(pos), level, pos, null, this, tool).stream().anyMatch(MiningGolem::isBuildingBlock)) {
+			// Only what comes out as a block it can use (stone, but not ore), and that it can get at.
+			if ((this.isWithinReach(pos) || this.spotBeside(level, pos) != null)
+				&& Block.getDrops(level.getBlockState(pos), level, pos, null, this, tool).stream().anyMatch(MiningGolem::isBuildingBlock)) {
 				return pos;
 			}
 		}
 
 		return null;
+	}
+
+	private boolean isWithinReach(final BlockPos pos) {
+		return pos.distToCenterSqr(this.position().add(0.0, 1.0, 0.0)) <= SEAL_REACH * SEAL_REACH;
+	}
+
+	/**
+	 * A cell beside the column of {@code pos} on the floor of the layer that the golem can stand in, to dig it
+	 * from, nearest to the golem; null if there is none. It never heads for the block itself: a path cannot
+	 * end in stone, and it would go back and forth for ever trying to get there.
+	 */
+	private @Nullable BlockPos spotBeside(final ServerLevel level, final BlockPos pos) {
+		BlockPos column = new BlockPos(pos.getX(), this.quarry.layerFeetY(), pos.getZ());
+		return Direction.Plane.HORIZONTAL.stream()
+			.map(column::relative)
+			.filter(cell -> this.quarry.contains(cell) && this.isStandable(level, cell))
+			.min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position())))
+			.orElse(null);
 	}
 
 	private boolean isBlockSource(final ServerLevel level, final BlockPos pos) {

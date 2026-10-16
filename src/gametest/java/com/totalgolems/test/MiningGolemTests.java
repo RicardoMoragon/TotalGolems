@@ -443,6 +443,7 @@ public class MiningGolemTests {
 			}
 
 			helper.assertTrue(level.getBlockState(chestPos.north().below()).is(Blocks.STONE), "walkway to the chest is missing");
+			helper.assertTrue(level.getBlockState(chestPos.below()).is(Blocks.STONE), "the block the chest stands on should be left");
 			golem.discard();
 			level.setChunkForced(minX >> 4, minZ >> 4, false);
 		});
@@ -1091,6 +1092,72 @@ public class MiningGolemTests {
 			site.assertDug(helper);
 			helper.assertTrue(level.getBlockState(lava).isSolid(), "a block should stand where the lava was");
 			site.finish();
+		});
+	}
+
+	/**
+	 * Water running down the staircase from a spring on one of its upper steps, put there once the golem is
+	 * at work in the second layer, where it is no longer the golem's to wall off. The golem's pickaxe is
+	 * taken then too, so that it has to go up the stairs through the water to its chest and come back down.
+	 * It finishes the quarry, and never goes up and down on the spot over and over on the way.
+	 */
+	@GameTest(maxTicks = 12000, padding = 24)
+	public void quarryGolemGoesUpAndDownStairsWithWaterOnThem(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 2);
+		ServerLevel level = helper.getLevel();
+		MiningGolem golem = site.golem();
+		int secondLayer = site.top() - 3;
+		BlockPos spring = site.plan().stairStand(1);
+		boolean[] done = {false};
+		helper.onEachTick(() -> {
+			if (!done[0] && Math.abs(golem.getY() - secondLayer) < 0.3 && golem.getZ() - site.minZ() > 3.0) {
+				done[0] = true;
+				level.setBlockAndUpdate(spring, Blocks.WATER.defaultBlockState());
+				((Container)level.getBlockEntity(site.chestPos())).setItem(1, golem.getMainHandItem().copy());
+				golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+			}
+		});
+		watchForClimbing(helper, golem);
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(done[0], "the golem never got to the second layer");
+			// The spring keeps running into the pit: water is left there, but nothing solid.
+			for (int x = 0; x < 16; x++) {
+				for (int z = 0; z < 16; z++) {
+					for (int y = site.top() - site.depth() + 1; y <= site.top(); y++) {
+						BlockPos pos = site.at(x, y, z);
+						helper.assertTrue(site.plan().isProtected(pos) || !level.getBlockState(pos).isSolid(), "block left at " + pos);
+					}
+				}
+			}
+			site.finish();
+		});
+	}
+
+	/**
+	 * Fails the test as soon as the golem has gone from one block's height to another and back more than a
+	 * handful of times without leaving the column it is in.
+	 */
+	private static void watchForClimbing(final GameTestHelper helper, final MiningGolem golem) {
+		long[] column = {Long.MIN_VALUE};
+		int[] height = {Integer.MIN_VALUE};
+		int[] changes = {0};
+		helper.onEachTick(() -> {
+			if (golem.isRemoved()) {
+				return;
+			}
+
+			long here = BlockPos.asLong(golem.getBlockX(), 0, golem.getBlockZ());
+			int level = (int)Math.floor(golem.getY() + 0.4);
+			if (here != column[0]) {
+				column[0] = here;
+				height[0] = level;
+				changes[0] = 0;
+			} else if (level != height[0]) {
+				height[0] = level;
+				changes[0]++;
+				helper.assertTrue(changes[0] <= 8, "the golem went up and down " + changes[0] + " times on the spot at " + golem.position());
+			}
 		});
 	}
 
