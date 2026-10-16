@@ -36,6 +36,12 @@ public final class ItemFrameFilter {
 		);
 	}
 
+	/** The frames with an item in them that hang in a cell beside {@code pos}, to one side of it or above. */
+	public static List<ItemFrame> framesBeside(final Level level, final BlockPos pos) {
+		List<BlockPos> cells = List.of(pos.north(), pos.south(), pos.east(), pos.west(), pos.above());
+		return level.getEntitiesOfClass(ItemFrame.class, new AABB(pos).inflate(1.0), frame -> !frame.getItem().isEmpty() && cells.contains(frame.getPos()));
+	}
+
 	/** Whether the chest is marked at all, so that its frames, not the vanilla rule, decide what goes in. */
 	public static boolean isMarked(final Level level, final BlockPos pos, final BlockState state) {
 		return !framesOn(level, pos, state).isEmpty();

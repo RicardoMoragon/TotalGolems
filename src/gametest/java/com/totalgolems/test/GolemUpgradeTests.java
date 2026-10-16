@@ -29,15 +29,22 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.vehicle.minecart.MinecartChest;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.PoweredRailBlock;
+import net.minecraft.world.level.block.RailBlock;
+import net.minecraft.world.level.block.state.properties.AttachFace;
+import net.minecraft.world.level.block.state.properties.RailShape;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tools that wear out, the netherite golem's lock, chests joined into one, the miner and the sponge
@@ -656,6 +663,88 @@ public class GolemUpgradeTests {
 			helper.assertTrue(container(helper, unmarked).countItem(Items.IRON_INGOT) == 0, "a chest without frames keeps the vanilla rule");
 			helper.killAllEntitiesOfClass(ItemFrame.class);
 		});
+	}
+
+	/**
+	 * A minecart with a chest waits at a station, a button right above its rail, full of iron but for one
+	 * slot. The golem puts its iron in, which fills it, and presses the button: the minecart goes off down
+	 * the line.
+	 */
+	@GameTest(maxTicks = 1200)
+	public void copperGolemLoadsAMinecartAndSendsItOffOnceFull(final GameTestHelper helper) {
+		floor(helper, Blocks.SMOOTH_STONE);
+		BlockPos source = new BlockPos(1, 1, 1);
+		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 16));
+		MinecartChest minecart = station(helper, 3, 5, null);
+		for (int slot = 0; slot < minecart.getContainerSize() - 1; slot++) {
+			minecart.setItem(slot, new ItemStack(Items.IRON_INGOT, 64));
+		}
+
+		BlockPos button = new BlockPos(3, 2, 5);
+		double startX = minecart.getX();
+		boolean[] pressed = {false};
+		helper.onEachTick(() -> pressed[0] |= helper.getBlockState(button).getValue(ButtonBlock.POWERED));
+		helper.spawn(EntityTypes.COPPER_GOLEM, 2, 1, 2);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(minecart.countItem(Items.IRON_INGOT) == (minecart.getContainerSize() - 1) * 64 + 16, "the iron should be in the minecart");
+			helper.assertTrue(pressed[0], "the golem should have pressed the button once the minecart was full");
+			helper.assertTrue(minecart.getX() - startX > 1.0, "the minecart should have been sent off");
+			minecart.discard();
+		});
+	}
+
+	/**
+	 * Two stations: the nearer one with a frame showing gold beside its button, the further one a frame
+	 * showing iron. The iron goes in the further minecart only; neither is full, so neither is sent off.
+	 */
+	@GameTest(maxTicks = 1200)
+	public void copperGolemOnlyLoadsMinecartsWhoseItemFramesMatch(final GameTestHelper helper) {
+		floor(helper, Blocks.SMOOTH_STONE);
+		BlockPos source = new BlockPos(1, 1, 1);
+		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 8));
+		MinecartChest gold = station(helper, 3, 2, Items.GOLD_INGOT);
+		MinecartChest iron = station(helper, 3, 6, Items.IRON_INGOT);
+		boolean[] misplaced = {false};
+		helper.onEachTick(() -> misplaced[0] |= !gold.isEmpty());
+		helper.spawn(EntityTypes.COPPER_GOLEM, 1, 1, 4);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(iron.countItem(Items.IRON_INGOT) == 8, "the iron belongs in the minecart with the iron ingot by its button");
+			helper.assertTrue(!misplaced[0], "nothing may go in the minecart marked for gold");
+			helper.assertTrue(!helper.getBlockState(new BlockPos(3, 2, 6)).getValue(ButtonBlock.POWERED), "a minecart that is not full stays");
+			helper.killAllEntitiesOfClass(ItemFrame.class);
+			gold.discard();
+			iron.discard();
+		});
+	}
+
+	/**
+	 * A station along x at ({@code x}, {@code z}): a powered rail with a block behind it to the west, so that
+	 * a minecart started there runs off east, two more rails, a button right above the powered rail on a
+	 * wall to the south, and a frame showing {@code item} next to the button if there is one. Returns the
+	 * minecart with a chest waiting on it.
+	 */
+	private static MinecartChest station(final GameTestHelper helper, final int x, final int z, final @Nullable Item item) {
+		helper.setBlock(x - 1, 1, z, Blocks.STONE);
+		helper.setBlock(new BlockPos(x, 1, z), Blocks.POWERED_RAIL.defaultBlockState().setValue(PoweredRailBlock.SHAPE, RailShape.EAST_WEST));
+		for (int east = 1; east <= 2; east++) {
+			helper.setBlock(new BlockPos(x + east, 1, z), Blocks.RAIL.defaultBlockState().setValue(RailBlock.SHAPE, RailShape.EAST_WEST));
+		}
+
+		helper.setBlock(x - 1, 2, z + 1, Blocks.STONE);
+		helper.setBlock(x, 2, z + 1, Blocks.STONE);
+		helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE_BUTTON.defaultBlockState().setValue(ButtonBlock.FACE, AttachFace.WALL).setValue(ButtonBlock.FACING, Direction.NORTH));
+		if (item != null) {
+			ItemFrame frame = new ItemFrame(helper.getLevel(), helper.absolutePos(new BlockPos(x - 1, 2, z)), Direction.NORTH);
+			frame.setItem(new ItemStack(item), false);
+			helper.getLevel().addFreshEntity(frame);
+		}
+
+		MinecartChest minecart = EntityTypes.CHEST_MINECART.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+		minecart.snapTo(Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(x, 1, z))));
+		helper.getLevel().addFreshEntity(minecart);
+		return minecart;
 	}
 
 	// ------------------------------------------------------------------------------------ amethyst
