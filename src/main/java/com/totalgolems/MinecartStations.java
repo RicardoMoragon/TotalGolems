@@ -1,9 +1,9 @@
 package com.totalgolems;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Container;
-import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
 import net.minecraft.world.entity.vehicle.minecart.AbstractMinecartContainer;
 import net.minecraft.world.item.ItemStack;
@@ -19,9 +19,10 @@ import org.jspecify.annotations.Nullable;
  * with a button right above that rail. The golem loads it the way it fills a chest, and once the minecart
  * is full it presses the button to send it off.
  * <p>
- * An item frame beside the button does what one on a chest does: with an item in it, the minecart only
- * takes that item. A station without frames follows the vanilla rule for chests: it takes an item when it
- * is empty or already holds that item.
+ * Item frames beside the button do what they do on a chest (see {@link ItemFrameFilter}): with an item in
+ * one, the minecart only takes that item; an empty one takes anything no other chest or station shows. A
+ * station without frames follows the vanilla rule for chests: it takes an item when it is empty or already
+ * holds that item.
  */
 public final class MinecartStations {
 	/** How close the golem has to be to a minecart to load it. */
@@ -56,17 +57,20 @@ public final class MinecartStations {
 		return level.getEntitiesOfClass(AbstractMinecartContainer.class, area, cart -> isWaiting(level, cart));
 	}
 
-	/** The item frames with an item in them beside the button of {@code cart}'s station. */
-	public static List<ItemFrame> frames(final Level level, final AbstractMinecartContainer cart) {
+	/** What the item frames beside the button of {@code cart}'s station show. */
+	public static ItemFrameFilter.Marks marks(final Level level, final AbstractMinecartContainer cart) {
 		BlockPos button = button(level, cart);
-		return button == null ? List.of() : ItemFrameFilter.framesBeside(level, button);
+		return button == null ? new ItemFrameFilter.Marks(List.of(), false) : ItemFrameFilter.marksBeside(level, button);
 	}
 
-	/** Whether the station takes {@code stack}: a frame beside its button shows it, or, with no frames, the vanilla rule allows it. */
-	public static boolean accepts(final Level level, final AbstractMinecartContainer cart, final ItemStack stack) {
-		List<ItemFrame> frames = frames(level, cart);
-		if (!frames.isEmpty()) {
-			return frames.stream().anyMatch(frame -> ItemStack.isSameItem(frame.getItem(), stack));
+	/**
+	 * Whether the station takes {@code stack}: the frames beside its button take it (asking
+	 * {@code shownElsewhere} if an empty one may), or, with no frames, the vanilla rule allows it.
+	 */
+	public static boolean accepts(final Level level, final AbstractMinecartContainer cart, final ItemStack stack, final BooleanSupplier shownElsewhere) {
+		ItemFrameFilter.Marks marks = marks(level, cart);
+		if (marks.decide()) {
+			return marks.takes(stack, shownElsewhere);
 		}
 
 		if (cart.isEmpty()) {

@@ -40,9 +40,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class TransportItemsBetweenContainersMixin {
 	/** How far away the golem looks for somewhere to take what it carries: vanilla's own distances for chests. */
 	@Unique
-	private static final int SEARCH_HORIZONTAL = 32;
+	private static final int SEARCH_HORIZONTAL = ItemFrameFilter.SEARCH_HORIZONTAL;
 	@Unique
-	private static final int SEARCH_VERTICAL = 8;
+	private static final int SEARCH_VERTICAL = ItemFrameFilter.SEARCH_VERTICAL;
 	/** How often it looks for a minecart to load while it is not loading one. */
 	@Unique
 	private static final int MINECART_SEARCH_INTERVAL = 20;
@@ -81,7 +81,8 @@ public abstract class TransportItemsBetweenContainersMixin {
 
 		ItemStack carried = body.getMainHandItem();
 		AbstractMinecartContainer minecart = this.totalgolems$minecart;
-		if (minecart != null && (carried.isEmpty() || !MinecartStations.isWaiting(level, minecart) || !MinecartStations.accepts(level, minecart, carried))) {
+		// Once picked, an empty frame stays good for it: no need to look round the whole area again every tick.
+		if (minecart != null && (carried.isEmpty() || !MinecartStations.isWaiting(level, minecart) || !MinecartStations.accepts(level, minecart, carried, () -> false))) {
 			this.totalgolems$leaveMinecart(golem);
 			minecart = null;
 		}
@@ -92,7 +93,7 @@ public abstract class TransportItemsBetweenContainersMixin {
 			AABB area = new AABB(body.blockPosition()).inflate(SEARCH_HORIZONTAL, SEARCH_VERTICAL, SEARCH_HORIZONTAL);
 			minecart = MinecartStations.waitingWithin(level, area)
 				.stream()
-				.filter(cart -> MinecartStations.accepts(level, cart, carried))
+				.filter(cart -> MinecartStations.accepts(level, cart, carried, () -> ItemFrameFilter.shownElsewhere(level, body, carried)))
 				.min(Comparator.comparingDouble(cart -> cart.distanceToSqr(body)))
 				.orElse(null);
 			// A chest it is already heading for that is nearer wins.
@@ -152,8 +153,8 @@ public abstract class TransportItemsBetweenContainersMixin {
 		golem.setState(CopperGolemState.IDLE);
 	}
 
-	// A chest whose item frames do not show what the golem is carrying is never picked as somewhere to go,
-	// so it neither walks up to it nor opens it.
+	// A chest whose item frames do not take what the golem is carrying is never picked as somewhere to go,
+	// so it neither walks up to it nor opens it. An empty frame takes it only if no other chest or station shows it.
 	@Inject(method = "isTargetValidToPick", at = @At("RETURN"), cancellable = true)
 	private void totalgolems$filterByItemFrames(
 		final PathfinderMob body,
@@ -165,13 +166,19 @@ public abstract class TransportItemsBetweenContainersMixin {
 		final CallbackInfoReturnable<TransportItemsBetweenContainers.TransportItemTarget> cir
 	) {
 		ItemStack carried = body.getMainHandItem();
-		if (cir.getReturnValue() != null && !carried.isEmpty() && !ItemFrameFilter.accepts(level, blockEntity.getBlockPos(), blockEntity.getBlockState(), carried)) {
+		if (cir.getReturnValue() == null || carried.isEmpty()) {
+			return;
+		}
+
+		ItemFrameFilter.Marks marks = ItemFrameFilter.marksOn(level, blockEntity.getBlockPos(), blockEntity.getBlockState());
+		if (marks.decide() && !marks.takes(carried, () -> ItemFrameFilter.shownElsewhere(level, body, carried))) {
 			cir.setReturnValue(null);
 		}
 	}
 
 	// Vanilla only leaves an item in a chest that is empty or already holds it. In a marked chest the frames
-	// have the say instead: what matches them goes in wherever there is room, whatever else is inside.
+	// have the say instead: what matches them, or what an empty frame takes, goes in wherever there is room,
+	// whatever else is inside.
 	@WrapOperation(
 		method = "doReachedTargetInteraction",
 		at = @At(
@@ -181,9 +188,10 @@ public abstract class TransportItemsBetweenContainersMixin {
 	)
 	private boolean totalgolems$framesOverrideVanillaRule(final PathfinderMob body, final Container container, final Operation<Boolean> original) {
 		TransportItemsBetweenContainers.TransportItemTarget chest = this.target;
-		if (chest != null && ItemFrameFilter.isMarked(body.level(), chest.pos(), chest.state())) {
+		ItemFrameFilter.Marks marks = chest == null ? null : ItemFrameFilter.marksOn(body.level(), chest.pos(), chest.state());
+		if (marks != null && marks.decide()) {
 			ItemStack carried = body.getMainHandItem();
-			return ItemFrameFilter.accepts(body.level(), chest.pos(), chest.state(), carried) && ItemFrameFilter.hasRoomFor(container, carried);
+			return marks.takes(carried, () -> ItemFrameFilter.shownElsewhere(body.level(), body, carried)) && ItemFrameFilter.hasRoomFor(container, carried);
 		}
 
 		return original.call(body, container);

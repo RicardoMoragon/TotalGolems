@@ -666,6 +666,70 @@ public class GolemUpgradeTests {
 	}
 
 	/**
+	 * A chest with an empty frame on it, and gold already inside, which the vanilla rule would keep the iron
+	 * out of. No other chest shows iron, so the empty frame takes it.
+	 */
+	@GameTest(maxTicks = 3000)
+	public void copperGolemPutsAnythingInAChestWithAnEmptyFrame(final GameTestHelper helper) {
+		floor(helper, Blocks.SMOOTH_STONE);
+		BlockPos source = new BlockPos(1, 1, 1);
+		BlockPos anything = new BlockPos(4, 1, 4);
+		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(anything, Blocks.CHEST);
+		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+		container(helper, anything).setItem(0, new ItemStack(Items.GOLD_INGOT, 5));
+		frame(helper, anything, null);
+		helper.spawn(EntityTypes.COPPER_GOLEM, 2, 1, 2);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(container(helper, anything).countItem(Items.IRON_INGOT) == 4, "the chest with an empty frame should take the iron");
+			helper.killAllEntitiesOfClass(ItemFrame.class);
+		});
+	}
+
+	/**
+	 * The chest with an empty frame is the nearer one, but a further chest has a frame showing iron: the iron
+	 * goes there, and none of it in the chest that takes anything.
+	 */
+	@GameTest(maxTicks = 3000)
+	public void copperGolemPrefersAChestShowingTheItemToOneWithAnEmptyFrame(final GameTestHelper helper) {
+		floor(helper, Blocks.SMOOTH_STONE);
+		BlockPos source = new BlockPos(1, 1, 1);
+		BlockPos anything = new BlockPos(4, 1, 1);
+		BlockPos iron = new BlockPos(4, 1, 6);
+		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(anything, Blocks.CHEST);
+		helper.setBlock(iron, Blocks.CHEST);
+		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+		frame(helper, anything, null);
+		frame(helper, iron, Items.IRON_INGOT);
+		helper.spawn(EntityTypes.COPPER_GOLEM, 2, 1, 2);
+		boolean[] misplaced = {false};
+		helper.onEachTick(() -> misplaced[0] |= !container(helper, anything).isEmpty());
+		helper.succeedWhen(() -> {
+			helper.assertTrue(container(helper, iron).countItem(Items.IRON_INGOT) == 4, "the iron belongs in the chest showing iron");
+			helper.assertTrue(!misplaced[0], "the chest with an empty frame only gets what no other chest shows");
+			helper.killAllEntitiesOfClass(ItemFrame.class);
+		});
+	}
+
+	/** The same for a minecart: an empty frame beside its button takes the iron, though the minecart holds dirt. */
+	@GameTest(maxTicks = 1200)
+	public void copperGolemLoadsAnythingIntoAMinecartWithAnEmptyFrame(final GameTestHelper helper) {
+		floor(helper, Blocks.SMOOTH_STONE);
+		BlockPos source = new BlockPos(1, 1, 1);
+		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 8));
+		MinecartChest minecart = station(helper, 3, 5, Items.AIR);
+		minecart.setItem(0, new ItemStack(Items.DIRT, 10));
+		helper.spawn(EntityTypes.COPPER_GOLEM, 2, 1, 2);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(minecart.countItem(Items.IRON_INGOT) == 8, "the minecart with an empty frame by its button should take the iron");
+			helper.killAllEntitiesOfClass(ItemFrame.class);
+			minecart.discard();
+		});
+	}
+
+	/**
 	 * A minecart with a chest waits at a station, a button right above its rail, full of iron but for one
 	 * slot. The golem puts its iron in, which fills it, and presses the button: the minecart goes off down
 	 * the line.
@@ -722,8 +786,8 @@ public class GolemUpgradeTests {
 	/**
 	 * A station along x at ({@code x}, {@code z}): a powered rail with a block behind it to the west, so that
 	 * a minecart started there runs off east, two more rails, a button right above the powered rail on a
-	 * wall to the south, and a frame showing {@code item} next to the button if there is one. Returns the
-	 * minecart with a chest waiting on it.
+	 * wall to the south, and a frame next to the button if {@code item} is given: showing it, or empty for
+	 * air. Returns the minecart with a chest waiting on it.
 	 */
 	private static MinecartChest station(final GameTestHelper helper, final int x, final int z, final @Nullable Item item) {
 		helper.setBlock(x - 1, 1, z, Blocks.STONE);
@@ -737,7 +801,10 @@ public class GolemUpgradeTests {
 		helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE_BUTTON.defaultBlockState().setValue(ButtonBlock.FACE, AttachFace.WALL).setValue(ButtonBlock.FACING, Direction.NORTH));
 		if (item != null) {
 			ItemFrame frame = new ItemFrame(helper.getLevel(), helper.absolutePos(new BlockPos(x - 1, 2, z)), Direction.NORTH);
-			frame.setItem(new ItemStack(item), false);
+			if (item != Items.AIR) {
+				frame.setItem(new ItemStack(item), false);
+			}
+
 			helper.getLevel().addFreshEntity(frame);
 		}
 
@@ -832,10 +899,13 @@ public class GolemUpgradeTests {
 		}
 	}
 
-	/** Hangs an item frame showing {@code item} on top of the chest at {@code chest}. */
-	private static void frame(final GameTestHelper helper, final BlockPos chest, final Item item) {
+	/** Hangs an item frame showing {@code item}, or an empty one, on top of the chest at {@code chest}. */
+	private static void frame(final GameTestHelper helper, final BlockPos chest, final @Nullable Item item) {
 		ItemFrame frame = new ItemFrame(helper.getLevel(), helper.absolutePos(chest.above()), Direction.UP);
-		frame.setItem(new ItemStack(item), false);
+		if (item != null) {
+			frame.setItem(new ItemStack(item), false);
+		}
+
 		helper.getLevel().addFreshEntity(frame);
 	}
 }
