@@ -66,10 +66,15 @@ Si el cofre está lleno (o lo han roto) se queda esperando junto a él y no sigu
 ### Flores
 
 El gólem trabaja siempre a la altura a la que está cuando recibe la flor y nunca pisa una casilla sin suelo: si falta,
-coloca un bloque de su inventario. Si no tiene bloques, vuelve al cofre, deja lo que lleve y coge hasta 128; si en el
-cofre tampoco hay, se queda esperando allí. Solo usa bloques completos corrientes que se pican con pico (piedra, adoquín,
-pizarra, ladrillos...; nada de tierra, madera, menas, bloques de mineral, arena o grava), así siempre puede volver a
-quitarlos.
+coloca un bloque de su inventario. Solo usa bloques completos corrientes que se pican con pico y no cuestan mucho de
+picar (piedra, adoquín, pizarra, ladrillos...; nada de tierra, madera, obsidiana, menas, bloques de mineral, arena o
+grava), así siempre puede volver a quitarlos.
+
+- **Siempre lleva 2 huecos de bloques** (los más llenos, hasta 128 bloques) que no deja en el cofre mientras lleva su
+  flor: son los que usa para tapar el agua y poner suelo. Picando piedra se le llenan solos.
+- **Cada vez que pasa por el cofre** (a descargar, a por un pico...) completa esos 2 huecos con los bloques que haya en
+  él, aunque no se haya quedado sin ninguno.
+- Si se queda sin bloques, vuelve al cofre a por más; si en el cofre tampoco hay, se queda esperando allí.
 
 - **Amapola**: **mina en tiras** (*strip mining*) en la capa en la que está, y solo dentro de los **3x3 chunks** que hay
   alrededor del suyo.
@@ -92,8 +97,7 @@ quitarlos.
 - **Diente de león**: cantera del chunk en el que está, **capa a capa**. Pica toda la capa a su altura, baja tantos bloques
   como alto es su túnel (2 el de hierro, 3 los otros) y repite, hasta llegar a la roca madre. No empieza la capa siguiente
   mientras quede agua en la que está.
-  - **Siempre lleva 2 huecos de bloques** (los más llenos, hasta 128 bloques) que no deja en el cofre: son los que usa para
-    tapar el agua y poner suelo. Solo va al cofre a por bloques si no puede sacarlos de la capa que está picando.
+  - Si se queda sin bloques, antes de ir al cofre los saca de la capa que está picando (ver *Agua*).
   - El anillo exterior del chunk queda reservado para una **escalera en espiral**: de cada columna del borde el gólem deja
     (o coloca) un bloque como peldaño y el de debajo, y por ella sube y baja al cofre. Si bajo un peldaño había un hueco
     (una cueva, un desnivel del terreno), lo rellena: sin él podría meterse debajo y quedarse sin poder subir.
@@ -171,7 +175,8 @@ un radio de 16 bloques alrededor del punto donde se la des.
 - **Todo lo demás** lo lleva directamente al **cofre de cobre** más cercano (tienes que colocarlo tú).
 - **Nunca coge lo que necesita el dueño del cofre:**
   - los **picos** de los cofres de minero y las **espadas** de los cofres de hueso;
-  - en cofres de minero, **64 bloques** de los que el minero usa como suelo (se lleva solo lo que pase de ahí);
+  - en cofres de minero, **128 bloques** de los que el minero usa para construir, lo que llena sus 2 huecos de reserva (se
+    lleva solo lo que pase de ahí);
   - en cofres de esponja, las **esponjas secas** y el **carbón** de la hoguera;
   - en cofres de hueso, la **comida que come algún animal del recinto** de ese gólem de hueso, salvo las patatas.
 - Atiende hasta **5 hornos**, los más cercanos, contando juntos hornos normales, altos hornos y ahumadores.

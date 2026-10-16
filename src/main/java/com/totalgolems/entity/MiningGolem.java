@@ -81,8 +81,12 @@ import org.jspecify.annotations.Nullable;
  */
 public class MiningGolem extends WorkerGolem {
 	private static final EntityDataAccessor<Boolean> DATA_MINING = SynchedEntityData.defineId(MiningGolem.class, EntityDataSerializers.BOOLEAN);
-	/** A chest keeps this many blocks for the golem to lay as floor; see {@link CoalGolem}. */
-	public static final int BLOCKS_KEPT_FOR_FLOOR = 64;
+	/** How many slots of blocks it always keeps for walling off water and laying floor, instead of unloading them. */
+	private static final int RESERVE_SLOTS = 2;
+	/** A chest keeps this many blocks for the golem, as many as it fills its reserve with; see {@link CoalGolem}. */
+	public static final int BLOCKS_KEPT_FOR_FLOOR = RESERVE_SLOTS * Item.DEFAULT_MAX_STACK_SIZE;
+	/** Nothing harder than this to dig counts as a building block: obsidian is worth keeping, and slow to take out again. */
+	private static final float BUILDING_BLOCK_MAX_HARDNESS = 5.0F;
 	/** The same for every tier. */
 	public static final double MAX_HEALTH = 60.0;
 	/** What unlocks a netherite golem. */
@@ -95,8 +99,6 @@ public class MiningGolem extends WorkerGolem {
 	/** How many chunks away a golem will go to find one that no other golem is quarrying. */
 	private static final int CLAIM_CHUNK_RANGE = 2;
 	private static final int CHEST_PROTECTION_INTERVAL = 200;
-	/** How many slots of blocks it always keeps for walling off water and laying floor, instead of unloading them. */
-	private static final int RESERVE_SLOTS = 2;
 	/** How many blocks of water or lava it walls off in one go. */
 	private static final int SEALS_AT_ONCE = 4;
 	/** How often a quarrying golem looks over its layer for water and lava to wall off. */
@@ -629,7 +631,14 @@ public class MiningGolem extends WorkerGolem {
 		}
 
 		this.waiting = lacksTool || this.waitingForDrain;
-		if (this.waiting || this.needsBlocks && !this.takeBuildingBlocks(chest)) {
+		if (this.waiting) {
+			return;
+		}
+
+		// Every visit fills its reserve of blocks up again, so that it does not run short down there; it only
+		// waits for blocks if it has none at all and came for them.
+		boolean hasBlocks = !this.isWorking() || this.takeBuildingBlocks(chest);
+		if (this.needsBlocks && !hasBlocks) {
 			return;
 		}
 
@@ -662,11 +671,11 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	/**
-	 * The slots of blocks a quarrying golem keeps, the fullest {@value #RESERVE_SLOTS}, topped up from the
-	 * other blocks it carries of the same kind. Other golems keep nothing.
+	 * The slots of blocks a golem at work keeps, the fullest {@value #RESERVE_SLOTS}, topped up from the
+	 * other blocks it carries of the same kind. Without a pattern flower it keeps nothing.
 	 */
 	private Set<Integer> reserveSlots() {
-		if (!this.getItemBySlot(FLOWER_SLOT).is(Items.DANDELION)) {
+		if (!isPatternFlower(this.getItemBySlot(FLOWER_SLOT))) {
 			return Set.of();
 		}
 
@@ -730,7 +739,7 @@ public class MiningGolem extends WorkerGolem {
 
 	/**
 	 * Plain full blocks the golem may lay as floor or put into water: nothing that falls, holds data or is
-	 * worth keeping, and only what a pickaxe digs, so that it can always take them out again.
+	 * worth keeping, and only what a pickaxe digs, and not too slowly, so that it can always take them out again.
 	 */
 	public static boolean isBuildingBlock(final ItemStack stack) {
 		if (!(stack.getItem() instanceof BlockItem blockItem) || stack.is(ConventionalItemTags.ORES) || stack.is(ConventionalItemTags.STORAGE_BLOCKS)) {
@@ -740,6 +749,7 @@ public class MiningGolem extends WorkerGolem {
 		BlockState state = blockItem.getBlock().defaultBlockState();
 		return !(state.getBlock() instanceof FallingBlock)
 			&& !state.hasBlockEntity()
+			&& blockItem.getBlock().defaultDestroyTime() <= BUILDING_BLOCK_MAX_HARDNESS
 			&& state.is(BlockTags.MINEABLE_WITH_PICKAXE)
 			&& state.isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
 	}

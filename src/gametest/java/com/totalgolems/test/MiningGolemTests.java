@@ -361,6 +361,30 @@ public class MiningGolemTests {
 		});
 	}
 
+	/**
+	 * A strip-mining golem that goes to its chest, here for a pickaxe, fills up on blocks to build with while
+	 * it is there, even though it has not run out: two stacks at most, and nothing it would not build with.
+	 */
+	@GameTest(maxTicks = 400)
+	public void minerFillsUpOnBlocksAtEveryVisitToItsChest(final GameTestHelper helper) {
+		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+		Container chest = chest(helper);
+		chest.setItem(0, new ItemStack(Items.IRON_PICKAXE));
+		chest.setItem(1, new ItemStack(Items.COBBLESTONE, 64));
+		chest.setItem(2, new ItemStack(Items.COBBLESTONE, 64));
+		chest.setItem(3, new ItemStack(Items.COBBLESTONE, 40));
+		chest.setItem(4, new ItemStack(Items.DIRT, 64));
+		stopper(helper, 3);
+		walls(helper, 3, 0, 7);
+		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(golem.hasTool(), "it should have taken the pickaxe");
+			helper.assertTrue(carried(golem).countItem(Items.COBBLESTONE) == MiningGolem.BLOCKS_KEPT_FOR_FLOOR, "it should carry two stacks of cobblestone, not " + carried(golem).countItem(Items.COBBLESTONE));
+			helper.assertTrue(chest.countItem(Items.COBBLESTONE) == 40 && chest.countItem(Items.DIRT) == 64, "the rest should be left in the chest");
+		});
+	}
+
 	@GameTest(maxTicks = 1200)
 	public void pickaxeEnchantmentsApplyToWhatIsDug(final GameTestHelper helper) {
 		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
@@ -371,8 +395,8 @@ public class MiningGolemTests {
 		helper.assertTrue(golem.getTool().is(Items.IRON_PICKAXE), "books are no longer anything to a golem");
 		walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
-		// With Silk Touch stone drops as stone, not cobblestone.
-		helper.succeedWhen(() -> helper.assertContainerContains(CHEST, Items.STONE));
+		// With Silk Touch stone drops as stone, not cobblestone. The golem keeps it, as a block to build with.
+		helper.succeedWhen(() -> helper.assertTrue(chest(helper).countItem(Items.STONE) + carried(golem).countItem(Items.STONE) == 1, "the stone should have come out as stone"));
 	}
 
 	/**
@@ -1159,6 +1183,50 @@ public class MiningGolemTests {
 				helper.assertTrue(changes[0] <= 8, "the golem went up and down " + changes[0] + " times on the spot at " + golem.position());
 			}
 		});
+	}
+
+	/**
+	 * Once the golem is at work in its layer, a step of its staircase loses the block it stands on, and the
+	 * golem its pickaxe and every block it carries; there are none in its chest either. On its way up for a
+	 * new pickaxe the next step is two blocks above the hole, more than it can climb, and it has nothing to
+	 * mend the step with. It must not be stuck there: it gets to its chest and finishes the layer.
+	 */
+	@GameTest(maxTicks = 8000, padding = 24)
+	public void quarryGolemGetsUpItsStairsPastAMissingStep(final GameTestHelper helper) {
+		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
+		ServerLevel level = helper.getLevel();
+		MiningGolem golem = site.golem();
+		Container chest = (Container)level.getBlockEntity(site.chestPos());
+		chest.clearContent();
+		BlockPos hole = site.plan().stairStand(1).below();
+		boolean[] done = {false};
+		helper.onEachTick(() -> {
+			if (!done[0] && Math.abs(golem.getY() - (site.top() - 1)) < 0.3 && golem.getZ() - site.minZ() > 6.0) {
+				done[0] = true;
+				level.setBlockAndUpdate(hole, Blocks.AIR.defaultBlockState());
+				chest.setItem(1, golem.getMainHandItem().copy());
+				golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+				carried(golem).clearContent();
+			}
+		});
+		site.start(helper);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(done[0], "the golem never got far enough along its layer");
+			helper.assertTrue(golem.hasTool(), "the golem should have got up to its chest for a new pickaxe");
+			site.assertDug(helper);
+			site.finish();
+		});
+	}
+
+	/** What the golem carries, for tests that need to take it away. */
+	static Container carried(final MiningGolem golem) {
+		try {
+			java.lang.reflect.Field field = MiningGolem.class.getDeclaredField("inventory");
+			field.setAccessible(true);
+			return (Container)field.get(golem);
+		} catch (ReflectiveOperationException exception) {
+			throw new IllegalStateException(exception);
+		}
 	}
 
 	/** A chunk of stone in the air, with a chest and a quarrying golem on top, ready to be given its dandelion. */
