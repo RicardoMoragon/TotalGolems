@@ -385,11 +385,17 @@ public abstract class WorkerGolem extends AbstractGolem {
 		this.travelTarget = null;
 	}
 
+	/** Whether a golem that teleports may land at {@code spot}, which it fits into. Any such place will do by default. */
+	protected boolean mayLandAt(final ServerLevel level, final BlockPos spot) {
+		return true;
+	}
+
+	/** Teleports to {@code pos} or a place next to it, the first it fits into and may land at; to none if there is none. */
 	private void teleportNextTo(final ServerLevel level, final BlockPos pos) {
 		List<BlockPos> candidates = List.of(pos, pos.above(), pos.north(), pos.south(), pos.east(), pos.west());
 		for (BlockPos candidate : candidates) {
 			Vec3 spot = Vec3.atBottomCenterOf(candidate);
-			if (level.noCollision(this, this.getType().getDimensions().makeBoundingBox(spot))) {
+			if (level.noCollision(this, this.getType().getDimensions().makeBoundingBox(spot)) && this.mayLandAt(level, candidate)) {
 				this.getNavigation().stop();
 				this.teleportTo(spot.x, spot.y, spot.z);
 				return;

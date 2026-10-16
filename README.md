@@ -4,7 +4,7 @@ Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con 
 
 | Bloque | Gólem | Flor que lo activa | Herramienta | Qué hace |
 |---|---|---|---|---|
-| Hierro, diamante, netherita | Minero | Amapola o diente de león | Pico | Pica túneles o canteras y lo lleva a su cofre |
+| Hierro, diamante, netherita | Minero | Amapola o diente de león | Pico | Hace minas en tiras o canteras y lo lleva a su cofre |
 | Carbón | Fundidor | Margarita (oxeye daisy) | — | Vacía los cofres de los demás: funde lo fundible y lleva el resto a un cofre de cobre |
 | Amatista | Leñador | Lirio de los valles | Hacha | Tala y replanta los árboles de su chunk (3x3 chunks con un catalejo) |
 | Esponja | Drenador | Orquídea azul | — | Seca el agua cercana con esponjas, o la que inunda a un minero |
@@ -66,40 +66,102 @@ Si el cofre está lleno (o lo han roto) se queda esperando junto a él y no sigu
 ### Flores
 
 El gólem trabaja siempre a la altura a la que está cuando recibe la flor y nunca pisa una casilla sin suelo: si falta,
-coloca un bloque de su inventario. Si no tiene bloques, vuelve al cofre, deja lo que lleve y coge hasta 64; si en el cofre
-tampoco hay, se queda esperando allí. Para el suelo solo usa bloques completos corrientes (nada de menas, bloques de
-mineral, arena o grava).
+coloca un bloque de su inventario. Solo usa bloques completos corrientes que se pican con pico y no cuestan mucho de
+picar (piedra, adoquín, pizarra, ladrillos...; nada de tierra, madera, obsidiana, menas, bloques de mineral, arena o
+grava), así siempre puede volver a quitarlos.
 
-- **Amapola**: túnel en línea recta hacia donde miras al dársela, sin cambiar de altura. Si se topa con un bloque que no
-  puede romper (roca madre, un cofre, un generador...) da el trabajo por terminado, vuelve al cofre y espera allí a que le
-  des otra flor.
-- **Diente de león**: cantera del chunk en el que está. Pica toda la capa a su altura, baja tantos bloques como alto es su
-  túnel (2 el de hierro, 3 los otros) y repite, hasta llegar a la roca madre.
+- **Siempre lleva 2 huecos de bloques** (los más llenos, hasta 128 bloques) que no deja en el cofre mientras lleva su
+  flor: son los que usa para tapar el agua y poner suelo. Picando piedra se le llenan solos.
+- **Cada vez que pasa por el cofre** (a descargar, a por un pico...) completa esos 2 huecos con los bloques que haya en
+  él, aunque no se haya quedado sin ninguno.
+- Si se queda sin bloques, vuelve al cofre a por más; si en el cofre tampoco hay, se queda esperando allí.
+
+- **Amapola**: **mina en tiras** (*strip mining*) en la capa en la que está, y solo dentro de los **3x3 chunks** que hay
+  alrededor del suyo.
+  1. **Túnel principal:** en línea recta desde donde está hasta el borde de esa zona, hacia donde miras al darle la flor.
+     Al llegar se da la vuelta y lo sigue hasta el borde contrario, así que el túnel cruza la zona entera.
+  2. **Ramales:** luego hace túneles perpendiculares al principal, de borde a borde, dejando **3 bloques sin picar entre
+     uno y otro**, aunque alguna fila no llegue a verse nunca. Hace todos los que caben.
+  - El de **hierro** pica túneles de 1x2, así que hace un ramal cada 4 bloques. Los de **diamante y netherita** pican de
+    3x3, y hacen un ramal cada 6.
+  - **Vetas:** si ve mineral en las paredes, el techo o el suelo (a menos de 5 bloques), se para y pica **la veta entera,
+    hasta el último bloque**: todo el mineral que toca a ese, aunque siga lejos del túnel o detrás de la piedra, mientras
+    esté dentro de su zona. Luego sigue con su ruta. Un mineral suelto que no ve, tapado por piedra, se queda donde está.
+  - **Agua y lava:** si ve agua o lava, la tapa con bloques para que no le corte el camino (ver *Agua*).
+  - **Obstáculos:** si algo que no puede romper le corta un túnel (roca madre, un cofre, un generador...), ese túnel acaba
+    ahí y pasa al siguiente. Si es el principal el que está cortado, se salta los ramales que hay más allá.
+  - **Grava y arena:** si le cae encima o se le mete en el túnel, la pica. Si se queda encima de un bloque que no debería
+    estar en su túnel, lo pica y vuelve a bajar. Los mineros no se asfixian enterrados: siguen picando hasta salir.
+  - **Final:** cuando termina toda la mina vuelve al cofre y espera allí a que le des otra flor. Si se queda sin camino de
+    vuelta (lava, una cueva) dentro de su zona, se teletransporta al cofre o al túnel.
+- **Diente de león**: cantera del chunk en el que está, **capa a capa**. Pica toda la capa a su altura, baja tantos bloques
+  como alto es su túnel (2 el de hierro, 3 los otros) y repite, hasta llegar a la roca madre. No empieza la capa siguiente
+  mientras quede agua en la que está.
+  - Si se queda sin bloques, antes de ir al cofre los saca de la capa que está picando (ver *Agua*).
   - El anillo exterior del chunk queda reservado para una **escalera en espiral**: de cada columna del borde el gólem deja
-    (o coloca) un bloque como peldaño, y por ella sube y baja al cofre.
-  - Si el cofre está dentro del chunk y a su misma altura, deja también una pasarela desde lo alto de la escalera hasta él.
+    (o coloca) un bloque como peldaño y el de debajo, y por ella sube y baja al cofre. Si bajo un peldaño había un hueco
+    (una cueva, un desnivel del terreno), lo rellena: sin él podría meterse debajo y quedarse sin poder subir.
+  - Si el cofre está dentro del chunk y a su misma altura, deja también una pasarela desde lo alto de la escalera hasta él,
+    y el bloque sobre el que está el cofre.
+  - Si a la escalera o a la pasarela les falta algún bloque (porque el terreno tenía un hueco o algo lo rompió), lo repone
+    al pasar cerca, para no caerse al pozo cada vez que va al cofre.
   - Los cofres y bloques irrompibles que encuentra los rodea y los deja en pie.
   - Si le quitas la flor y se la vuelves a dar dentro del mismo pozo, sigue con la misma cantera y la misma escalera.
   - **Un gólem por chunk.** Si el chunk ya lo está picando otro gólem, el nuevo se queda con el chunk libre más cercano
     (hasta dos chunks de distancia) y va hasta él abriéndose paso. Así no se destrozan las escaleras ni el suelo entre ellos.
+    Cuando pasa, te lo dice un mensaje sobre la barra de acción. Solo cuenta como ocupado el chunk de un gólem que lleva
+    puesto el diente de león y no se ha parado; si no lo pica nadie, el gólem pica el chunk en el que está, aunque su cofre
+    esté en otro.
   - Deja una pasarela hasta todos los cofres de gólem que haya dentro del chunk, no solo el suyo.
   - No recorre las zonas de una capa donde no hay nada que picar: una capa de aire se da por hecha al momento.
+  - **Cada vez que vuelve a bajar** (después de dejar cosas en el cofre o de ir a por un pico o bloques), repasa la capa
+    entera: si han aparecido bloques en la parte ya picada (grava que ha caído, bloques puestos) los quita, y si ha
+    entrado agua la tapa con bloques y luego los pica. Si el agua que corre dentro del chunk no tiene fuente dentro, es que
+    entra desde fuera, y la tapia por fuera del chunk (ver *Agua*).
 
 Darle la flor que ya lleva reinicia el patrón desde donde está; darle la otra se la cambia y te devuelve la anterior.
 El resto de flores no tienen patrón y no las acepta.
 
 ### Agua
 
-Las corrientes no arrastran a los mineros: el agua solo los ralentiza. Si además hay un **gólem de esponja con su cofre
-pegado al cofre del minero**, trabajan juntos:
+Las corrientes no arrastran a los mineros: el agua solo los ralentiza. Además, **el minero sella el agua y la lava** que se
+encuentra, como haría un jugador:
+
+- En una **cantera** quita el agua **capa a capa**, igual que pica: solo se ocupa del agua de la capa en la que está, y
+  dentro de ella empieza por arriba.
+  - Tapa con un bloque las fuentes de esa capa dentro del chunk y luego pica esos bloques como cualquier otro. Así el agua
+    no vuelve a formar fuentes nuevas mientras pica (lo que hacía que un acuífero fuera imposible de vaciar).
+  - Por donde entra agua o lava desde fuera del chunk, a la altura de la capa, pone un bloque que se queda ahí como
+    pared. En la primera capa también tapa la que cae desde arriba (bajo el mar o junto a un río).
+  - **No pone bloques lejos:** solo a unos 4 bloques de donde está, así que va hasta el agua para taparla.
+  - **Si se queda sin bloques mientras quita agua**, pica uno de su capa: primero los que ya puso en el agua (donde ya no
+    queda agua), y si no, el más cercano que no tenga una fuente al lado. Si está lejos, va hasta él. Solo si en la capa
+    no queda ninguno vuelve al cofre a por más. Solo coge bloques a los que puede llegar: al alcance, o con una casilla al
+    lado en la que pueda estar.
+  - La **lava** la tapa siempre antes de picar el bloque de al lado. El **agua**, si hay un gólem de esponja vinculado a su
+    cofre, se la deja a él (ver más abajo).
+- En una **mina en tiras**, antes de romper cada bloque mira lo que hay alrededor del hueco que va a abrir: el techo, las
+  paredes y el suelo de la casilla a la que va a entrar. Si hay agua o lava (fuente o corriente), la tapa primero con un
+  bloque y luego rompe. Lo mismo al sacar mineral de una veta. También tapa las fuentes que hay en el bloque que va a
+  picar, salvo el agua cuando hay un gólem de esponja vinculado. El agua o la lava que ya está dentro de sus túneles no
+  la toca: eso es trabajo de la esponja.
+- Sin fuentes, el agua que quedaba se va sola.
+- Para esto usa los bloques de construcción que lleva encima. En una mina en tiras, si no le quedan, **no rompe el
+  bloque**: vuelve al cofre a por más y, si en el cofre tampoco hay, espera allí.
+
+Si aun así se queda dentro del agua y hay un **gólem de esponja con su cofre pegado al cofre del minero**, trabajan juntos:
 
 1. Cuando el minero pasa **5 segundos seguidos dentro del agua**, deja de picar, vuelve a su cofre y avisa a la esponja.
 2. El gólem de esponja va al punto donde el minero encontró el agua y quita **toda el agua, fuentes y corrientes**, de la
-   zona de trabajo del minero: el chunk entero si hace cantera, la línea del túnel si hace túnel.
+   zona de trabajo del minero: el chunk entero si hace cantera, y los 3x3 chunks a la altura de sus túneles si hace mina en
+   tiras.
 3. Cuando no queda agua, avisa al minero y vuelve a su cofre. El minero **reanuda el trabajo donde lo dejó**.
 
+Los gólems flotan: en agua profunda el minero sigue trabajando aunque flote por encima de la altura de su capa, en vez
+de intentar volver una y otra vez al sitio en el que ya está.
+
 Si la esponja se queda sin esponjas secas a medias, el minero sigue esperando hasta que haya más. Sin gólem de esponja
-vinculado (o si no lleva su flor), el minero sigue picando dentro del agua como antes.
+vinculado (o si no lleva su flor), el minero sigue picando dentro del agua.
 
 ## Gólem de carbón (fundidor)
 
@@ -113,7 +175,8 @@ un radio de 16 bloques alrededor del punto donde se la des.
 - **Todo lo demás** lo lleva directamente al **cofre de cobre** más cercano (tienes que colocarlo tú).
 - **Nunca coge lo que necesita el dueño del cofre:**
   - los **picos** de los cofres de minero y las **espadas** de los cofres de hueso;
-  - en cofres de minero, **64 bloques** de los que el minero usa como suelo (se lleva solo lo que pase de ahí);
+  - en cofres de minero, **128 bloques** de los que el minero usa para construir, lo que llena sus 2 huecos de reserva (se
+    lleva solo lo que pase de ahí);
   - en cofres de esponja, las **esponjas secas** y el **carbón** de la hoguera;
   - en cofres de hueso, la **comida que come algún animal del recinto** de ese gólem de hueso, salvo las patatas.
 - Atiende hasta **5 hornos**, los más cercanos, contando juntos hornos normales, altos hornos y ahumadores.
@@ -248,6 +311,14 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 - Si lleva diez segundos sin poder moverse hacia donde va, se teletransporta a su destino, siempre que esté a **16
   bloques o menos**. Más lejos se queda donde está y lo sigue intentando a pie. La excepción es el gólem de esponja al
   volver a su cofre.
+- Un minero nunca se teletransporta por debajo de la altura a la que trabaja (su capa, sus túneles o, bajando la
+  escalera, el peldaño al que va), ni a una casilla con agua o lava, ni a una sin suelo firme. Si no hay ningún sitio
+  así, no se teletransporta.
+- Si un minero pasa **20 segundos trabajando sin romper ningún bloque ni llegar a una casilla nueva** (dar vueltas por
+  las mismas casillas, o subir y bajar un peldaño, no cuenta), deja de insistir: en una cantera se salta el sitio al que
+  iba y sigue con la capa; si estaba volviendo a un sitio al que no consigue llegar, va a la casilla de su capa más
+  cercana en la que se pueda estar; si no, vuelve al cofre y empieza de nuevo desde ahí. Si le pasa 3 veces seguidas sin
+  romper un solo bloque entre medias, lo deja y espera en el cofre a que le des otra flor.
 - Los cofres también se fabrican: un cofre rodeado de 8 lingotes de hierro, diamantes, lingotes de netherita, fragmentos
   de amatista, esponjas, trigo o huesos. Se unen en cofres dobles.
 - Un gólem invocado con `/summon` adopta el cofre de gólem más cercano (8 bloques) al recibir la flor.

@@ -80,6 +80,7 @@ public class GolemUpgradeTests {
 		}
 
 		stopper(helper, 6);
+		MiningGolemTests.walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			for (int x = 2; x <= 5; x++) {
@@ -89,7 +90,9 @@ public class GolemUpgradeTests {
 			// The old one lasted two blocks; the new one has done the other two.
 			helper.assertTrue(golem.getTool().is(Items.IRON_PICKAXE) && golem.getTool().getDamageValue() == 2, "it should be on its second pickaxe, used twice");
 			helper.assertTrue(container(helper, CHEST).countItem(Items.IRON_PICKAXE) == 0, "the spare pickaxe should have been taken");
-			helper.assertTrue(container(helper, CHEST).countItem(Items.COBBLESTONE) == 4, "all four blocks should be in the chest");
+			// Blocks it keeps to build with: they are on the golem, not in the chest.
+			int blocks = container(helper, CHEST).countItem(Items.COBBLESTONE) + MiningGolemTests.carried(golem).countItem(Items.COBBLESTONE);
+			helper.assertTrue(blocks == 4, "all four blocks should have been dug, found " + blocks);
 		});
 	}
 
@@ -103,6 +106,7 @@ public class GolemUpgradeTests {
 		helper.setBlock(5, 1, 3, Blocks.DEEPSLATE);
 		helper.setBlock(6, 1, 3, Blocks.COBBLESTONE);
 		stopper(helper, 7);
+		MiningGolemTests.walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.AIR, 6, 1, 3);
@@ -148,6 +152,7 @@ public class GolemUpgradeTests {
 		MiningGolem golem = miner(helper, GolemTier.IRON, CHEST, new ItemStack(Items.WOODEN_PICKAXE));
 		helper.setBlock(2, 1, 3, Blocks.IRON_ORE);
 		stopper(helper, 3);
+		MiningGolemTests.walls(helper, 3, 0, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.AIR, 2, 1, 3);
@@ -263,13 +268,15 @@ public class GolemUpgradeTests {
 		ServerLevel level = helper.getLevel();
 		helper.assertTrue(ChestGroup.positions(level, helper.absolutePos(new BlockPos(2, 4, 5))).size() == ChestGroup.MAX_CHESTS, "a group stops at eight chests");
 		helper.assertTrue(ChestGroup.positions(level, helper.absolutePos(CHEST)).size() == 2, "only chests of the same kind join up");
-		helper.setBlock(2, 1, 3, Blocks.STONE);
+		// Dirt, which it does not keep to build with.
+		helper.setBlock(2, 1, 3, Blocks.DIRT);
 		stopper(helper, 3);
+		MiningGolemTests.walls(helper, 3, 1, 7);
 		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.AIR, 2, 1, 3);
 			helper.assertTrue(golem.getTool().is(Items.IRON_PICKAXE), "it should have found the pickaxe in the chest next door");
-			helper.assertTrue(container(helper, second).countItem(Items.COBBLESTONE) == 1, "what did not fit in its own chest goes in the one beside it");
+			helper.assertTrue(container(helper, second).countItem(Items.DIRT) == 1, "what did not fit in its own chest goes in the one beside it");
 			helper.assertTrue(golem.isHalted(), "it should have finished its tunnel");
 		});
 	}
@@ -277,9 +284,10 @@ public class GolemUpgradeTests {
 	// ------------------------------------------------------------------------------------ water
 
 	/**
-	 * A tunnel in a channel one block deep, so that the water stays in it. Two blocks in the golem breaks
-	 * into a pocket of water and then meets obsidian, slow enough to keep it standing there. It must go
-	 * home, the sponge golem next door must dry the tunnel, and then the miner must finish it.
+	 * A tunnel in a channel one block deep, so that the water stays in it. Two blocks of glass in, the golem
+	 * breaks into a pocket of water and then meets obsidian, slow enough to keep it standing there. Glass
+	 * leaves it nothing to wall the water off with, so it must go home, the sponge golem next door must dry
+	 * the tunnel, and then the miner must finish it.
 	 */
 	@GameTest(maxTicks = 4000, padding = 16)
 	public void minerCallsSpongeGolemToDrainFloodedTunnel(final GameTestHelper helper) {
@@ -292,8 +300,8 @@ public class GolemUpgradeTests {
 			helper.setBlock(x, 1, 4, Blocks.STONE);
 		}
 
-		helper.setBlock(2, 1, 3, Blocks.STONE);
-		helper.setBlock(3, 1, 3, Blocks.STONE);
+		helper.setBlock(2, 1, 3, Blocks.GLASS);
+		helper.setBlock(3, 1, 3, Blocks.GLASS);
 		helper.setBlock(4, 1, 3, Blocks.WATER);
 		helper.setBlock(5, 1, 3, Blocks.WATER);
 		helper.setBlock(6, 1, 3, Blocks.OBSIDIAN);
@@ -302,6 +310,7 @@ public class GolemUpgradeTests {
 		SpongeGolem sponge = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 5));
 		sponge.setChestPos(helper.absolutePos(spongeChest));
 		FarmGolemTests.give(helper, sponge, Items.BLUE_ORCHID);
+		MiningGolemTests.walls(helper, 3, 2, 7);
 		give(helper, miner, new ItemStack(Items.POPPY), Direction.EAST);
 		helper.assertTrue(sponge.isLinked(helper.getLevel()), "chests side by side should link the two golems");
 
@@ -568,7 +577,7 @@ public class GolemUpgradeTests {
 		helper.setBlock(boneChest, ModBlocks.BONE_CHEST);
 		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
 		helper.setBlock(furnace, Blocks.FURNACE);
-		fill(container(helper, ironChest), new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 36), new ItemStack(Items.DIAMOND, 3), new ItemStack(Items.COAL, 1));
+		fill(container(helper, ironChest), new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 36), new ItemStack(Items.DIAMOND, 3), new ItemStack(Items.COAL, 1));
 		fill(container(helper, spongeChest), new ItemStack(Items.SPONGE, 2));
 		fill(container(helper, boneChest), new ItemStack(Items.IRON_SWORD), new ItemStack(Items.WHEAT, 5), new ItemStack(Items.CARROT, 3), new ItemStack(Items.POTATO, 2), new ItemStack(Items.FEATHER, 4));
 		// The rancher is not at work, but the chest is still its own and the animals around it are still its herd.
@@ -582,10 +591,10 @@ public class GolemUpgradeTests {
 			Container copper = container(helper, copperChest);
 			helper.assertTrue(copper.countItem(Items.DIAMOND) == 3 && copper.countItem(Items.FEATHER) == 4, "what cannot be smelted goes to the copper chest");
 			helper.assertTrue(copper.countItem(Items.BAKED_POTATO) == 2, "potatoes are baked on the way, even though the pig eats them");
-			helper.assertTrue(copper.countItem(Items.COBBLESTONE) == 36, "expected the 36 blocks over a stack, found " + copper.countItem(Items.COBBLESTONE));
+			helper.assertTrue(copper.countItem(Items.COBBLESTONE) == 36, "expected the 36 blocks over two stacks, found " + copper.countItem(Items.COBBLESTONE));
 			Container miners = container(helper, ironChest);
 			helper.assertTrue(miners.countItem(Items.IRON_PICKAXE) == 1, "the miner's pickaxe stays");
-			helper.assertTrue(miners.countItem(Items.COBBLESTONE) == 64, "the miner keeps a stack of blocks for laying floor");
+			helper.assertTrue(miners.countItem(Items.COBBLESTONE) == MiningGolem.BLOCKS_KEPT_FOR_FLOOR, "the miner keeps two stacks of blocks to build with");
 			helper.assertTrue(container(helper, spongeChest).countItem(Items.SPONGE) == 2, "dry sponges stay in the sponge chest");
 			Container bones = container(helper, boneChest);
 			helper.assertTrue(bones.countItem(Items.IRON_SWORD) == 1, "the rancher's sword stays");
