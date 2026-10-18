@@ -399,6 +399,16 @@ public class MiningGolemTests {
 		helper.succeedWhen(() -> helper.assertTrue(chest(helper).countItem(Items.STONE) + carried(golem).countItem(Items.STONE) == 1, "the stone should have come out as stone"));
 	}
 
+	/** A poppy's mine ends at the edge of its three by three chunks, but a vein of ore across that edge is still followed a little way. */
+	@GameTest
+	public void poppyFollowsOreALittleWayPastTheEdgeOfItsMine(final GameTestHelper helper) {
+		StripPlan plan = StripPlan.create(new BlockPos(8, 40, 8), Direction.EAST, GolemTier.IRON);
+		helper.assertTrue(!plan.contains(new BlockPos(32, 40, 8)), "the mine itself ends at the edge of the chunks around");
+		helper.assertTrue(plan.reachesForOre(new BlockPos(32 + StripPlan.ORE_MARGIN - 1, 40, 8)), "ore just past the edge should still be dug");
+		helper.assertTrue(!plan.reachesForOre(new BlockPos(32 + StripPlan.ORE_MARGIN, 40, 8)), "but not far beyond it");
+		helper.succeed();
+	}
+
 	/**
 	 * These quarry a real chunk, so they are padded well away from the other tests. The chunk gets a slab
 	 * of stone with the chest and the golem on top, inside the chunk.

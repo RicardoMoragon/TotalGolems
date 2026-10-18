@@ -965,7 +965,8 @@ public class MiningGolem extends WorkerGolem {
 	/**
 	 * Mines out every vein of ore it sees from where it stands, to the last block, nearest first: ore it can
 	 * see within {@value #VEIN_REACH} blocks, and all the ore connected to that, however far it goes on, as
-	 * long as it is inside the area of the mine. Returns true while there is ore to mine.
+	 * long as it is no further outside the area of the mine than {@link StripPlan#ORE_MARGIN}: ore at the edge
+	 * of the area is not left half dug. Returns true while there is ore to mine.
 	 */
 	private boolean mineVein(final ServerLevel level, final StripPlan plan) {
 		if (this.tickCount < this.nextVeinScan) {
@@ -996,7 +997,7 @@ public class MiningGolem extends WorkerGolem {
 		this.vein.removeIf(pos -> !isOre(level, pos));
 		if (this.vein.isEmpty()) {
 			for (BlockPos pos : BlockPos.betweenClosed(centre.offset(-reach, -reach, -reach), centre.offset(reach, reach, reach))) {
-				if (pos.distToCenterSqr(eye) <= VEIN_REACH * VEIN_REACH && plan.contains(pos) && !pos.equals(underfoot) && isOre(level, pos) && this.canSee(level, eye, pos)) {
+				if (pos.distToCenterSqr(eye) <= VEIN_REACH * VEIN_REACH && plan.reachesForOre(pos) && !pos.equals(underfoot) && isOre(level, pos) && this.canSee(level, eye, pos)) {
 					this.followVein(level, plan, pos.immutable());
 				}
 			}
@@ -1022,7 +1023,7 @@ public class MiningGolem extends WorkerGolem {
 
 	/**
 	 * Adds the whole vein that {@code start} belongs to: every block of ore touching it, edges and corners
-	 * included, and every block touching those, within the area of the mine.
+	 * included, and every block touching those, within reach of the area of the mine.
 	 */
 	private void followVein(final ServerLevel level, final StripPlan plan, final BlockPos start) {
 		ArrayDeque<BlockPos> queue = new ArrayDeque<>(List.of(start));
@@ -1034,7 +1035,7 @@ public class MiningGolem extends WorkerGolem {
 			}
 
 			for (BlockPos near : BlockPos.betweenClosed(pos.offset(-1, -1, -1), pos.offset(1, 1, 1))) {
-				if (plan.contains(near) && !this.vein.contains(near) && isOre(level, near)) {
+				if (plan.reachesForOre(near) && !this.vein.contains(near) && isOre(level, near)) {
 					BlockPos found = near.immutable();
 					this.vein.add(found);
 					queue.add(found);

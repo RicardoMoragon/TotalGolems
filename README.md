@@ -85,8 +85,8 @@ grava), así siempre puede volver a quitarlos.
   - El de **hierro** pica túneles de 1x2, así que hace un ramal cada 4 bloques. Los de **diamante y netherita** pican de
     3x3, y hacen un ramal cada 6.
   - **Vetas:** si ve mineral en las paredes, el techo o el suelo (a menos de 5 bloques), se para y pica **la veta entera,
-    hasta el último bloque**: todo el mineral que toca a ese, aunque siga lejos del túnel o detrás de la piedra, mientras
-    esté dentro de su zona. Luego sigue con su ruta. Un mineral suelto que no ve, tapado por piedra, se queda donde está.
+    hasta el último bloque**: todo el mineral que toca a ese, aunque siga lejos del túnel o detrás de la piedra. Una veta
+    que cruza el borde de su zona la sigue hasta **8 bloques más allá**, para no dejar menas a medias. Luego sigue con su ruta. Un mineral suelto que no ve, tapado por piedra, se queda donde está.
   - **Agua y lava:** si ve agua o lava, la tapa con bloques para que no le corte el camino (ver *Agua*).
   - **Obstáculos:** si algo que no puede romper le corta un túnel (roca madre, un cofre, un generador...), ese túnel acaba
     ahí y pasa al siguiente. Si es el principal el que está cortado, se salta los ramales que hay más allá.

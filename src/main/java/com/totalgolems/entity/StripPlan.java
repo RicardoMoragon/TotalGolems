@@ -24,6 +24,8 @@ import org.jspecify.annotations.Nullable;
 public class StripPlan {
 	/** Blocks left standing between two branches. */
 	public static final int GAP = 3;
+	/** How far past the edge of the area it still goes after a vein of ore. */
+	public static final int ORE_MARGIN = 8;
 
 	private final BlockPos origin;
 	private final Direction forward;
@@ -217,6 +219,11 @@ public class StripPlan {
 	/** Whether {@code pos} is inside the three by three chunks, at any height. */
 	public boolean contains(final BlockPos pos) {
 		return pos.getX() >= this.minX && pos.getX() <= this.maxX && pos.getZ() >= this.minZ && pos.getZ() <= this.maxZ;
+	}
+
+	/** Whether {@code pos} is close enough to the area to go after ore there: within {@value #ORE_MARGIN} blocks of it. */
+	public boolean reachesForOre(final BlockPos pos) {
+		return pos.getX() >= this.minX - ORE_MARGIN && pos.getX() <= this.maxX + ORE_MARGIN && pos.getZ() >= this.minZ - ORE_MARGIN && pos.getZ() <= this.maxZ + ORE_MARGIN;
 	}
 
 	/** Whether {@code pos} is in one of the tunnels of the plan, dug or yet to be. */
