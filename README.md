@@ -53,9 +53,13 @@ Los tres tienen **60 de vida** y pican cada bloque a la velocidad del pico, sin 
 cuántos bloques trabajan a la vez. Más bloques a la vez es más rápido, y gasta el pico igual de rápido.
 
 El material del gólem ya no decide con qué pica: **pica con el pico que lleva**, a la velocidad de ese pico y con sus
-encantamientos (**Eficiencia**, **Fortuna**, **Toque de seda**, Irrompibilidad...). Usa el pico para todos los bloques,
-así que la tierra o la arena le cuestan lo mismo que a ti con un pico en la mano, y un pico demasiado flojo para un
+encantamientos (**Eficiencia**, **Fortuna**, **Toque de seda**, Irrompibilidad...). Un pico demasiado flojo para un
 mineral lo rompe despacio y sin soltar nada. Los libros encantados ya no se le dan al gólem: encanta el pico.
+
+**Pala (opcional):** si hay una **pala** en su cofre, la coge al pasar por él y la lleva en la otra mano. Con ella pica
+**la tierra, la grava, la arena** y todo lo que una pala rompe más rápido que su pico, a la velocidad de esa pala y con
+sus encantamientos, y es la pala la que se gasta. Sin pala lo pica todo con el pico, como antes. Nunca espera por una
+pala: si se le rompe, sigue con el pico hasta que vuelva al cofre y haya otra.
 
 El gólem de **netherita** recién creado **no acepta amapola ni diente de león**. Dale primero una **rosa de Wither**: se
 gasta y lo desbloquea para siempre. Después elige patrón con amapola o diente de león como los demás.

@@ -37,6 +37,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.animal.golem.AbstractGolem;
 import net.minecraft.world.entity.player.Player;
@@ -182,6 +183,7 @@ public class MiningGolem extends WorkerGolem {
 		this.tier = tier;
 		this.inventory = new SimpleContainer(tier.inventorySlots());
 		this.unlocked = !tier.startsLocked();
+		this.setDropChance(EquipmentSlot.OFFHAND, 0.0F);
 	}
 
 	public static AttributeSupplier.Builder createAttributes(final GolemTier tier) {
@@ -448,6 +450,24 @@ public class MiningGolem extends WorkerGolem {
 	// ------------------------------------------------------------------------------------ pickaxe
 
 	/**
+	 * The shovel it may carry in its other hand. It is not needed, but what a shovel digs faster than the
+	 * pickaxe (dirt, gravel, sand) it digs with that, at that shovel's speed and with its enchantments.
+	 */
+	public ItemStack getShovel() {
+		return this.getOffhandItem();
+	}
+
+	/** Takes a shovel out of {@code chest} if it has none. */
+	private void takeShovel(final Container chest) {
+		for (int slot = 0; !this.getShovel().is(ItemTags.SHOVELS) && slot < chest.getContainerSize(); slot++) {
+			if (chest.getItem(slot).is(ItemTags.SHOVELS)) {
+				this.setItemSlot(EquipmentSlot.OFFHAND, chest.removeItem(slot, 1));
+				chest.setChanged();
+			}
+		}
+	}
+
+	/**
 	 * How fast the pickaxe gets through {@code state}: what a player holding it would manage, Efficiency
 	 * included, and no better than a bare hand on what a pickaxe is not meant for.
 	 */
@@ -621,9 +641,14 @@ public class MiningGolem extends WorkerGolem {
 			return;
 		}
 
-		// So does one without a pickaxe, with its eyes off until somebody puts one in.
+		// So does one without a pickaxe, with its eyes off until somebody puts one in. A shovel it takes if
+		// there is one, but never waits for.
 		boolean lacksTool = this.isWorking() && !this.hasTool() && !this.takeTool(chest);
 		this.setWaitingForTool(lacksTool);
+		if (this.isWorking()) {
+			this.takeShovel(chest);
+		}
+
 		if (this.waitingForDrain) {
 			// The sponge golem says when it is done; should it be gone, there is nothing to wait for either.
 			SpongeGolem sponge = SpongeGolem.linkedTo(level, this.chestPos);
@@ -1537,7 +1562,10 @@ public class MiningGolem extends WorkerGolem {
 				this.breaking.put(pos, progress);
 			}
 
-			ItemStack tool = this.getTool();
+			ItemStack pickaxe = this.getTool();
+			ItemStack shovel = this.getShovel();
+			boolean shovelling = shovel.is(ItemTags.SHOVELS) && this.diggingSpeed(shovel, state) > this.diggingSpeed(pickaxe, state);
+			ItemStack tool = shovelling ? shovel : pickaxe;
 			boolean dropsLoot = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
 			float hardness = state.getDestroySpeed(level, pos);
 			// Same formula a player digs with: tool speed over hardness, far slower with the wrong tool.
@@ -1569,9 +1597,17 @@ public class MiningGolem extends WorkerGolem {
 				}
 			}
 
-			// The pickaxe wears as it does in a player's hand: not at all on what breaks at a touch.
+			// The tool wears as it does in a player's hand: not at all on what breaks at a touch.
 			Tool wear = tool.get(DataComponents.TOOL);
-			this.wearTool(hardness == 0.0F || this.isSpared(state) ? 0 : wear != null ? wear.damagePerBlock() : 1);
+			int damage = wear != null ? wear.damagePerBlock() : 1;
+			if (shovelling) {
+				if (hardness != 0.0F) {
+					shovel.hurtAndBreak(damage, this, EquipmentSlot.OFFHAND);
+				}
+			} else {
+				this.wearTool(hardness == 0.0F || this.isSpared(state) ? 0 : damage);
+			}
+
 			if (!this.hasTool()) {
 				// It broke. Whatever else was being dug is left as it is.
 				this.clearBreaking(level);
@@ -1710,6 +1746,8 @@ public class MiningGolem extends WorkerGolem {
 		this.inventory.removeAllItems().forEach(stack -> this.spawnAtLocation(level, stack));
 		this.overflow.forEach(stack -> this.spawnAtLocation(level, stack));
 		this.overflow.clear();
+		this.spawnAtLocation(level, this.getShovel());
+		this.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
 	}
 
 	@Override

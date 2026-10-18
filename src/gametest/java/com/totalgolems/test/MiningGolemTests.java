@@ -399,6 +399,31 @@ public class MiningGolemTests {
 		helper.succeedWhen(() -> helper.assertTrue(chest(helper).countItem(Items.STONE) + carried(golem).countItem(Items.STONE) == 1, "the stone should have come out as stone"));
 	}
 
+	/**
+	 * A golem with no pickaxe goes to its chest for one, and takes the shovel there too. Through dirt and
+	 * gravel it digs with the shovel, so that is what wears, and the pickaxe is as good as new.
+	 */
+	@GameTest(maxTicks = 1200)
+	public void minerTakesAShovelAndDigsDirtAndGravelWithIt(final GameTestHelper helper) {
+		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+		chest(helper).setItem(0, new ItemStack(Items.IRON_PICKAXE));
+		chest(helper).setItem(1, new ItemStack(Items.IRON_SHOVEL));
+		for (int x = 2; x <= 5; x++) {
+			helper.setBlock(x, 1, 3, Blocks.DIRT);
+			helper.setBlock(x, 2, 3, Blocks.GRAVEL);
+		}
+
+		stopper(helper, 6);
+		walls(helper, 3, 0, 7);
+		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(golem.isHalted(), "it should have dug through to the bedrock");
+			helper.assertTrue(golem.getShovel().is(Items.IRON_SHOVEL) && golem.getShovel().getDamageValue() > 0, "the shovel should have done the digging");
+			helper.assertTrue(golem.getTool().is(Items.IRON_PICKAXE) && golem.getTool().getDamageValue() == 0, "the pickaxe should not have been used");
+		});
+	}
+
 	/** A poppy's mine ends at the edge of its three by three chunks, but a vein of ore across that edge is still followed a little way. */
 	@GameTest
 	public void poppyFollowsOreALittleWayPastTheEdgeOfItsMine(final GameTestHelper helper) {
