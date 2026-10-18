@@ -314,8 +314,12 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
   (ver Herramientas), y la gasta un punto por cada animal que sacrifica. Saqueo en la espada da más botín.
 - **Aspecto ígneo no hace nada**: la carne sale siempre cruda, y la cocina el gólem de carbón.
 - **Alimenta** a los animales adultos del recinto con la comida de su especie, que coge de su cofre, para que críen.
-  Solo coge comida que coma algún animal del recinto.
-- Con **20 animales o menos nunca mata**. Con más, mata adultos hasta volver a 20. Las crías cuentan para el total pero
+  Solo coge comida que coma algún animal del recinto que tenga pareja.
+- **Solo da de comer a un animal si tiene con quién criar**: otro de su especie que ya esté enamorado, o que también esté
+  listo para criar y para el que lleve comida (le hacen falta 2 de comida para una pareja). Así no gasta comida en un
+  animal que se queda sin cría.
+- Con **20 animales o menos nunca mata**. Con más, mata adultos hasta volver a 20: primero el que **más le falta para
+  poder volver a criar**, y nunca uno enamorado si hay otro. Las crías cuentan para el total pero
   nunca se matan, y tampoco las mascotas ni los animales con nombre. Entre un sacrificio y el siguiente espera 10
   segundos, para dar tiempo a que el rebaño críe. Los animales que acaban encima de la valla también cuentan.
 - **Recoge lo que hay en el suelo** del recinto y lo deja en su cofre.

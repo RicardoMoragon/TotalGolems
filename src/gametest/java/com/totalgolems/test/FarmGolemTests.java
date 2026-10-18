@@ -218,6 +218,47 @@ public class FarmGolemTests {
 		});
 	}
 
+	/**
+	 * A cow on its own, and a pair of pigs with a single carrot between them: none of them would breed, so
+	 * the golem feeds none of them and the cow's wheat stays in the chest.
+	 */
+	@GameTest(maxTicks = 400)
+	public void boneGolemOnlyFeedsAnimalsThatHaveAPartner(final GameTestHelper helper) {
+		BoneGolem golem = pen(helper, ModEntities.BONE_GOLEM, ModBlocks.BONE_CHEST);
+		Container chest = container(helper, OWN_CHEST);
+		chest.setItem(0, new ItemStack(Items.WHEAT, 8));
+		chest.setItem(1, new ItemStack(Items.CARROT, 1));
+		helper.spawn(EntityTypes.COW, 3, 1, 3);
+		helper.spawn(EntityTypes.PIG, 4, 1, 4);
+		helper.spawn(EntityTypes.PIG, 5, 1, 5);
+		give(helper, golem, Items.WHITE_TULIP);
+		helper.onEachTick(() -> helper.assertTrue(animals(helper).stream().noneMatch(Animal::isInLove), "no animal without a partner to breed with should be fed"));
+		helper.runAtTickTime(350, () -> {
+			helper.assertTrue(container(helper, OWN_CHEST).countItem(Items.WHEAT) == 8, "the lone cow's wheat should stay in the chest");
+			helper.succeed();
+		});
+	}
+
+	/**
+	 * Twenty-one cows, one too many. The one to go is the one with the longest wait before it can breed
+	 * again, not the nearest.
+	 */
+	@GameTest(maxTicks = 2400)
+	public void boneGolemCullsTheAnimalLongestFromBreeding(final GameTestHelper helper) {
+		BoneGolem golem = pen(helper, ModEntities.BONE_GOLEM, ModBlocks.BONE_CHEST);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+		herd(helper, BoneGolem.MAX_ANIMALS + 1, 0);
+		List<Animal> herd = animals(helper);
+		herd.get(3).setAge(3000);
+		Animal longest = herd.get(BoneGolem.MAX_ANIMALS);
+		longest.setAge(6000);
+		give(helper, golem, Items.WHITE_TULIP);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(animals(helper).size() == BoneGolem.MAX_ANIMALS, "one cow should have gone");
+			helper.assertTrue(!longest.isAlive(), "the cow with the longest wait before breeding again should be the one to go");
+		});
+	}
+
 	@GameTest(maxTicks = 300)
 	public void boneGolemNeverKillsWithTwentyAnimals(final GameTestHelper helper) {
 		BoneGolem golem = pen(helper, ModEntities.BONE_GOLEM, ModBlocks.BONE_CHEST);

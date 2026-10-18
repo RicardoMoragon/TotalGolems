@@ -34,8 +34,12 @@ import org.jspecify.annotations.Nullable;
  * in: it feeds them from its bone chest so they breed, thins the herd when it grows past twenty,
  * and puts whatever is dropped on the ground into the chest.
  * <p>
- * The thinning takes a sword from its chest, which wears with every animal it kills. Without one
- * it goes on feeding and tidying up, and the herd just keeps growing.
+ * It only feeds an animal that has a partner to breed with: another of its kind already in love, or
+ * one it has the food to feed as well. Food is never wasted on an animal left without a mate.
+ * <p>
+ * The thinning takes a sword from its chest, which wears with every animal it kills: the one that
+ * has the longest to wait before it can breed again. Without a sword it goes on feeding and tidying
+ * up, and the herd just keeps growing.
  */
 public class BoneGolem extends PenGolem {
 	public static final int MAX_ANIMALS = 20;
@@ -126,6 +130,28 @@ public class BoneGolem extends PenGolem {
 		return this.food.hasAnyMatching(animal::isFood);
 	}
 
+	/** How much of what {@code animal} eats it carries. */
+	private int foodFor(final Animal animal) {
+		return this.food.getItems().stream().filter(animal::isFood).mapToInt(ItemStack::getCount).sum();
+	}
+
+	private static boolean isMateFor(final Animal animal, final Animal other) {
+		return other != animal && other.getType() == animal.getType() && !other.isBaby();
+	}
+
+	/**
+	 * Whether feeding {@code animal} gets a calf: another of its kind in the pen is in love already, or could
+	 * be, with {@code food} enough for the two of them.
+	 */
+	private static boolean hasPartner(final List<Animal> animals, final Animal animal, final int food) {
+		return animals.stream().anyMatch(other -> isMateFor(animal, other) && (other.isInLove() || food >= 2 && canBeFed(other)));
+	}
+
+	/** Whether {@code animal} is ready to breed, and it carries the food for it and, if need be, for its partner. */
+	private boolean isWorthFeeding(final List<Animal> animals, final Animal animal) {
+		return canBeFed(animal) && this.hasFoodFor(animal) && hasPartner(animals, animal, this.foodFor(animal));
+	}
+
 	@Override
 	protected boolean plan(final ServerLevel level) {
 		boolean chestUsable = this.canReach(this.chestPos) && this.findChest(level) != null;
@@ -146,19 +172,27 @@ public class BoneGolem extends PenGolem {
 		}
 
 		List<Animal> animals = this.animals(level);
-		Animal hungry = this.nearest(animals, animal -> canBeFed(animal) && this.hasFoodFor(animal));
+		Animal hungry = this.nearest(animals, animal -> this.isWorthFeeding(animals, animal));
 		if (hungry != null) {
 			return this.start(Errand.FEED, hungry);
 		}
 
-		if (chest != null && chest.hasAnyMatching(stack -> this.food.canAddItem(stack) && animals.stream().anyMatch(animal -> canBeFed(animal) && animal.isFood(stack)))) {
+		// Food for a pair, that is: an animal on its own is not worth the trip.
+		if (chest != null && chest.hasAnyMatching(stack -> this.food.canAddItem(stack)
+			&& animals.stream().anyMatch(animal -> canBeFed(animal) && animal.isFood(stack) && hasPartner(animals, animal, Integer.MAX_VALUE)))) {
 			return this.start(Errand.FETCH_FOOD, null);
 		}
 
 		// Twenty or fewer and nothing dies. Babies count towards the total but are never the ones to go.
-		// And not one after another: the herd gets time to breed between culls.
+		// And not one after another: the herd gets time to breed between culls. The one to go is the one
+		// with the longest wait before it can breed again, and never one in love if another will do.
 		if (this.hasTool() && animals.size() > MAX_ANIMALS && this.tickCount >= this.nextCullTick) {
-			Animal surplus = this.nearest(animals, BoneGolem::canBeCulled);
+			Animal surplus = animals.stream()
+				.filter(BoneGolem::canBeCulled)
+				.min(Comparator.comparingInt((Animal animal) -> -animal.getAge())
+					.thenComparing(Animal::isInLove)
+					.thenComparingDouble(this::distanceToSqr))
+				.orElse(null);
 			if (surplus != null) {
 				return this.start(Errand.CULL, surplus);
 			}
@@ -223,7 +257,7 @@ public class BoneGolem extends PenGolem {
 				item.setItem(left);
 			}
 		} else if (entity instanceof Animal animal && this.errand == Errand.FEED) {
-			this.feed(animal);
+			this.feed(level, animal);
 		} else if (entity instanceof Animal animal && this.hasTool() && this.animals(level).size() > MAX_ANIMALS && canBeCulled(animal)) {
 			animal.hurtServer(level, this.cullingBlow(level), Float.MAX_VALUE);
 			Weapon weapon = this.getTool().get(DataComponents.WEAPON);
@@ -243,8 +277,9 @@ public class BoneGolem extends PenGolem {
 		return new DamageSource(level.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(DamageTypes.MOB_ATTACK), null, this);
 	}
 
-	private void feed(final Animal animal) {
-		if (!canBeFed(animal)) {
+	private void feed(final ServerLevel level, final Animal animal) {
+		// Its partner may have wandered off, or been fed by somebody else, on the way over.
+		if (!this.isWorthFeeding(this.animals(level), animal)) {
 			return;
 		}
 
@@ -258,12 +293,12 @@ public class BoneGolem extends PenGolem {
 		}
 	}
 
-	/** Takes only what some animal in the pen eats. */
+	/** Takes only what some animal in the pen eats that has another of its kind to breed with. */
 	private void takeFood(final ServerLevel level, final Container chest) {
 		List<Animal> animals = this.animals(level);
 		for (int slot = 0; slot < chest.getContainerSize(); slot++) {
 			ItemStack stack = chest.getItem(slot);
-			if (!stack.isEmpty() && animals.stream().anyMatch(animal -> animal.isFood(stack))) {
+			if (!stack.isEmpty() && animals.stream().anyMatch(animal -> animal.isFood(stack) && animals.stream().anyMatch(other -> isMateFor(animal, other)))) {
 				chest.setItem(slot, this.food.addItem(stack));
 			}
 		}
