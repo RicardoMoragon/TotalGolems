@@ -189,7 +189,7 @@ un radio de 16 bloques alrededor del punto donde se la des.
 - **Hogueras.** A cada cofre de esponja que tenga una **hoguera encendida pegada** le mantiene **8 de carbón**, que saca
   de los cofres de los mineros. Es lo que quema el gólem de esponja para secar sus esponjas (ver más abajo).
 
-## Gólem de cobre (el de siempre): marcos y Eficiencia
+## Gólem de cobre (el de siempre): marcos, vagonetas y Eficiencia
 
 El gólem de cobre de Minecraft reparte lo que hay en los cofres de cobre. Con este mod puedes decirle dónde va cada cosa:
 
@@ -197,9 +197,26 @@ El gólem de cobre de Minecraft reparte lo que hay en los cofres de cobre. Con e
   objetos que coinciden con alguno de los marcos. Si lo que lleva no coincide, **ni se acerca ni lo abre**.
 - En un cofre con marcos mandan los marcos, no la regla de siempre: lo que coincide entra **aunque el cofre ya tenga
   otras cosas dentro**, mientras quepa.
+- Un cofre con un **marco vacío** recibe **cualquier objeto**, aunque ya tenga otras cosas dentro, pero solo lo que
+  ningún otro cofre o vagoneta al alcance del gólem muestre en un marco: eso va al que lo muestra. Sirve de cofre para
+  "todo lo demás". (Un cofre al que el gólem ya sabe que no puede llegar no cuenta.)
 - Los cofres **sin marcos** se comportan como siempre: solo reciben un objeto si están vacíos o ya tienen ese objeto.
 - En un cofre doble vale un marco en cualquiera de las dos mitades. Coincide el tipo de objeto (un pico gastado vale para
   un marco con un pico nuevo).
+
+### Vagonetas
+
+El gólem de cobre también **carga vagonetas** (con cofre o con tolva) y las **envía** cuando están llenas:
+
+- Una vagoneta cuenta como **estación** si está parada sobre una vía con un **botón justo encima de esa vía** (por ejemplo,
+  en la pared de al lado o en el techo). Las vagonetas sin botón encima no las toca.
+- Si lleva algo y hay una estación que lo acepta **más cerca que el cofre** al que lo llevaría (o no hay cofre), va a la
+  vagoneta y lo mete como en un cofre.
+- Cuando la vagoneta **se queda sin huecos libres**, o lo que lleva no cabe, **pulsa el botón** y la vagoneta sale. Monta la
+  estación para que el botón la ponga en marcha, por ejemplo con un raíl propulsor bajo el botón y un bloque detrás.
+- Un **marco al lado del botón** (a un lado o encima) hace de filtro, igual que en un cofre: la vagoneta solo recibe lo que
+  coincide con él, y con un **marco vacío** recibe lo que no muestre ningún otro cofre o vagoneta. Sin marco sigue la
+  regla de siempre: solo recibe un objeto si está vacía o ya lo tiene.
 
 ### Eficiencia
 
@@ -215,8 +232,9 @@ libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qu�
 | IV | Las esperas al abrir un cofre, coger y dejar duran **la mitad** |
 | V | Esas esperas se reducen **al mínimo** y anda un **20 % más rápido** |
 
-- Con cualquier nivel, la **antena brilla** como un objeto encantado, y en la frente se encienden de **1 a 5 puntos de
-  cobre**, uno por nivel.
+- Con cualquier nivel, la **antena brilla** como un objeto encantado, y en el centro de la **espalda** tiene **4 puntos de
+  cobre** que se van encendiendo, con poco brillo, uno por nivel: de arriba a la izquierda hasta abajo a la derecha. Con
+  Eficiencia IV están los 4 encendidos con brillo bajo, y con V los 4 brillan más.
 - El nivel se guarda con el gólem. Si se oxida del todo y se convierte en **estatua**, la estatua lo conserva y el gólem lo
   recupera al revivirlo con un hacha. (Si picas la estatua y la recoges como objeto, el nivel se pierde.)
 - Al **morir** suelta un libro de Eficiencia de su nivel.
