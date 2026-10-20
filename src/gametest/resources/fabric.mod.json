@@ -9,7 +9,8 @@
 			"com.totalgolems.test.MiningGolemTests",
 			"com.totalgolems.test.FarmGolemTests",
 			"com.totalgolems.test.GolemUpgradeTests",
-			"com.totalgolems.test.CopperGolemTests"
+			"com.totalgolems.test.CopperGolemTests",
+			"com.totalgolems.test.GolemAgingTests"
 		],
 		"fabric-client-gametest": [
 			"com.totalgolems.test.ScreenshotClientTest",

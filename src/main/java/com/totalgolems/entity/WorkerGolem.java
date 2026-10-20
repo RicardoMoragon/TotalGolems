@@ -1,15 +1,21 @@
 package com.totalgolems.entity;
 
 import com.totalgolems.block.ChestGroup;
+import com.totalgolems.block.GolemStatueBlock;
+import com.totalgolems.block.GolemStatueBlockEntity;
 import com.totalgolems.block.MetalChestBlock;
+import com.totalgolems.registry.ModBlocks;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
@@ -17,6 +23,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -26,9 +33,15 @@ import net.minecraft.world.entity.animal.golem.AbstractGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.CopperGolemStatueBlock;
+import net.minecraft.world.level.block.LevelEvent;
+import net.minecraft.world.level.block.WeatheringCopper;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -47,6 +60,16 @@ public abstract class WorkerGolem extends AbstractGolem {
 	public static final EquipmentSlot FLOWER_SLOT = EquipmentSlot.SADDLE;
 	private static final EntityDataAccessor<Boolean> DATA_ACTIVE = SynchedEntityData.defineId(WorkerGolem.class, EntityDataSerializers.BOOLEAN);
 	private static final EntityDataAccessor<Boolean> DATA_SWINGING = SynchedEntityData.defineId(WorkerGolem.class, EntityDataSerializers.BOOLEAN);
+	private static final EntityDataAccessor<WeatheringCopper.WeatherState> DATA_WEATHER_STATE = SynchedEntityData.defineId(
+		WorkerGolem.class, EntityDataSerializers.WEATHERING_COPPER_STATE
+	);
+	/** As the copper golem's: seven to eight days a stage. */
+	private static final int WEATHERING_TICK_FROM = 504000;
+	private static final int WEATHERING_TICK_TO = 552000;
+	private static final float TURN_TO_STATUE_CHANCE = 0.0058F;
+	/** {@link #nextWeatheringTick} of a waxed golem, which never weathers; and of one whose next stage is not drawn yet. */
+	private static final long WAXED = -2L;
+	private static final long UNSET = -1L;
 	protected static final double CHEST_REACH = 2.3;
 	protected static final int TRANSFER_INTERVAL = 10;
 	private static final int CHEST_SEARCH_RADIUS = 8;
@@ -71,6 +94,8 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private int swingStartTick = -1000;
 	private int swingStopTick = -1000;
 	private boolean wasSwinging;
+	private long nextWeatheringTick = UNSET;
+	private @Nullable UUID lastLightningBoltUUID;
 
 	protected WorkerGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
@@ -135,6 +160,8 @@ public abstract class WorkerGolem extends AbstractGolem {
 			}
 
 			this.wasSwinging = swinging;
+		} else {
+			this.updateWeathering((ServerLevel)this.level());
 		}
 	}
 
@@ -240,6 +267,7 @@ public abstract class WorkerGolem extends AbstractGolem {
 		super.defineSynchedData(entityData);
 		entityData.define(DATA_ACTIVE, false);
 		entityData.define(DATA_SWINGING, false);
+		entityData.define(DATA_WEATHER_STATE, WeatheringCopper.WeatherState.UNAFFECTED);
 	}
 
 	@Override
@@ -281,6 +309,11 @@ public abstract class WorkerGolem extends AbstractGolem {
 	@Override
 	public InteractionResult mobInteract(final Player player, final InteractionHand hand) {
 		ItemStack held = player.getItemInHand(hand);
+		InteractionResult weathering = this.interactWeathering(player, hand, held);
+		if (weathering != null) {
+			return weathering;
+		}
+
 		if (this.isActivatingFlower(held)) {
 			if (this.level() instanceof ServerLevel level) {
 				ItemStack worn = this.getItemBySlot(FLOWER_SLOT);
@@ -432,16 +465,144 @@ public abstract class WorkerGolem extends AbstractGolem {
 		}
 	}
 
+	// ------------------------------------------------------------------------------------ weathering
+
+	/**
+	 * How worn the golem is. Like the copper golem it wears a stage every seven or eight days unless it is waxed,
+	 * and once fully worn it may stop for good and turn into a statue of itself.
+	 */
+	public WeatheringCopper.WeatherState getWeatherState() {
+		return this.entityData.get(DATA_WEATHER_STATE);
+	}
+
+	public void setWeatherState(final WeatheringCopper.WeatherState state) {
+		this.entityData.set(DATA_WEATHER_STATE, state);
+	}
+
+	public boolean isWaxed() {
+		return this.nextWeatheringTick == WAXED;
+	}
+
+	private void updateWeathering(final ServerLevel level) {
+		if (this.nextWeatheringTick == WAXED) {
+			return;
+		}
+
+		long gameTime = level.getGameTime();
+		if (this.nextWeatheringTick == UNSET) {
+			this.nextWeatheringTick = gameTime + this.random.nextIntBetweenInclusive(WEATHERING_TICK_FROM, WEATHERING_TICK_TO);
+			return;
+		}
+
+		WeatheringCopper.WeatherState state = this.getWeatherState();
+		if (state == WeatheringCopper.WeatherState.OXIDIZED) {
+			if (level.getBlockState(this.blockPosition()).isAir() && this.random.nextFloat() <= TURN_TO_STATUE_CHANCE) {
+				this.turnToStatue(level);
+			}
+		} else if (gameTime >= this.nextWeatheringTick) {
+			this.setWeatherState(state.next());
+			this.nextWeatheringTick += this.random.nextIntBetweenInclusive(WEATHERING_TICK_FROM, WEATHERING_TICK_TO);
+		}
+	}
+
+	/** Honeycomb waxes it; an axe takes the wax off, or else scrapes off a stage of wear. Null for anything else. */
+	private @Nullable InteractionResult interactWeathering(final Player player, final InteractionHand hand, final ItemStack held) {
+		boolean wax = held.is(Items.HONEYCOMB) && !this.isWaxed();
+		boolean axe = held.is(ItemTags.AXES) && (this.isWaxed() || this.getWeatherState() != WeatheringCopper.WeatherState.UNAFFECTED);
+		if (!wax && !axe) {
+			return null;
+		}
+
+		if (!(this.level() instanceof ServerLevel level)) {
+			return InteractionResult.SUCCESS;
+		}
+
+		if (wax) {
+			level.levelEvent(this, LevelEvent.PARTICLES_WAX_ON, this.blockPosition(), 0);
+			level.playSound(null, this, SoundEvents.HONEYCOMB_WAX_ON, this.getSoundSource(), 1.0F, 1.0F);
+			this.nextWeatheringTick = WAXED;
+			held.consume(1, player);
+		} else {
+			level.playSound(null, this, SoundEvents.AXE_SCRAPE, this.getSoundSource(), 1.0F, 1.0F);
+			if (this.isWaxed()) {
+				level.levelEvent(this, LevelEvent.PARTICLES_WAX_OFF, this.blockPosition(), 0);
+			} else {
+				level.levelEvent(this, LevelEvent.PARTICLES_SCRAPE, this.blockPosition(), 0);
+				this.setWeatherState(this.getWeatherState().previous());
+			}
+
+			this.nextWeatheringTick = UNSET;
+			held.hurtAndBreak(1, player, hand.asEquipmentSlot());
+		}
+
+		return InteractionResult.SUCCESS_SERVER;
+	}
+
+	@Override
+	public void thunderHit(final ServerLevel level, final LightningBolt lightningBolt) {
+		super.thunderHit(level, lightningBolt);
+		// As with copper, lightning takes a stage of wear off, once per bolt.
+		if (!lightningBolt.getUUID().equals(this.lastLightningBoltUUID)) {
+			this.lastLightningBoltUUID = lightningBolt.getUUID();
+			if (this.getWeatherState() != WeatheringCopper.WeatherState.UNAFFECTED) {
+				this.nextWeatheringTick = UNSET;
+				this.setWeatherState(this.getWeatherState().previous());
+			}
+		}
+	}
+
+	/**
+	 * Stops for good: a statue of the golem in a random pose takes its place, holding everything it was, its flower,
+	 * tool, chest and loads included, so that scraping it back to life brings back the same golem.
+	 */
+	public void turnToStatue(final ServerLevel level) {
+		Block statue = ModBlocks.statue(this.getType());
+		if (statue == null) {
+			return;
+		}
+
+		BlockPos pos = this.blockPosition();
+		CopperGolemStatueBlock.Pose[] poses = CopperGolemStatueBlock.Pose.values();
+		level.setBlockAndUpdate(
+			pos,
+			statue.defaultBlockState()
+				.setValue(GolemStatueBlock.POSE, poses[this.random.nextInt(poses.length)])
+				.setValue(GolemStatueBlock.FACING, Direction.fromYRot(this.getYRot()))
+				.setValue(GolemStatueBlock.AGE, WeatheringCopper.WeatherState.OXIDIZED.ordinal())
+				.setValue(GolemStatueBlock.WATERLOGGED, level.getFluidState(pos).is(Fluids.WATER))
+		);
+		if (level.getBlockEntity(pos) instanceof GolemStatueBlockEntity statueEntity) {
+			statueEntity.keep(this);
+			this.playSound(SoundEvents.COPPER_GOLEM_BECOME_STATUE);
+			if (this.isLeashed()) {
+				this.dropLeash();
+			}
+
+			this.discard();
+		}
+	}
+
+	/** Brought back to life from a statue: fresh and unwaxed, whatever it was when it stopped. */
+	public void wakeFromStatue() {
+		this.setWeatherState(WeatheringCopper.WeatherState.UNAFFECTED);
+		this.nextWeatheringTick = UNSET;
+		this.resetTravel();
+	}
+
 	@Override
 	public void addAdditionalSaveData(final ValueOutput output) {
 		super.addAdditionalSaveData(output);
 		output.storeNullable("chest_pos", BlockPos.CODEC, this.chestPos);
+		output.putLong("next_weather_age", this.nextWeatheringTick);
+		output.store("weather_state", WeatheringCopper.WeatherState.CODEC, this.getWeatherState());
 	}
 
 	@Override
 	public void readAdditionalSaveData(final ValueInput input) {
 		super.readAdditionalSaveData(input);
 		this.chestPos = input.read("chest_pos", BlockPos.CODEC).orElse(null);
+		this.nextWeatheringTick = input.getLongOr("next_weather_age", UNSET);
+		this.setWeatherState(input.read("weather_state", WeatheringCopper.WeatherState.CODEC).orElse(WeatheringCopper.WeatherState.UNAFFECTED));
 	}
 
 	@Override
