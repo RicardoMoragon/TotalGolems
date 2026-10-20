@@ -1,5 +1,6 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.GolemGreeting;
 import com.totalgolems.block.ChestGroup;
 import com.totalgolems.block.GolemStatueBlock;
 import com.totalgolems.block.GolemStatueBlockEntity;
@@ -300,6 +301,7 @@ public abstract class WorkerGolem extends AbstractGolem {
 	protected void customServerAiStep(final ServerLevel level) {
 		super.customServerAiStep(level);
 		this.serverStep(level);
+		GolemGreeting.tick(this, level);
 		boolean active = this.isBusy();
 		if (active != this.isActive()) {
 			this.entityData.set(DATA_ACTIVE, active);

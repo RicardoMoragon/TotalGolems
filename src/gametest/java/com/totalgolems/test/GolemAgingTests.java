@@ -4,6 +4,7 @@ import static com.totalgolems.test.FarmGolemTests.floor;
 import static com.totalgolems.test.FarmGolemTests.give;
 import static com.totalgolems.test.FarmGolemTests.spawn;
 
+import com.totalgolems.GolemGreeting;
 import com.totalgolems.block.GolemStatueBlock;
 import com.totalgolems.entity.HayGolem;
 import com.totalgolems.entity.WorkerGolem;
@@ -15,6 +16,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.animal.golem.CopperGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -25,7 +28,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
-/** The golems wear with time as the copper golem does, take wax and the axe, and in the end turn into statues. */
+/**
+ * The golems wear with time as the copper golem does, take wax and the axe, and in the end turn into statues; and they
+ * greet the player once a day.
+ */
 public class GolemAgingTests {
 	private static final BlockPos CHEST = new BlockPos(0, 1, 3);
 	private static final BlockPos STATUE = new BlockPos(3, 1, 3);
@@ -90,6 +96,19 @@ public class GolemAgingTests {
 		helper.assertBlockProperty(STATUE, GolemStatueBlock.WAXED, false);
 		helper.assertBlockProperty(STATUE, GolemStatueBlock.AGE, 1);
 		helper.succeed();
+	}
+
+	@GameTest
+	public void golemsWaveAtAPlayerTheFirstTimeTheySeeThemInTheDay(final GameTestHelper helper) {
+		floor(helper, Blocks.STONE);
+		WorkerGolem golem = spawn(helper, ModEntities.BONE_GOLEM, STATUE);
+		CopperGolem copper = helper.spawn(EntityTypes.COPPER_GOLEM, 5, 1, 3);
+		Player player = helper.makeMockServerPlayerInLevel();
+		player.snapTo(helper.absoluteVec(new Vec3(3.5, 1.0, 6.5)));
+		helper.succeedWhen(() -> {
+			helper.assertTrue(GolemGreeting.greetedToday(golem, player), "the golem should have waved at the player");
+			helper.assertTrue(GolemGreeting.greetedToday(copper, player), "and so should the copper golem");
+		});
 	}
 
 	private static void useAxe(final GameTestHelper helper) {
