@@ -42,7 +42,7 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The smelter, and the one that clears out the other golems' chests. While it wears an oxeye daisy
+ * The smelter, and the one that clears out the other golems' chests. While it wears a warped or crimson fungus
  * it empties the mining and bone golems' chests around the spot it was switched on at.
  * What can be smelted goes to the furnaces, of which it keeps up to five fed with coal from the
  * same chests; everything else, and what the furnaces produce, goes to a copper chest.
@@ -88,6 +88,12 @@ public class CoalGolem extends WorkerGolem {
 		return "coal";
 	}
 
+	/** It walks everywhere: a furnace or chest it cannot get to it leaves alone for a while. */
+	@Override
+	protected boolean mayTeleport() {
+		return false;
+	}
+
 	@Override
 	protected boolean isBusy() {
 		return this.target != null;
@@ -95,7 +101,7 @@ public class CoalGolem extends WorkerGolem {
 
 	@Override
 	protected boolean isActivatingFlower(final ItemStack stack) {
-		return stack.is(Items.OXEYE_DAISY);
+		return stack.is(Items.WARPED_FUNGUS) || stack.is(Items.CRIMSON_FUNGUS);
 	}
 
 	@Override
@@ -127,6 +133,11 @@ public class CoalGolem extends WorkerGolem {
 		}
 
 		if (!this.travelTo(level, this.target, CHEST_REACH)) {
+			if (this.hasGivenUp()) {
+				// No way there: on to something else.
+				this.target = null;
+			}
+
 			return;
 		}
 
@@ -195,7 +206,8 @@ public class CoalGolem extends WorkerGolem {
 
 				for (BlockEntity blockEntity : level.getChunk(chunkX, chunkZ).getBlockEntities().values()) {
 					BlockPos pos = blockEntity.getBlockPos();
-					if (Math.abs(pos.getX() - this.home.getX()) > WORK_RADIUS
+					if (this.isUnreachable(pos)
+						|| Math.abs(pos.getX() - this.home.getX()) > WORK_RADIUS
 						|| Math.abs(pos.getZ() - this.home.getZ()) > WORK_RADIUS
 						|| Math.abs(pos.getY() - this.home.getY()) > WORK_HEIGHT) {
 						continue;

@@ -2,7 +2,8 @@
 
 - Iron, diamond, netherite and amethyst: glints that light up a pixel or a small cross here and there and fade.
 - Bone: cracks that open a pixel at a time, stay a moment and close again.
-- Coal golem: its orange pixels glow like embers, each brightening and dimming at its own pace.
+- Coal golem: the core seen through the holes in its shell glows, each pixel brightening and dimming at its
+  own pace.
 
 The chests are animated the way vanilla animates lava: their texture in the mod is a strip of frames with a
 .mcmeta beside it. Their still textures, the ones to edit (in Blockbench, see make_bbmodels.py), are in

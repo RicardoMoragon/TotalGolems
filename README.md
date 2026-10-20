@@ -5,13 +5,27 @@ Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con 
 | Bloque | Gólem | Flor que lo activa | Herramienta | Qué hace |
 |---|---|---|---|---|
 | Hierro, diamante, netherita | Minero | Amapola o diente de león | Pico | Hace minas en tiras o canteras y lo lleva a su cofre |
-| Carbón | Fundidor | Margarita (oxeye daisy) | — | Vacía los cofres de los demás: funde lo fundible y lleva el resto a un cofre de cobre |
-| Amatista | Leñador | Lirio de los valles | Hacha | Tala y replanta los árboles de su chunk (3x3 chunks con un catalejo) |
+| Carbón | Fundidor | Hongo carmesí o distorsionado | — | Vacía los cofres de los demás: funde lo fundible y lleva el resto a un cofre de cobre |
+| Amatista | Leñador | Allium | Hacha | Tala y replanta los árboles de su chunk (3x3 chunks con un catalejo) |
 | Heno | Agricultor | Aciano (cornflower) | Azada | Ara, siembra y cosecha el campo vallado en el que está |
-| Hueso | Ganadero | Tulipán blanco | Espada | Alimenta, cría y sacrifica los animales de su recinto |
+| Hueso | Ganadero | Azulina (azure bluet) o arbusto muerto | Espada | Alimenta, cría y sacrifica los animales de su recinto |
 
 Todos se crean igual: el bloque con una **calabaza tallada** encima. Se activan dándoles su flor con clic derecho y se
 paran quitándosela con la mano vacía. Tienen los **ojos encendidos solo mientras trabajan**.
+
+Tienen el cuerpo del gólem de cobre, pero **sin antena** (es solo del de cobre), y cada uno lleva la flor en un sitio
+distinto. Cada uno tiene algo propio:
+
+- **Hierro:** brazos largos y gruesos que casi llegan al suelo, como los del gólem de hierro. La flor, en el hombro izquierdo.
+- **Diamante:** más grande y tosco, con bultos de piedra en los hombros, la cabeza y la espalda. La flor, en el hombro
+  derecho.
+- **Netherita:** forjado como una armadura, con hombreras, una cresta en la cabeza y un cinturón, donde lleva la flor.
+- **Amatista:** le salen cristales pequeños de la cabeza y de los brazos. El allium, con el tallo metido en la cabeza.
+- **Heno:** lleva un sombrero de paja, con la flor en la cinta, que salta cada vez que da un golpe de azada.
+- **Hueso:** es hueco: el pecho es una caja torácica por la que se ve a través, con la columna dentro y la flor (o el
+  arbusto muerto) entre las costillas.
+- **Carbón:** tiene agujeros donde tenía los puntos naranjas, y por ellos se ve su interior al rojo, que brilla. El hongo,
+  sobre la cabeza.
 
 ## Herramientas
 
@@ -155,7 +169,7 @@ aunque flote por encima de la altura de su capa, en vez de intentar volver una y
 
 ## Gólem de carbón (fundidor)
 
-Calabaza sobre un **bloque de carbón**. No genera cofre: el bloque se consume. Se activa con una **margarita** y trabaja en
+Calabaza sobre un **bloque de carbón**. No genera cofre: el bloque se consume. Se activa con un **hongo carmesí o distorsionado** (cualquiera de los dos) y trabaja en
 un radio de 16 bloques alrededor del punto donde se la des.
 
 - Coge **cualquier objeto** de los cofres de **hierro, diamante, netherita y hueso**. Lleva 9 huecos para los
@@ -218,8 +232,7 @@ libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qu�
 | IV | Las esperas al abrir un cofre, coger y dejar duran **la mitad** |
 | V | Esas esperas se reducen **al mínimo** y anda un **20 % más rápido** |
 
-- Con cualquier nivel, la **antena brilla** como un objeto encantado, y en el centro de la **espalda** tiene **4 puntos de
-  cobre** que se van encendiendo, con poco brillo, uno por nivel: de arriba a la izquierda hasta abajo a la derecha. Con
+- Con cualquier nivel, en el centro de la **espalda** tiene **4 puntos de cobre** que se van encendiendo, con poco brillo, uno por nivel: de arriba a la izquierda hasta abajo a la derecha. Con
   Eficiencia IV están los 4 encendidos con brillo bajo, y con V los 4 brillan más.
 - El nivel se guarda con el gólem. Si se oxida del todo y se convierte en **estatua**, la estatua lo conserva y el gólem lo
   recupera al revivirlo con un hacha. (Si picas la estatua y la recoges como objeto, el nivel se pierde.)
@@ -227,20 +240,37 @@ libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qu�
 
 ## Gólem de amatista (leñador)
 
-Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa con un **lirio de los valles**.
+Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa con un **allium**.
 
 - Necesita un **hacha** en su cofre (ver Herramientas). Se gasta con cada tronco.
 - De base tala solo **el chunk donde se activa**. Dale un **catalejo** con clic derecho para subirlo de nivel: el catalejo
   se gasta, su zona pasa a una malla de **3x3 chunks** que recorre en espiral desde el centro, y **sus ojos cambian de
   color** (de lila a dorado). Al morir suelta el catalejo.
-- Desde el pie del árbol tira **todos los troncos**, por alto que sea, ramas incluidas. Las hojas las deja caer solas.
-- Al terminar un árbol **planta un brote** de su especie donde estaba (cuatro en los árboles de tronco 2x2), si tiene.
-- Lleva 10 huecos de madera y una reserva de hasta 64 brotes de cada tipo. Del suelo **solo recoge brotes**, y se acerca
-  a por los que ve a menos de 10 bloques.
+- Tira **todos los troncos** del árbol, ramas incluidas. Las hojas las deja caer solas.
+- Llega tan lejos como un jugador. Primero corta todo lo que alcanza desde donde está; para los troncos más altos **se
+  hace un pilar** cerca de ellos: salta, pone un bloque debajo y repite. Si hay hojas encima, las rompe.
+  - Usa **bloques de su cofre** (de los mismos que usan los mineros para construir: bloques normales que se pican con
+    pico, como la piedra o el pedrusco). Lleva hasta 64, que coge de su cofre cada vez que pasa por él; si al pie del
+    pilar no le llegan para la altura del árbol, va una vez a por más.
+  - **Si no tiene bloques, sube con los troncos del propio árbol**, que va cortando por abajo: siempre tiene con qué
+    subir. Al bajar, esos troncos vuelven con la madera y acaban en el cofre.
+  - Si un tronco queda fuera del alcance de su pilar (en la punta de una rama larga, por ejemplo), **baja quitando el
+    pilar y se hace otro más cerca**, tantas veces como haga falta hasta tirar el árbol entero.
+  - Al terminar baja **quitando el pilar** y se queda los bloques. Solo deja en el árbol un tronco si no hay forma de
+    llegar a él (algo sólido encima, o a más de 48 bloques de altura).
+- **Siempre replanta**: al terminar un árbol planta un brote de su especie donde estaba (cuatro en los árboles de tronco
+  2x2).
+  - Los brotes los guarda en su **cofre**, que es su reserva: cada vez que pasa por él coge unos cuantos de cada tipo, y
+    si le falta el de un árbol que acaba de talar, va a por él.
+  - Si no hay ninguno, **recuerda el tocón** y lo planta en cuanto consigue un brote de esa especie: recoge los que caen
+    de las hojas del árbol (busca a 10 bloques de él y de sí mismo).
+  - El gólem de carbón nunca toca el cofre de amatista, así que los bloques y los brotes del cofre están a salvo.
+- Lleva 10 huecos de madera y una reserva de hasta 64 brotes de cada tipo. Del suelo **solo recoge brotes**.
 - Lleva la madera a su cofre cuando se llena o cuando se queda sin árboles.
 - Solo considera árbol un tronco sobre tierra que tenga hojas naturales, así que no toca construcciones de troncos.
 - **Se queda parado junto al cofre, con los ojos apagados**, si el cofre está lleno o si ya no quedan árboles en la zona.
   Cada 30 segundos vuelve a mirar si ha crecido alguno.
+- No se teletransporta (ver *Detalles*): un árbol o un brote al que no llega andando lo deja estar.
 
 ## Gólems de granja: el recinto vallado
 
@@ -264,7 +294,7 @@ arar y al cosechar**, un punto por casilla arada y otro por cada cultivo recogid
 
 ## Gólem de hueso (ganadero)
 
-Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un **tulipán blanco**.
+Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con una **azulina (azure bluet)** o un **arbusto muerto**.
 
 - **Sin espada no sacrifica**, pero sigue alimentando y recogiendo. En cuanto hay una espada en su cofre de hueso la coge
   (ver Herramientas), y la gasta un punto por cada animal que sacrifica. Saqueo en la espada da más botín.
@@ -286,8 +316,14 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 
 - Es inmune al fuego y no se ahoga.
 - Solo se mueve en chunks cargados, como cualquier otra criatura.
-- Si lleva diez segundos sin poder moverse hacia donde va, se teletransporta a su destino, siempre que esté a **16
-  bloques o menos**. Más lejos se queda donde está y lo sigue intentando a pie.
+- **Solo los mineros se teletransportan.** Si un minero lleva diez segundos sin poder moverse hacia donde va, se
+  teletransporta a su destino, siempre que esté a **16 bloques o menos**. Más lejos se queda donde está y lo sigue
+  intentando a pie.
+- Los gólems de **carbón, amatista, heno y hueso**, igual que el de cobre, **nunca se teletransportan**. Si no encuentran
+  camino a pie hasta un cofre, un horno, un cultivo, un animal, un árbol o un brote (o llevan diez segundos atascados
+  sin acercarse), **lo dejan estar durante un minuto** y pasan a otra cosa. Si lo que no alcanzan es su propio cofre, esperan
+  donde están con los ojos apagados y lo vuelven a intentar pasado ese minuto. Al darles otra vez su flor lo intentan
+  todo de nuevo enseguida.
 - Un minero nunca se teletransporta por debajo de la altura a la que trabaja (su capa, sus túneles o, bajando la
   escalera, el peldaño al que va), ni a una casilla con agua o lava, ni a una sin suelo firme. Si no hay ningún sitio
   así, no se teletransporta.
@@ -300,6 +336,27 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
   de amatista, trigo o huesos. Se unen en cofres dobles.
 - Un gólem invocado con `/summon` adopta el cofre de gólem más cercano (8 bloques) al recibir la flor.
 - La forma de gólem de hierro de siempre (la T de cuatro bloques) sigue creando el gólem de hierro normal.
+
+## Desgaste y estatuas
+
+Todos los gólems del mod se desgastan con el tiempo igual que el gólem de cobre:
+
+- Cada **7 u 8 días** de Minecraft pasan a la siguiente fase de desgaste, hasta 3. Cada material envejece a su manera:
+  el hierro se oxida, el diamante se enturbia, la netherita y el carbón se cubren de ceniza, la amatista se blanquea,
+  la paja se pudre y el hueso amarillea y le sale musgo.
+- Con un **panal** se encera y deja de desgastarse. Con un **hacha** se le quita la cera, o si no la tiene, se le
+  raspa una fase. Un rayo también le quita una fase.
+- Del todo desgastado puede **pararse para siempre** y convertirse en una **estatua de sí mismo**, con su piel y en una
+  de las posturas de la estatua de cobre (de pie, sentado, corriendo o en estrella).
+- La estatua sigue desgastándose sola salvo que la enceres con un panal. Con el hacha se le quita la cera y luego se
+  raspa fase a fase; **raspada del todo, un hachazo más la devuelve a la vida**. Vuelve el mismo gólem: con su flor,
+  su herramienta, su cofre y lo que llevara encima. Con cualquier otra cosa en la mano cambias su postura.
+- Se puede romper con un pico (la de paja, con una azada) y colocar en otro sitio: el gólem va dentro.
+
+## Saludo
+
+Todos los gólems, el de cobre incluido, **saludan con la mano** la primera vez que ven a cada jugador cada día de
+Minecraft. Los que llevan herramienta saludan con la mano libre.
 
 ## Instalación
 
@@ -317,6 +374,9 @@ Hace falta un JDK 25.
 - `./gradlew runClientGameTest` abre el juego, monta una escena con los gólems y cofres y guarda una captura en
   `build/run/clientGameTest/screenshots`.
 - `python tools/generate_textures.py` genera las texturas que falten (necesita Pillow). No toca las que ya existen,
-  así que las editadas a mano están a salvo; con `--force` las regenera todas.
-- `python tools/make_blockbench_model.py` crea `art/mining_golem.bbmodel` para pintar las texturas sobre el modelo en
-  Blockbench.
+  así que las editadas a mano están a salvo. No uses `--force`: pinta los gólems y los cofres con sus formas antiguas.
+- `python art/make_bbmodels.py` crea los proyectos de Blockbench de `art/` para pintar las texturas sobre el modelo:
+  uno por gólem (`golem_<material>.bbmodel`, con su forma), el del gólem de cobre y los de los cofres. La forma de cada
+  gólem está en `art/golem_geometry.py` y, para el juego, en `GolemModelLayers.java`.
+- `python art/make_effects.py` rehace las texturas animadas (brillos, grietas, el núcleo del gólem de carbón) a partir
+  de las texturas de los gólems y de `art/textures/chest`. Hay que ejecutarlo después de editar cualquiera de ellas.

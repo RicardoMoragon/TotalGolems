@@ -26,9 +26,9 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 			summon(server, "diamond", -0.5, 80, "dandelion", "diamond_pickaxe");
 			summon(server, "netherite", 0.6, 100, "poppy", "netherite_pickaxe");
 			summon(server, "netherite", 1.7, 110, null, null);
-			server.runCommand(at + "summon totalgolems:coal_golem ~1.6 ~ ~-0.6 {NoAI:1b,Rotation:[80f,0f],equipment:{saddle:{id:\"minecraft:oxeye_daisy\",count:1}}}");
+			server.runCommand(at + "summon totalgolems:coal_golem ~1.6 ~ ~-0.6 {NoAI:1b,Rotation:[80f,0f],equipment:{saddle:{id:\"minecraft:crimson_fungus\",count:1}}}");
 			// Upgraded with a spyglass, to see its other eyes.
-			server.runCommand(at + "summon totalgolems:amethyst_golem ~1.6 ~ ~0.6 {NoAI:1b,upgraded:1b,Rotation:[100f,0f],equipment:{mainhand:{id:\"minecraft:iron_axe\",count:1},saddle:{id:\"minecraft:lily_of_the_valley\",count:1}}}");
+			server.runCommand(at + "summon totalgolems:amethyst_golem ~1.6 ~ ~0.6 {NoAI:1b,upgraded:1b,Rotation:[100f,0f],equipment:{mainhand:{id:\"minecraft:iron_axe\",count:1},saddle:{id:\"minecraft:allium\",count:1}}}");
 			server.runCommand(at + "setblock ~5 ~1 ~-2 totalgolems:amethyst_chest[facing=west]");
 			server.runCommand("give @p totalgolems:iron_chest");
 			server.runCommand("give @p totalgolems:diamond_chest");
@@ -40,7 +40,7 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 			context.waitTicks(5);
 			server.runCommand(at + "fill ~1 ~ ~-4 ~6 ~3 ~4 air");
 			String[] kinds = {"hay", "bone"};
-			String[] flowers = {"cornflower", "white_tulip"};
+			String[] flowers = {"cornflower", "dead_bush"};
 			for (int i = 0; i < kinds.length; i++) {
 				double z = -1.6 + 1.6 * i;
 				server.runCommand(at + "summon totalgolems:" + kinds[i] + "_golem ~3 ~ ~" + z + " {NoAI:1b,Rotation:[" + (75 + 15 * i) + "f,0f],equipment:{saddle:{id:\"minecraft:" + flowers[i] + "\",count:1}}}");
@@ -88,9 +88,9 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 				{"iron_mining_golem", "iron_pickaxe", "poppy"},
 				{"diamond_mining_golem", "diamond_pickaxe", "poppy"},
 				{"netherite_mining_golem", "netherite_pickaxe", "poppy"},
-				{"amethyst_golem", "iron_axe", "lily_of_the_valley"},
+				{"amethyst_golem", "iron_axe", "allium"},
 				{"hay_golem", "iron_hoe", "cornflower"},
-				{"bone_golem", "iron_sword", "white_tulip"},
+				{"bone_golem", "iron_sword", "dead_bush"},
 			};
 			for (int i = 0; i < workers.length; i++) {
 				server.runCommand(at + "summon totalgolems:" + workers[i][0] + " ~4 ~ ~" + (-3.75 + 1.5 * i)
@@ -110,6 +110,76 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 				context.waitTicks(2);
 				context.takeScreenshot("totalgolems_work_" + frame);
 			}
+
+			// Each golem's shape close up, three quarters from the front and from behind, in two groups.
+			String[][][] groups = {
+				{workers[0], workers[1], workers[2], workers[3]},
+				{workers[4], workers[5], {"coal_golem", null, "warped_fungus"}},
+			};
+			for (int g = 0; g < groups.length; g++) {
+				for (int side = 0; side < 2; side++) {
+					server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 15");
+					context.waitTicks(5);
+					server.runCommand(at + "fill ~1 ~-1 ~-6 ~8 ~3 ~6 air");
+					server.runCommand(at + "fill ~1 ~-1 ~-6 ~8 ~-1 ~6 grass_block");
+					String[][] group = groups[g];
+					for (int i = 0; i < group.length; i++) {
+						String tool = group[i][1] == null ? "" : "mainhand:{id:\"minecraft:" + group[i][1] + "\",count:1},";
+						server.runCommand(at + "summon totalgolems:" + group[i][0] + " ~2.8 ~ ~" + (-1.9 + 1.25 * i)
+							+ " {NoAI:1b,unlocked:1b,Rotation:[" + (side == 0 ? 125 : -55) + "f,0f],equipment:{" + tool + "saddle:{id:\"minecraft:" + group[i][2] + "\",count:1}}}");
+					}
+
+					context.waitTicks(40);
+					context.takeScreenshot("totalgolems_shape_" + g + (side == 0 ? "_front" : "_back"));
+				}
+			}
+
+			// Every golem waving, the copper golem too; then the same golems fully worn.
+			String[] golems = {"iron_mining_golem", "diamond_mining_golem", "netherite_mining_golem", "coal_golem", "amethyst_golem", "hay_golem", "bone_golem"};
+			for (int scene = 0; scene < 2; scene++) {
+				server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 12");
+				context.waitTicks(5);
+				server.runCommand(at + "fill ~1 ~-1 ~-7 ~8 ~3 ~7 air");
+				server.runCommand(at + "fill ~1 ~-1 ~-7 ~8 ~-1 ~7 grass_block");
+				String worn = scene == 0 ? "" : ",weather_state:\"oxidized\"";
+				for (int i = 0; i < golems.length; i++) {
+					server.runCommand(at + "summon totalgolems:" + golems[i] + " ~4 ~ ~" + (-4.5 + 1.5 * i) + " {NoAI:1b,unlocked:1b,Rotation:[90f,0f]" + worn + "}");
+				}
+
+				if (scene == 0) {
+					server.runCommand(at + "summon minecraft:copper_golem ~4 ~ ~6 {NoAI:1b,Rotation:[90f,0f]}");
+					context.waitTicks(20);
+					server.runOnServer(minecraft -> {
+						for (net.minecraft.world.entity.Entity entity : minecraft.overworld().getAllEntities()) {
+							if (entity instanceof com.totalgolems.entity.WorkerGolem || entity instanceof net.minecraft.world.entity.animal.golem.CopperGolem) {
+								minecraft.overworld().broadcastEntityEvent(entity, com.totalgolems.GolemGreeting.WAVE_EVENT);
+							}
+						}
+					});
+					for (int frame = 0; frame < 3; frame++) {
+						context.waitTicks(6);
+						context.takeScreenshot("totalgolems_wave_" + frame);
+					}
+				} else {
+					context.waitTicks(40);
+					context.takeScreenshot("totalgolems_worn");
+				}
+			}
+
+			// A statue of each golem, in every pose and every stage of wear, and their items in the hotbar.
+			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 20");
+			context.waitTicks(5);
+			server.runCommand(at + "fill ~1 ~-1 ~-7 ~8 ~3 ~7 air");
+			server.runCommand(at + "fill ~1 ~-1 ~-7 ~8 ~-1 ~7 grass_block");
+			String[] statues = {"iron", "diamond", "netherite", "coal", "amethyst", "hay", "bone"};
+			String[] poses = {"standing", "sitting", "running", "star"};
+			for (int i = 0; i < statues.length; i++) {
+				server.runCommand(at + "setblock ~4 ~ ~" + (i - 3) + " totalgolems:" + statues[i] + "_golem_statue[facing=west,copper_golem_pose=" + poses[i % 4] + ",age=" + (i % 4) + "]");
+				server.runCommand("item replace entity @p hotbar." + i + " with totalgolems:" + statues[i] + "_golem_statue");
+			}
+
+			context.waitTicks(40);
+			context.takeScreenshot("totalgolems_statues");
 		}
 	}
 

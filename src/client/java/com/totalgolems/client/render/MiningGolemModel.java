@@ -1,6 +1,7 @@
 package com.totalgolems.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import net.minecraft.client.animation.KeyframeAnimation;
 import net.minecraft.client.animation.definitions.CopperGolemAnimation;
 import net.minecraft.client.model.animal.golem.CopperGolemModel;
@@ -8,6 +9,7 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.state.CopperGolemRenderState;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The vanilla copper golem model, but a golem with a tool holds it in its right hand, the way a player
@@ -21,22 +23,29 @@ import net.minecraft.world.entity.HumanoidArm;
  * <li>the smelter, which has no tool, carries its loads in front of it with both arms while it walks.</li>
  * </ul>
  * A swing starts from the beginning when the golem starts working and is always played to the end, however
- * short the work, so even a moment's work shows one whole blow.
+ * short the work, so even a moment's work shows one whole blow. The farmer's straw hat hops at each stroke.
+ * <p>
+ * Each golem has a shape of its own (see {@link GolemModelLayers}), none with the copper golem's antenna, so
+ * its flower sits on its head instead: tucked in on top, or in the farmer's hat band.
  */
 public class MiningGolemModel extends CopperGolemModel {
 	private final ModelPart body;
 	private final ModelPart head;
 	private final ModelPart rightArm;
 	private final ModelPart leftArm;
+	private final @Nullable ModelPart hat;
+	private final String golem;
 	private final KeyframeAnimation walk;
 	private final KeyframeAnimation idle;
 
-	public MiningGolemModel(final ModelPart root) {
+	public MiningGolemModel(final ModelPart root, final String golem) {
 		super(root);
+		this.golem = golem;
 		this.body = root.getChild("body");
 		this.head = this.body.getChild("head");
 		this.rightArm = this.body.getChild("right_arm");
 		this.leftArm = this.body.getChild("left_arm");
+		this.hat = this.head.hasChild("hat") ? this.head.getChild("hat") : null;
 		this.walk = CopperGolemAnimation.COPPER_GOLEM_WALK.bake(root);
 		this.idle = CopperGolemAnimation.COPPER_GOLEM_IDLE.bake(root);
 	}
@@ -58,32 +67,26 @@ public class MiningGolemModel extends CopperGolemModel {
 			this.rightArm.xRot -= 0.35F;
 		}
 
-		float cycle = cycleTicks(golem.textureId);
+		float cycle = golem.swingCycle;
 		float swing = golem.swingTicks;
 		boolean finishing = golem.swingLength >= 0.0F && swing < Math.max(1.0F, Mth.ceil(golem.swingLength / cycle)) * cycle;
 		if (cycle > 0.0F && (golem.mining || finishing)) {
 			float t = swing / cycle - Mth.floor(swing / cycle);
 			switch (golem.textureId) {
 				case "amethyst" -> this.axe(t);
-				case "hay" -> this.hoe(t);
+				case "hay" -> {
+					this.hoe(t);
+					this.hopHat(t);
+				}
 				case "bone" -> this.sword(t);
 				default -> this.pickaxe(t);
 			}
 		} else if (golem.textureId.equals("coal") && golem.active && state.walkAnimationSpeed > 0.05F) {
 			this.carry(state);
 		}
-	}
 
-	/** How many ticks one blow takes, or 0 for a golem with no tool to swing. */
-	private static float cycleTicks(final String golem) {
-		return switch (golem) {
-			case "iron" -> 20.0F;
-			case "diamond" -> 16.0F;
-			case "netherite" -> 13.0F;
-			case "amethyst" -> 20.0F;
-			case "hay", "bone" -> 16.0F;
-			default -> 0.0F;
-		};
+		// A greeting, with the hand that holds no tool.
+		GolemWave.apply(this.leftArm, golem.waveTicks, true);
 	}
 
 	/** Eased from 0 to 1 as {@code t} goes from {@code from} to {@code to}. */
@@ -119,15 +122,28 @@ public class MiningGolemModel extends CopperGolemModel {
 		this.head.yRot -= this.body.yRot * 0.5F;
 	}
 
-	/** Bent over the field: the hoe lifted and struck down into the soil, the other arm hanging low. */
+	/** Leaning over the field: the hoe lifted and struck down into the soil, the other arm hanging low. */
 	private void hoe(final float t) {
 		float lift = ease(t, 0.0F, 0.5F) - ease(t, 0.5F, 0.65F);
-		this.body.xRot = 0.45F;
-		this.head.xRot += 0.25F;
+		// Leaning in a little, the head kept up so that it looks at the soil ahead and not at its feet.
+		this.body.xRot = 0.25F;
+		this.head.xRot -= 0.15F;
 		this.rightArm.xRot = Mth.lerp(lift, -0.3F, -2.4F);
 		this.rightArm.yRot = 0.0F;
 		this.rightArm.zRot = 0.0F;
 		this.leftArm.xRot = -0.3F;
+	}
+
+	/** The straw hat jumps off the head as the hoe strikes the soil, and drops back on, a little askew. */
+	private void hopHat(final float t) {
+		if (this.hat == null) {
+			return;
+		}
+
+		float hop = Mth.sin(Mth.PI * Mth.clamp((t - 0.62F) / 0.3F, 0.0F, 1.0F));
+		this.hat.y -= 3.0F * hop;
+		this.hat.xRot -= 0.25F * hop;
+		this.hat.zRot += 0.15F * hop;
 	}
 
 	/** The sword drawn back, then thrust straight ahead, the golem lunging after it. */
@@ -156,7 +172,8 @@ public class MiningGolemModel extends CopperGolemModel {
 
 	/**
 	 * The tool in the hand at the end of the arm, as a player holds one. The item layer places it for a
-	 * player's arm, two pixels longer than this one, so it is moved up by that much.
+	 * player's arm, two pixels longer than the copper golem's, so it is moved up by that much; less for the
+	 * iron golem's longer arm, and further out for the thicker arms of the iron and diamond ones.
 	 */
 	@Override
 	public void translateToHand(final CopperGolemRenderState state, final HumanoidArm arm, final PoseStack poseStack) {
@@ -168,6 +185,73 @@ public class MiningGolemModel extends CopperGolemModel {
 		this.root().translateAndRotate(poseStack);
 		this.body.translateAndRotate(poseStack);
 		(arm == HumanoidArm.RIGHT ? this.rightArm : this.leftArm).translateAndRotate(poseStack);
-		poseStack.translate((arm == HumanoidArm.RIGHT ? -0.5F : 0.5F) / 16.0F, -2.0F / 16.0F, 0.0F);
+		float out = switch (this.golem) {
+			case "iron", "diamond" -> 1.0F;
+			default -> 0.5F;
+		};
+		float up = "iron".equals(this.golem) ? 1.0F : 2.0F;
+		poseStack.translate((arm == HumanoidArm.RIGHT ? -out : out) / 16.0F, -up / 16.0F, 0.0F);
+	}
+
+	/**
+	 * Where the flower goes, for the layer that draws it with its top at the origin: somewhere of its own on
+	 * each golem, from the farmer's hat band to the bone golem's ribcage.
+	 */
+	public void applyFlowerTransform(final PoseStack poseStack) {
+		this.root().translateAndRotate(poseStack);
+		this.body.translateAndRotate(poseStack);
+		switch (this.golem) {
+			case "hay" -> {
+				this.head.translateAndRotate(poseStack);
+				if (this.hat != null) {
+					this.hat.translateAndRotate(poseStack);
+				}
+
+				flower(poseStack, 3.0F, -1.0F, 0.5F, 25.0F, 0.55F);
+			}
+			case "iron" -> {
+				// Planted on top of its left shoulder.
+				this.leftArm.translateAndRotate(poseStack);
+				flower(poseStack, 2.0F, -2.0F, 0.0F, -10.0F, 0.6F);
+			}
+			case "diamond" -> {
+				// Planted on top of its right shoulder.
+				this.rightArm.translateAndRotate(poseStack);
+				flower(poseStack, -2.0F, -2.0F, 0.0F, 10.0F, 0.6F);
+			}
+			case "netherite" -> {
+				// Tucked into its belt, at the front.
+				flower(poseStack, -2.5F, -0.5F, -3.6F, 8.0F, 0.55F);
+			}
+			case "bone" -> {
+				// Growing inside its ribcage, seen between the ribs: small enough that a dead bush, as wide as it
+				// is tall, stays within it.
+				flower(poseStack, 0.0F, -0.2F, -0.4F, 0.0F, 0.32F);
+			}
+			case "amethyst" -> {
+				// Its stem sunk into the head, so the allium's flower sits low among the crystals.
+				this.head.translateAndRotate(poseStack);
+				flower(poseStack, -1.5F, -1.5F, 2.5F, -10.0F, 0.7F);
+			}
+			case "coal" -> {
+				// The fungus, smaller, its stalk sunk into the top of the head.
+				this.head.translateAndRotate(poseStack);
+				flower(poseStack, 1.5F, -3.5F, 1.0F, 8.0F, 0.5F);
+			}
+			default -> {
+				this.head.translateAndRotate(poseStack);
+				flower(poseStack, 2.5F, -5.0F, 1.5F, 12.0F, 0.7F);
+			}
+		}
+	}
+
+
+	/** Moves to {@code x, y, z} (in pixels), leans {@code lean} degrees to the side and shrinks to {@code scale}. */
+	private static void flower(final PoseStack poseStack, final float x, final float y, final float z, final float lean, final float scale) {
+		poseStack.translate(x / 16.0F, y / 16.0F, z / 16.0F);
+		poseStack.rotateDegrees(Axis.ZP, lean);
+		poseStack.scale(scale, scale, scale);
+		// The layer puts the flower's top at the origin and its foot a block below it.
+		poseStack.translate(0.0F, -1.0F, 0.0F);
 	}
 }

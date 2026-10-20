@@ -15,5 +15,12 @@
   "message.totalgolems.chunk_taken": "Otro gólem ya pica este chunk: este se va al chunk libre más cercano",
   "message.totalgolems.golem_locked": "No acepta un patrón hasta que le des una rosa de Wither",
   "message.totalgolems.efficiency_needed": "Ahora necesita un libro de Eficiencia %s",
-  "message.totalgolems.efficiency_max": "Ya tiene Eficiencia V"
+  "message.totalgolems.efficiency_max": "Ya tiene Eficiencia V",
+  "block.totalgolems.iron_golem_statue": "Estatua de gólem de hierro",
+  "block.totalgolems.diamond_golem_statue": "Estatua de gólem de diamante",
+  "block.totalgolems.netherite_golem_statue": "Estatua de gólem de netherita",
+  "block.totalgolems.coal_golem_statue": "Estatua de gólem de carbón",
+  "block.totalgolems.amethyst_golem_statue": "Estatua de gólem de amatista",
+  "block.totalgolems.hay_golem_statue": "Estatua de gólem de paja",
+  "block.totalgolems.bone_golem_statue": "Estatua de gólem de hueso"
 }

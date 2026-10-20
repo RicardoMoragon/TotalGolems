@@ -1,22 +1,34 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.GolemGreeting;
 import com.totalgolems.block.ChestGroup;
+import com.totalgolems.block.GolemStatueBlock;
+import com.totalgolems.block.GolemStatueBlockEntity;
 import com.totalgolems.block.MetalChestBlock;
+import com.totalgolems.registry.ModBlocks;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.util.Mth;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -26,9 +38,17 @@ import net.minecraft.world.entity.animal.golem.AbstractGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.CopperGolemStatueBlock;
+import net.minecraft.world.level.block.LevelEvent;
+import net.minecraft.world.level.block.WeatheringCopper;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -47,6 +67,18 @@ public abstract class WorkerGolem extends AbstractGolem {
 	public static final EquipmentSlot FLOWER_SLOT = EquipmentSlot.SADDLE;
 	private static final EntityDataAccessor<Boolean> DATA_ACTIVE = SynchedEntityData.defineId(WorkerGolem.class, EntityDataSerializers.BOOLEAN);
 	private static final EntityDataAccessor<Boolean> DATA_SWINGING = SynchedEntityData.defineId(WorkerGolem.class, EntityDataSerializers.BOOLEAN);
+	private static final EntityDataAccessor<WeatheringCopper.WeatherState> DATA_WEATHER_STATE = SynchedEntityData.defineId(
+		WorkerGolem.class, EntityDataSerializers.WEATHERING_COPPER_STATE
+	);
+	/** As the copper golem's: seven to eight days a stage. */
+	private static final int WEATHERING_TICK_FROM = 504000;
+	private static final int WEATHERING_TICK_TO = 552000;
+	private static final float TURN_TO_STATUE_CHANCE = 0.0058F;
+	/** {@link #nextWeatheringTick} of a waxed golem, which never weathers; and of one whose next stage is not drawn yet. */
+	private static final long WAXED = -2L;
+	private static final long UNSET = -1L;
+	/** The entity event of a single stroke of the tool, clear of vanilla's and of the greeting's. */
+	private static final byte STROKE_EVENT = 91;
 	protected static final double CHEST_REACH = 2.3;
 	protected static final int TRANSFER_INTERVAL = 10;
 	private static final int CHEST_SEARCH_RADIUS = 8;
@@ -57,6 +89,10 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private static final int SECONDS_WITHOUT_PROGRESS_BEFORE_TELEPORT = 20;
 	/** Further away than this and being stuck is not cured by teleporting. */
 	protected static final double MAX_TELEPORT_DISTANCE = 16.0;
+	/** How many paths in a row that do not get there before a golem that cannot teleport gives up on the place. */
+	private static final int DEAD_END_PATHS_BEFORE_GIVING_UP = 3;
+	/** How long a place or a creature it could not get to is left alone before it is tried again: a minute. */
+	private static final int UNREACHABLE_TICKS = 1200;
 
 	protected @Nullable BlockPos chestPos;
 	/** At its chest without a tool, and none in there either. */
@@ -67,10 +103,18 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private @Nullable BlockPos travelTarget;
 	private double closestTravelDistance;
 	private int secondsWithoutProgress;
+	private int deadEndPaths;
+	/** Set when it last gave up on getting somewhere on foot; cleared when it sets off again. */
+	private boolean gaveUp;
+	/** Places and creatures it could not get to, and the game time until which they are left alone. */
+	private final Map<BlockPos, Long> unreachablePlaces = new HashMap<>();
+	private final Map<UUID, Long> unreachableCreatures = new HashMap<>();
 	/** Client side: when it last started and stopped swinging its tool, so that each swing is shown whole. */
 	private int swingStartTick = -1000;
 	private int swingStopTick = -1000;
 	private boolean wasSwinging;
+	private long nextWeatheringTick = UNSET;
+	private @Nullable UUID lastLightningBoltUUID;
 
 	protected WorkerGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
@@ -123,18 +167,63 @@ public abstract class WorkerGolem extends AbstractGolem {
 		return this.swingStopTick;
 	}
 
+	/** How many ticks one blow of its tool takes, for the animation; 0 for a golem with no tool to swing. */
+	public int getSwingCycleTicks() {
+		return switch (this.getTextureId()) {
+			case "iron", "amethyst" -> 20;
+			case "diamond", "hay", "bone" -> 16;
+			case "netherite" -> 13;
+			default -> 0;
+		};
+	}
+
+	/**
+	 * Client side: whether a blow it started is still being played out. A blow is always shown whole, so one that
+	 * starts before the last has ended carries on from it instead of cutting it short.
+	 */
+	private boolean isMidBlow() {
+		int cycle = this.getSwingCycleTicks();
+		if (cycle <= 0) {
+			return false;
+		}
+
+		int blows = Math.max(1, Mth.ceil((float)(this.swingStopTick - this.swingStartTick) / cycle));
+		return this.swingStopTick >= this.swingStartTick && this.tickCount < this.swingStartTick + blows * cycle;
+	}
+
+	/** One stroke of its tool, for a job done in one go (tilling, sowing, reaping): shown as one whole blow. */
+	protected void playStroke() {
+		this.level().broadcastEntityEvent(this, STROKE_EVENT);
+	}
+
+	@Override
+	public void handleEntityEvent(final byte id) {
+		if (id == STROKE_EVENT) {
+			if (!this.isSwingingArm() && !this.isMidBlow()) {
+				this.swingStartTick = this.tickCount;
+				this.swingStopTick = this.tickCount;
+			}
+		} else {
+			super.handleEntityEvent(id);
+		}
+	}
+
 	@Override
 	public void tick() {
 		super.tick();
 		if (this.level().isClientSide()) {
 			boolean swinging = this.isSwingingArm();
 			if (swinging && !this.wasSwinging) {
-				this.swingStartTick = this.tickCount;
+				if (!this.isMidBlow()) {
+					this.swingStartTick = this.tickCount;
+				}
 			} else if (!swinging && this.wasSwinging) {
 				this.swingStopTick = this.tickCount;
 			}
 
 			this.wasSwinging = swinging;
+		} else {
+			this.updateWeathering((ServerLevel)this.level());
 		}
 	}
 
@@ -210,8 +299,14 @@ public abstract class WorkerGolem extends AbstractGolem {
 			return;
 		}
 
+		if (this.isUnreachable(this.chestPos)) {
+			// It could not get to the chest: it waits where it is, and tries again in a while.
+			this.waitingForTool = true;
+			return;
+		}
+
 		if (!this.travelTo(level, this.chestPos, CHEST_REACH)) {
-			this.waitingForTool = false;
+			this.waitingForTool = this.hasGivenUp();
 			return;
 		}
 
@@ -240,6 +335,7 @@ public abstract class WorkerGolem extends AbstractGolem {
 		super.defineSynchedData(entityData);
 		entityData.define(DATA_ACTIVE, false);
 		entityData.define(DATA_SWINGING, false);
+		entityData.define(DATA_WEATHER_STATE, WeatheringCopper.WeatherState.UNAFFECTED);
 	}
 
 	@Override
@@ -272,6 +368,7 @@ public abstract class WorkerGolem extends AbstractGolem {
 	protected void customServerAiStep(final ServerLevel level) {
 		super.customServerAiStep(level);
 		this.serverStep(level);
+		GolemGreeting.tick(this, level);
 		boolean active = this.isBusy();
 		if (active != this.isActive()) {
 			this.entityData.set(DATA_ACTIVE, active);
@@ -281,6 +378,11 @@ public abstract class WorkerGolem extends AbstractGolem {
 	@Override
 	public InteractionResult mobInteract(final Player player, final InteractionHand hand) {
 		ItemStack held = player.getItemInHand(hand);
+		InteractionResult weathering = this.interactWeathering(player, hand, held);
+		if (weathering != null) {
+			return weathering;
+		}
+
 		if (this.isActivatingFlower(held)) {
 			if (this.level() instanceof ServerLevel level) {
 				ItemStack worn = this.getItemBySlot(FLOWER_SLOT);
@@ -292,7 +394,8 @@ public abstract class WorkerGolem extends AbstractGolem {
 					}
 				}
 
-				// Giving the flower it already wears just starts the job again from here.
+				// Giving the flower it already wears just starts the job again from here, and everything is worth a try again.
+				this.forgetUnreachable();
 				this.onActivated(level, player);
 				this.playSound(SoundEvents.COPPER_GOLEM_SPAWN, 0.6F, 1.4F);
 			}
@@ -363,6 +466,14 @@ public abstract class WorkerGolem extends AbstractGolem {
 			return true;
 		}
 
+		if (!target.equals(this.travelTarget)) {
+			this.travelTarget = target;
+			this.closestTravelDistance = Double.MAX_VALUE;
+			this.secondsWithoutProgress = 0;
+			this.deadEndPaths = 0;
+			this.gaveUp = false;
+		}
+
 		if (distance < 1.5 && Math.abs(this.getY() - spot.y) < 0.6) {
 			// Path nodes are a whole block apart, too coarse for the last stretch.
 			this.getNavigation().stop();
@@ -371,12 +482,19 @@ public abstract class WorkerGolem extends AbstractGolem {
 			// A chest is solid, so stopping next to it will do. Anywhere else the path has to end on the spot itself:
 			// a neighbouring cell could be outside the tunnel or the quarry.
 			this.getNavigation().moveTo(spot.x, spot.y, spot.z, reach > 1.0 ? 1 : 0, 1.0);
+			this.deadEndPaths = leadsTo(this.getNavigation().getPath(), spot, reach) ? 0 : this.deadEndPaths + 1;
 		}
 
-		if (!target.equals(this.travelTarget)) {
-			this.travelTarget = target;
-			this.closestTravelDistance = Double.MAX_VALUE;
-			this.secondsWithoutProgress = 0;
+		if (!this.mayTeleport() && this.getNavigation().isDone() && distance < reach + 2.0) {
+			// The path has run out just short of the spot: the last step straight at it. A golem that teleports
+			// gets there in the end anyway; the others would stand there until they gave up.
+			this.getMoveControl().setWantedPosition(spot.x, spot.y, spot.z, 1.0);
+		}
+
+		if (!this.mayTeleport() && this.deadEndPaths >= DEAD_END_PATHS_BEFORE_GIVING_UP) {
+			// No way there on foot, as far as the golem can see.
+			this.giveUpOn(target);
+			return false;
 		}
 
 		if (++this.travelTicks % 20 == 0) {
@@ -392,6 +510,11 @@ public abstract class WorkerGolem extends AbstractGolem {
 			}
 
 			if (this.stalledSeconds >= STALLED_SECONDS_BEFORE_TELEPORT || this.secondsWithoutProgress >= SECONDS_WITHOUT_PROGRESS_BEFORE_TELEPORT) {
+				if (!this.mayTeleport()) {
+					this.giveUpOn(target);
+					return false;
+				}
+
 				this.resetTravel();
 				if (this.mayTeleportTo(target, distance)) {
 					this.teleportNextTo(level, target);
@@ -400,6 +523,25 @@ public abstract class WorkerGolem extends AbstractGolem {
 		}
 
 		return false;
+	}
+
+	/** Whether {@code path} gets the golem there: to the spot itself, or near enough to it. */
+	private static boolean leadsTo(final @Nullable Path path, final Vec3 spot, final double reach) {
+		if (path == null) {
+			return false;
+		}
+
+		Node end = path.getEndNode();
+		return path.canReach() || end != null && Vec3.atBottomCenterOf(end.asBlockPos()).distanceTo(spot) <= reach;
+	}
+
+	/**
+	 * Whether the golem gets itself unstuck by teleporting. Those that cannot give up on a place they find no
+	 * way to on foot: it counts as {@linkplain #isUnreachable(BlockPos) unreachable} for a while, and
+	 * {@link #hasGivenUp()} tells the job to choose something else.
+	 */
+	protected boolean mayTeleport() {
+		return true;
 	}
 
 	/** Whether a golem that cannot get to {@code target}, {@code distance} blocks away, may jump there. */
@@ -412,6 +554,55 @@ public abstract class WorkerGolem extends AbstractGolem {
 		this.stalledSeconds = 0;
 		this.lastTravelPosition = null;
 		this.travelTarget = null;
+		this.deadEndPaths = 0;
+		this.gaveUp = false;
+	}
+
+	private void giveUpOn(final BlockPos target) {
+		this.getNavigation().stop();
+		this.resetTravel();
+		this.markUnreachable(target);
+		this.gaveUp = true;
+	}
+
+	/** Whether the last {@link #travelTo} gave up on getting where it was going. */
+	protected boolean hasGivenUp() {
+		return this.gaveUp;
+	}
+
+	/** Leaves {@code pos} alone for a while: there is no getting to it. */
+	protected void markUnreachable(final BlockPos pos) {
+		this.unreachablePlaces.put(pos.immutable(), this.level().getGameTime() + UNREACHABLE_TICKS);
+	}
+
+	/** Leaves {@code entity} alone for a while: there is no getting to it. */
+	protected void markUnreachable(final Entity entity) {
+		this.unreachableCreatures.put(entity.getUUID(), this.level().getGameTime() + UNREACHABLE_TICKS);
+	}
+
+	/** Whether {@code pos} is one it recently found no way to. */
+	public boolean isUnreachable(final @Nullable BlockPos pos) {
+		return pos != null && isStillMarked(this.unreachablePlaces, pos, this.level().getGameTime());
+	}
+
+	/** Whether {@code entity} is one it recently found no way to. */
+	public boolean isUnreachable(final Entity entity) {
+		return isStillMarked(this.unreachableCreatures, entity.getUUID(), this.level().getGameTime());
+	}
+
+	private static <K> boolean isStillMarked(final Map<K, Long> marked, final K key, final long now) {
+		Long until = marked.get(key);
+		if (until != null && until <= now) {
+			marked.remove(key);
+			return false;
+		}
+
+		return until != null;
+	}
+
+	protected void forgetUnreachable() {
+		this.unreachablePlaces.clear();
+		this.unreachableCreatures.clear();
 	}
 
 	/** Whether a golem that teleports may land at {@code spot}, which it fits into. Any such place will do by default. */
@@ -432,16 +623,144 @@ public abstract class WorkerGolem extends AbstractGolem {
 		}
 	}
 
+	// ------------------------------------------------------------------------------------ weathering
+
+	/**
+	 * How worn the golem is. Like the copper golem it wears a stage every seven or eight days unless it is waxed,
+	 * and once fully worn it may stop for good and turn into a statue of itself.
+	 */
+	public WeatheringCopper.WeatherState getWeatherState() {
+		return this.entityData.get(DATA_WEATHER_STATE);
+	}
+
+	public void setWeatherState(final WeatheringCopper.WeatherState state) {
+		this.entityData.set(DATA_WEATHER_STATE, state);
+	}
+
+	public boolean isWaxed() {
+		return this.nextWeatheringTick == WAXED;
+	}
+
+	private void updateWeathering(final ServerLevel level) {
+		if (this.nextWeatheringTick == WAXED) {
+			return;
+		}
+
+		long gameTime = level.getGameTime();
+		if (this.nextWeatheringTick == UNSET) {
+			this.nextWeatheringTick = gameTime + this.random.nextIntBetweenInclusive(WEATHERING_TICK_FROM, WEATHERING_TICK_TO);
+			return;
+		}
+
+		WeatheringCopper.WeatherState state = this.getWeatherState();
+		if (state == WeatheringCopper.WeatherState.OXIDIZED) {
+			if (level.getBlockState(this.blockPosition()).isAir() && this.random.nextFloat() <= TURN_TO_STATUE_CHANCE) {
+				this.turnToStatue(level);
+			}
+		} else if (gameTime >= this.nextWeatheringTick) {
+			this.setWeatherState(state.next());
+			this.nextWeatheringTick += this.random.nextIntBetweenInclusive(WEATHERING_TICK_FROM, WEATHERING_TICK_TO);
+		}
+	}
+
+	/** Honeycomb waxes it; an axe takes the wax off, or else scrapes off a stage of wear. Null for anything else. */
+	private @Nullable InteractionResult interactWeathering(final Player player, final InteractionHand hand, final ItemStack held) {
+		boolean wax = held.is(Items.HONEYCOMB) && !this.isWaxed();
+		boolean axe = held.is(ItemTags.AXES) && (this.isWaxed() || this.getWeatherState() != WeatheringCopper.WeatherState.UNAFFECTED);
+		if (!wax && !axe) {
+			return null;
+		}
+
+		if (!(this.level() instanceof ServerLevel level)) {
+			return InteractionResult.SUCCESS;
+		}
+
+		if (wax) {
+			level.levelEvent(this, LevelEvent.PARTICLES_WAX_ON, this.blockPosition(), 0);
+			level.playSound(null, this, SoundEvents.HONEYCOMB_WAX_ON, this.getSoundSource(), 1.0F, 1.0F);
+			this.nextWeatheringTick = WAXED;
+			held.consume(1, player);
+		} else {
+			level.playSound(null, this, SoundEvents.AXE_SCRAPE, this.getSoundSource(), 1.0F, 1.0F);
+			if (this.isWaxed()) {
+				level.levelEvent(this, LevelEvent.PARTICLES_WAX_OFF, this.blockPosition(), 0);
+			} else {
+				level.levelEvent(this, LevelEvent.PARTICLES_SCRAPE, this.blockPosition(), 0);
+				this.setWeatherState(this.getWeatherState().previous());
+			}
+
+			this.nextWeatheringTick = UNSET;
+			held.hurtAndBreak(1, player, hand.asEquipmentSlot());
+		}
+
+		return InteractionResult.SUCCESS_SERVER;
+	}
+
+	@Override
+	public void thunderHit(final ServerLevel level, final LightningBolt lightningBolt) {
+		super.thunderHit(level, lightningBolt);
+		// As with copper, lightning takes a stage of wear off, once per bolt.
+		if (!lightningBolt.getUUID().equals(this.lastLightningBoltUUID)) {
+			this.lastLightningBoltUUID = lightningBolt.getUUID();
+			if (this.getWeatherState() != WeatheringCopper.WeatherState.UNAFFECTED) {
+				this.nextWeatheringTick = UNSET;
+				this.setWeatherState(this.getWeatherState().previous());
+			}
+		}
+	}
+
+	/**
+	 * Stops for good: a statue of the golem in a random pose takes its place, holding everything it was, its flower,
+	 * tool, chest and loads included, so that scraping it back to life brings back the same golem.
+	 */
+	public void turnToStatue(final ServerLevel level) {
+		Block statue = ModBlocks.statue(this.getType());
+		if (statue == null) {
+			return;
+		}
+
+		BlockPos pos = this.blockPosition();
+		CopperGolemStatueBlock.Pose[] poses = CopperGolemStatueBlock.Pose.values();
+		level.setBlockAndUpdate(
+			pos,
+			statue.defaultBlockState()
+				.setValue(GolemStatueBlock.POSE, poses[this.random.nextInt(poses.length)])
+				.setValue(GolemStatueBlock.FACING, Direction.fromYRot(this.getYRot()))
+				.setValue(GolemStatueBlock.AGE, WeatheringCopper.WeatherState.OXIDIZED.ordinal())
+				.setValue(GolemStatueBlock.WATERLOGGED, level.getFluidState(pos).is(Fluids.WATER))
+		);
+		if (level.getBlockEntity(pos) instanceof GolemStatueBlockEntity statueEntity) {
+			statueEntity.keep(this);
+			this.playSound(SoundEvents.COPPER_GOLEM_BECOME_STATUE);
+			if (this.isLeashed()) {
+				this.dropLeash();
+			}
+
+			this.discard();
+		}
+	}
+
+	/** Brought back to life from a statue: fresh and unwaxed, whatever it was when it stopped. */
+	public void wakeFromStatue() {
+		this.setWeatherState(WeatheringCopper.WeatherState.UNAFFECTED);
+		this.nextWeatheringTick = UNSET;
+		this.resetTravel();
+	}
+
 	@Override
 	public void addAdditionalSaveData(final ValueOutput output) {
 		super.addAdditionalSaveData(output);
 		output.storeNullable("chest_pos", BlockPos.CODEC, this.chestPos);
+		output.putLong("next_weather_age", this.nextWeatheringTick);
+		output.store("weather_state", WeatheringCopper.WeatherState.CODEC, this.getWeatherState());
 	}
 
 	@Override
 	public void readAdditionalSaveData(final ValueInput input) {
 		super.readAdditionalSaveData(input);
 		this.chestPos = input.read("chest_pos", BlockPos.CODEC).orElse(null);
+		this.nextWeatheringTick = input.getLongOr("next_weather_age", UNSET);
+		this.setWeatherState(input.read("weather_state", WeatheringCopper.WeatherState.CODEC).orElse(WeatheringCopper.WeatherState.UNAFFECTED));
 	}
 
 	@Override

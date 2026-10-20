@@ -7,9 +7,11 @@
 		"CopperGolemAiMixin",
 		"CopperGolemMixin",
 		"CopperGolemStatueBlockEntityMixin",
+		"MobMixin",
 		"TransportItemsBetweenContainersMixin"
 	],
 	"client": [
+		"client.CopperGolemModelMixin",
 		"client.CopperGolemRendererMixin"
 	],
 	"injectors": {

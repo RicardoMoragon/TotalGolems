@@ -153,7 +153,7 @@ public class FarmGolemTests {
 		chest.setItem(1, new ItemStack(Items.CARROT, 8));
 		helper.spawn(EntityTypes.COW, 3, 1, 3);
 		helper.spawn(EntityTypes.COW, 4, 1, 4);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		helper.succeedWhen(() -> {
 			List<Animal> animals = animals(helper);
 			helper.assertTrue(animals.stream().anyMatch(Animal::isBaby), "the fed cows should have had a calf");
@@ -175,7 +175,7 @@ public class FarmGolemTests {
 		helper.spawn(EntityTypes.COW, 3, 1, 3);
 		helper.spawn(EntityTypes.PIG, 4, 1, 4);
 		helper.spawn(EntityTypes.PIG, 5, 1, 5);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		helper.onEachTick(() -> helper.assertTrue(animals(helper).stream().noneMatch(Animal::isInLove), "no animal without a partner to breed with should be fed"));
 		helper.runAtTickTime(350, () -> {
 			helper.assertTrue(container(helper, OWN_CHEST).countItem(Items.WHEAT) == 8, "the lone cow's wheat should stay in the chest");
@@ -196,7 +196,7 @@ public class FarmGolemTests {
 		herd.get(3).setAge(3000);
 		Animal longest = herd.get(BoneGolem.MAX_ANIMALS);
 		longest.setAge(6000);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		helper.succeedWhen(() -> {
 			helper.assertTrue(animals(helper).size() == BoneGolem.MAX_ANIMALS, "one cow should have gone");
 			helper.assertTrue(!longest.isAlive(), "the cow with the longest wait before breeding again should be the one to go");
@@ -208,7 +208,7 @@ public class FarmGolemTests {
 		BoneGolem golem = pen(helper, ModEntities.BONE_GOLEM, ModBlocks.BONE_CHEST);
 		golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
 		herd(helper, BoneGolem.MAX_ANIMALS, 0);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		helper.runAtTickTime(250, () -> {
 			helper.assertTrue(animals(helper).size() == BoneGolem.MAX_ANIMALS, "all twenty should still be alive, found " + animals(helper).size());
 			helper.succeed();
@@ -225,7 +225,7 @@ public class FarmGolemTests {
 		// Fire Aspect, to show that it does nothing here: the meat still comes out raw, for the coal golem to cook.
 		golem.setItemSlot(EquipmentSlot.MAINHAND, MiningGolemTests.enchanted(helper, Items.IRON_SWORD, Enchantments.FIRE_ASPECT, 2));
 		herd(helper, 23, 3);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		int[] fewest = {Integer.MAX_VALUE};
 		// Each cull wears the sword by one: when the last one was, and the shortest time between two.
 		int[] culls = {0};
@@ -287,7 +287,7 @@ public class FarmGolemTests {
 		container(helper, boneChest).setItem(1, new ItemStack(Items.BONE, 6));
 		container(helper, boneChest).setItem(2, new ItemStack(Items.COOKED_BEEF, 1));
 		CoalGolem golem = spawn(helper, ModEntities.COAL_GOLEM, new BlockPos(3, 1, 3));
-		give(helper, golem, Items.OXEYE_DAISY);
+		give(helper, golem, Items.CRIMSON_FUNGUS);
 
 		String[] misplaced = {null};
 		helper.onEachTick(() -> {

@@ -195,12 +195,14 @@ public class GolemUpgradeTests {
 	public void amethystGolemWaitsAtChestUntilGivenAxe(final GameTestHelper helper) {
 		LumberGolem golem = MiningGolemTests.setUp(helper, ModEntities.AMETHYST_GOLEM, ModBlocks.AMETHYST_CHEST);
 		golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+		// Blocks to climb the tree with.
+		container(helper, CHEST).setItem(1, new ItemStack(Items.COBBLESTONE, 16));
 		// Tall enough to stand clear of the roof the test framework puts over the plot: trees are found from above.
 		int height = 10;
 		tree(helper.getLevel(), helper.absolutePos(new BlockPos(4, 1, 4)), height);
 		helper.setBlock(4, 0, 4, Blocks.DIRT);
 		give(helper, golem, new ItemStack(Items.SPYGLASS), Direction.EAST);
-		give(helper, golem, new ItemStack(Items.LILY_OF_THE_VALLEY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.ALLIUM), Direction.EAST);
 		helper.runAfterDelay(100, () -> {
 			helper.assertBlockPresent(Blocks.OAK_LOG, 4, 1, 4);
 			helper.assertTrue(golem.isWaitingForTool() && !golem.isActive(), "without an axe it waits with its eyes off");
@@ -225,7 +227,7 @@ public class GolemUpgradeTests {
 		container(helper, CHEST).setItem(0, new ItemStack(Items.WHEAT, 8));
 		FarmGolemTests.herd(helper, 22, 0);
 		helper.spawnItem(Items.FEATHER, new BlockPos(5, 1, 5));
-		FarmGolemTests.give(helper, golem, Items.WHITE_TULIP);
+		FarmGolemTests.give(helper, golem, Items.AZURE_BLUET);
 		boolean[] armed = {false};
 		int[] fewestUnarmed = {Integer.MAX_VALUE};
 		helper.onEachTick(() -> {
@@ -344,7 +346,7 @@ public class GolemUpgradeTests {
 		helper.spawn(EntityTypes.COW, 5, 1, 5);
 		helper.spawn(EntityTypes.PIG, 5, 1, 6);
 		CoalGolem golem = spawn(helper, ModEntities.COAL_GOLEM, new BlockPos(2, 1, 3));
-		FarmGolemTests.give(helper, golem, Items.OXEYE_DAISY);
+		FarmGolemTests.give(helper, golem, Items.CRIMSON_FUNGUS);
 		helper.succeedWhen(() -> {
 			Container copper = container(helper, copperChest);
 			helper.assertTrue(copper.countItem(Items.DIAMOND) == 3 && copper.countItem(Items.FEATHER) == 4, "what cannot be smelted goes to the copper chest");
@@ -596,7 +598,7 @@ public class GolemUpgradeTests {
 		level.addFreshEntity(golem);
 		golem.setChestPos(chestPos);
 		golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
-		give(helper, golem, new ItemStack(Items.LILY_OF_THE_VALLEY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.ALLIUM), Direction.EAST);
 		boolean[] upgraded = {false};
 		helper.succeedWhen(() -> {
 			helper.assertTrue(!level.getBlockState(near).is(Blocks.OAK_LOG), "the tree in its own chunk should be felled");

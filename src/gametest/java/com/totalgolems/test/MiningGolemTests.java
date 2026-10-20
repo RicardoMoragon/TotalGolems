@@ -139,7 +139,7 @@ public class MiningGolemTests {
 		helper.setBlock(firstFurnace, Blocks.FURNACE);
 		helper.setBlock(secondFurnace, Blocks.FURNACE);
 		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
-		give(helper, golem, new ItemStack(Items.OXEYE_DAISY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.CRIMSON_FUNGUS), Direction.EAST);
 
 		boolean[] fuelled = {false, false};
 		helper.onEachTick(() -> {
@@ -159,9 +159,14 @@ public class MiningGolemTests {
 		});
 	}
 
-	@GameTest(maxTicks = 3000)
+	/**
+	 * A ten-log oak, far taller than it can reach. It fetches blocks from its chest, builds a pillar beside
+	 * the trunk to get at the top, takes it down again when the tree is felled and keeps the blocks.
+	 */
+	@GameTest(maxTicks = 4000)
 	public void amethystGolemFellsTallTreeReplantsAndStoresWood(final GameTestHelper helper) {
 		LumberGolem golem = setUp(helper, ModEntities.AMETHYST_GOLEM, ModBlocks.AMETHYST_CHEST);
+		chest(helper).setItem(0, new ItemStack(Items.COBBLESTONE, 20));
 		int height = 10;
 		helper.setBlock(4, 0, 4, Blocks.DIRT);
 		for (int y = 1; y <= height; y++) {
@@ -181,11 +186,22 @@ public class MiningGolemTests {
 		// It picks saplings up off the ground, and nothing else.
 		helper.spawnItem(Items.OAK_SAPLING, new BlockPos(2, 1, 3));
 		helper.spawnItem(Items.DIAMOND, new BlockPos(2, 1, 4));
-		give(helper, golem, new ItemStack(Items.LILY_OF_THE_VALLEY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.ALLIUM), Direction.EAST);
+		int[] tallestPillar = {0};
+		helper.onEachTick(() -> tallestPillar[0] = Math.max(tallestPillar[0], golem.getPillarHeight()));
 		helper.succeedWhen(() -> {
 			for (int y = 2; y <= height; y++) {
 				helper.assertBlockPresent(Blocks.AIR, 4, y, 4);
 			}
+
+			helper.assertTrue(tallestPillar[0] >= 3, "it should have climbed a pillar to reach the top logs, not " + tallestPillar[0]);
+			helper.assertTrue(golem.getPillarHeight() == 0, "the pillar should be taken down");
+			for (BlockPos pos : BlockPos.betweenClosed(new BlockPos(2, 1, 2), new BlockPos(6, height, 6))) {
+				helper.assertBlockNotPresent(Blocks.COBBLESTONE, pos);
+			}
+
+			helper.assertTrue(golem.getClimbingBlockCount() + chest(helper).countItem(Items.COBBLESTONE) == 20, "it should keep every block it climbed with");
+			helper.assertTrue(golem.getClimbingBlockCount() > 0, "it should have taken blocks to climb with");
 
 			helper.assertBlockPresent(Blocks.OAK_SAPLING, 4, 1, 4);
 			helper.assertBlockPresent(Blocks.SPRUCE_LOG, 6, 1, 6);
@@ -195,6 +211,82 @@ public class MiningGolemTests {
 			helper.assertTrue(chest(helper).countItem(Items.OAK_LOG) == height, "all " + height + " logs should be in the chest");
 			helper.assertTrue(golem.getTool().getDamageValue() == height, "the axe should be worn by one for every log, not " + golem.getTool().getDamageValue());
 			helper.assertTrue(golem.isResting() && !golem.isActive(), "golem should be resting with its eyes off");
+		});
+	}
+
+	/** The same tall oak with no blocks to climb with: it climbs with the logs it fells from the ground, and fells it all. */
+	@GameTest(maxTicks = 3000)
+	public void amethystGolemWithoutBlocksClimbsWithTheLogs(final GameTestHelper helper) {
+		LumberGolem golem = setUp(helper, ModEntities.AMETHYST_GOLEM, ModBlocks.AMETHYST_CHEST);
+		int height = 10;
+		helper.setBlock(4, 0, 4, Blocks.DIRT);
+		for (int y = 1; y <= height; y++) {
+			helper.setBlock(4, y, 4, Blocks.OAK_LOG);
+		}
+
+		give(helper, golem, new ItemStack(Items.SPYGLASS), Direction.EAST);
+		for (BlockPos leaf : List.of(new BlockPos(4, height + 1, 4), new BlockPos(3, height, 4), new BlockPos(5, height, 4))) {
+			helper.setBlock(leaf, Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.DISTANCE, 1));
+		}
+
+		give(helper, golem, new ItemStack(Items.ALLIUM), Direction.EAST);
+		double[] highest = {0.0};
+		helper.onEachTick(() -> highest[0] = Math.max(highest[0], golem.getY() - helper.absolutePos(BlockPos.ZERO).getY()));
+		helper.succeedWhen(() -> {
+			for (int y = 1; y <= height; y++) {
+				helper.assertBlockNotPresent(Blocks.OAK_LOG, 4, y, 4);
+			}
+
+			helper.assertTrue(highest[0] > 3.0, "it should have climbed on the logs");
+			helper.assertTrue(golem.getPillarHeight() == 0, "and come down");
+			helper.assertTrue(golem.isResting() && !golem.isActive(), "then rest");
+			helper.assertTrue(chest(helper).countItem(Items.OAK_LOG) == height, "with every log in the chest");
+		});
+	}
+
+	/**
+	 * The coal golem's nearest copper chest is walled in where it cannot walk. Rather than teleport in, it
+	 * gives that one up and takes the sticks to the other copper chest, further off.
+	 */
+	@GameTest(maxTicks = 2000, padding = 16)
+	public void coalGolemGivesUpOnChestItCannotWalkTo(final GameTestHelper helper) {
+		for (int x = 0; x <= 11; x++) {
+			for (int z = 0; z <= 11; z++) {
+				helper.setBlock(x, 0, z, Blocks.SMOOTH_STONE);
+			}
+		}
+
+		CoalGolem golem = setUp(helper, ModEntities.COAL_GOLEM, ModBlocks.IRON_CHEST);
+		chest(helper).setItem(0, new ItemStack(Items.STICK, 5));
+		BlockPos walledIn = new BlockPos(6, 1, 3);
+		BlockPos open = new BlockPos(2, 1, 9);
+		helper.setBlock(walledIn, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(open, Blocks.COPPER_CHEST.weathering().unaffected());
+		for (int x = 4; x <= 8; x++) {
+			for (int z = 1; z <= 5; z++) {
+				if (x == 4 || x == 8 || z == 1 || z == 5) {
+					for (int y = 1; y <= 3; y++) {
+						helper.setBlock(x, y, z, Blocks.GLASS);
+					}
+				}
+			}
+		}
+
+		give(helper, golem, new ItemStack(Items.CRIMSON_FUNGUS), Direction.EAST);
+		Vec3[] last = {golem.position()};
+		double[] longestStep = {0.0};
+		helper.onEachTick(() -> {
+			longestStep[0] = Math.max(longestStep[0], golem.position().distanceTo(last[0]));
+			last[0] = golem.position();
+		});
+		helper.succeedWhen(() -> {
+			Container openChest = (Container)helper.getLevel().getBlockEntity(helper.absolutePos(open));
+			Container walledInChest = (Container)helper.getLevel().getBlockEntity(helper.absolutePos(walledIn));
+			helper.assertTrue(openChest.countItem(Items.STICK) == 5, "the sticks should go to the chest it can walk to");
+			helper.assertTrue(walledInChest.isEmpty(), "nothing should get into the walled-in chest");
+			helper.assertTrue(golem.isUnreachable(helper.absolutePos(walledIn)), "it should remember it cannot get to the walled-in chest");
+			helper.assertTrue(longestStep[0] < 1.0, "it should never teleport, but it moved " + longestStep[0] + " in one tick");
+			helper.assertTrue(!golem.isActive(), "with nothing left to do its eyes should be off");
 		});
 	}
 

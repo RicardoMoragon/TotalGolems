@@ -155,7 +155,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 		set(server, 55, FEET, -22, "chest[facing=north,type=left]");
 		set(server, 56, FEET, -22, "chest[facing=north,type=right]");
 		stock(server, 55, FEET, -22,
-			"poppy 8", "dandelion 8", "wither_rose 2", "oxeye_daisy 4", "lily_of_the_valley 4", "blue_orchid 4", "cornflower 4", "white_tulip 4",
+			"poppy 8", "dandelion 8", "wither_rose 2", "crimson_fungus 2", "warped_fungus 2", "allium 4", "blue_orchid 4", "cornflower 4", "azure_bluet 2", "dead_bush 2",
 			"spyglass 2", "carved_pumpkin 16", "iron_block 4", "diamond_block 2", "netherite_block 2", "coal_block 2", "amethyst_block 2",
 			"hay_block 2", "bone_block 2", "iron_pickaxe 4", "iron_shovel 4", "iron_axe 2", "iron_hoe 2", "iron_sword 2", "cobblestone 64");
 		stock(server, 56, FEET, -22,
@@ -215,7 +215,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 		set(server, 54, FEET, -12, "blast_furnace[facing=south]");
 		set(server, 58, FEET, -12, "smoker[facing=south]");
 		set(server, 62, FEET, -12, "copper_chest[facing=south]");
-		sign(server, 56, FEET, -13, "Fundidor:", "margarita aqu\u00ed", "");
+		sign(server, 56, FEET, -13, "Fundidor:", "hongo aqu\u00ed", "");
 		server.runCommand("summon minecraft:copper_golem 63 " + FEET + " -14");
 		// Where the copper golem takes things: frames go on top of these in framesAndCarts.
 		for (int x : List.of(66, 68, 70, 72)) {
@@ -241,8 +241,8 @@ public class TestWorldClientTest implements FabricClientGameTest {
 		}
 
 		golem(server, 8, FEET, -18, "amethyst_block", "north");
-		stock(server, 8, FEET, -18, "iron_axe 1", "iron_axe 1", "oak_sapling 16", "birch_sapling 16", "spruce_sapling 16");
-		sign(server, 9, FEET, -17, "Le\u00f1ador:", "lirio de los valles", "catalejo = 3x3");
+		stock(server, 8, FEET, -18, "iron_axe 1", "iron_axe 1", "oak_sapling 16", "birch_sapling 16", "spruce_sapling 16", "cobblestone 64");
+		sign(server, 9, FEET, -17, "Le\u00f1ador:", "allium", "catalejo = 3x3");
 	}
 
 	/**
@@ -264,7 +264,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 		golem(server, 90, FEET, -35, "bone_block", "east");
 		stock(server, 90, FEET, -35, "iron_sword 1", "wheat 32", "carrot 8");
 		sign(server, 85, FEET, -27, "Agricultor:", "aciano dentro", "");
-		sign(server, 97, FEET, -27, "Ganadero:", "tulip\u00e1n blanco", "22 animales", "cerdo solo: no come");
+		sign(server, 97, FEET, -27, "Ganadero:", "azulina o arbusto", "22 animales", "cerdo solo: no come");
 		for (int i = 0; i < 12; i++) {
 			server.runCommand("summon cow " + (92 + i % 6 * 2) + " " + FEET + " " + (-40 + i / 6 * 3));
 		}

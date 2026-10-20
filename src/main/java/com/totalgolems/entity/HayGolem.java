@@ -114,7 +114,7 @@ public class HayGolem extends PenGolem {
 	}
 
 	private @Nullable BlockPos nearestCell(final Predicate<BlockPos> wanted) {
-		return this.pen.cells().stream().filter(wanted).min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position()))).orElse(null);
+		return this.pen.cells().stream().filter(cell -> !this.isUnreachable(cell) && wanted.test(cell)).min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position()))).orElse(null);
 	}
 
 	@Override
@@ -178,12 +178,14 @@ public class HayGolem extends PenGolem {
 					return false;
 				}
 
-				this.getLookControl().setLookAt(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-				this.setSwingingArm(this.errand != Errand.SOW);
+				// Not down at its feet: at the soil a little ahead, as a farmer with a long-handled hoe would.
+				this.getLookControl().setLookAt(pos.getX() + 0.5, pos.getY() + 0.4, pos.getZ() + 0.5);
 				if (!this.isActTick()) {
 					return false;
 				}
 
+				// Each job is one stroke of the hoe, tilling, sowing or reaping alike.
+				this.playStroke();
 				switch (this.errand) {
 					case TILL -> this.till(level, pos);
 					case SOW -> this.sow(level, pos);

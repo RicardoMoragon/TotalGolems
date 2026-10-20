@@ -1,10 +1,12 @@
 package com.totalgolems.registry;
 
 import com.totalgolems.TotalGolems;
+import com.totalgolems.block.GolemStatueBlockEntity;
 import com.totalgolems.block.MetalChestBlockEntity;
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
 public class ModBlockEntities {
@@ -21,6 +23,12 @@ public class ModBlockEntities {
 				ModBlocks.BONE_CHEST
 			)
 			.build()
+	);
+
+	public static final BlockEntityType<GolemStatueBlockEntity> GOLEM_STATUE = Registry.register(
+		BuiltInRegistries.BLOCK_ENTITY_TYPE,
+		TotalGolems.id("golem_statue"),
+		FabricBlockEntityTypeBuilder.create(GolemStatueBlockEntity::new, ModBlocks.STATUES.toArray(Block[]::new)).build()
 	);
 
 	public static void init() {
