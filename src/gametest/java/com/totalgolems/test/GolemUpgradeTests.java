@@ -195,6 +195,8 @@ public class GolemUpgradeTests {
 	public void amethystGolemWaitsAtChestUntilGivenAxe(final GameTestHelper helper) {
 		LumberGolem golem = MiningGolemTests.setUp(helper, ModEntities.AMETHYST_GOLEM, ModBlocks.AMETHYST_CHEST);
 		golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+		// Blocks to climb the tree with.
+		container(helper, CHEST).setItem(1, new ItemStack(Items.COBBLESTONE, 16));
 		// Tall enough to stand clear of the roof the test framework puts over the plot: trees are found from above.
 		int height = 10;
 		tree(helper.getLevel(), helper.absolutePos(new BlockPos(4, 1, 4)), height);

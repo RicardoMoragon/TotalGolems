@@ -62,6 +62,16 @@ public abstract class PenGolem extends WorkerGolem {
 		return true;
 	}
 
+	/** It never leaves its pen, not even by teleporting: whatever it cannot walk to it leaves alone for a while. */
+	@Override
+	protected boolean mayTeleport() {
+		return false;
+	}
+
+	/** Called when it gives up on its errand because it found no way to where it had to go. */
+	protected void onGaveUp() {
+	}
+
 	@Override
 	protected boolean isBusy() {
 		return this.hasErrand || this.fetchingTool;
@@ -137,7 +147,14 @@ public abstract class PenGolem extends WorkerGolem {
 			this.resetTravel();
 		}
 
-		if (this.hasErrand && this.work(level)) {
+		boolean done = this.hasErrand && this.work(level);
+		if (this.hasErrand && !done && this.hasGivenUp()) {
+			// No way there: the errand is dropped, and the next one will be somewhere else.
+			this.onGaveUp();
+			done = true;
+		}
+
+		if (done) {
 			this.setSwingingArm(false);
 			this.clearErrand();
 			// Straight on to the next thing, if there is one.
@@ -151,7 +168,7 @@ public abstract class PenGolem extends WorkerGolem {
 	 * with the chest out of reach, it waits at that spot with its eyes off until one turns up.
 	 */
 	private void fetchToolFromPen(final ServerLevel level) {
-		BlockPos stand = this.chestPos == null ? null : this.pen.standNear(this.chestPos, CONTAINER_REACH);
+		BlockPos stand = this.chestPos == null || this.isUnreachable(this.chestPos) ? null : this.pen.standNear(this.chestPos, CONTAINER_REACH);
 		if (stand == null) {
 			this.fetchingTool = false;
 			this.setWaitingForTool(true);
@@ -159,8 +176,12 @@ public abstract class PenGolem extends WorkerGolem {
 		}
 
 		if (!this.travelTo(level, stand, 0.8)) {
-			this.fetchingTool = true;
-			this.setWaitingForTool(false);
+			if (this.hasGivenUp()) {
+				this.markUnreachable(this.chestPos);
+			}
+
+			this.fetchingTool = !this.hasGivenUp();
+			this.setWaitingForTool(this.hasGivenUp());
 			return;
 		}
 
@@ -183,9 +204,9 @@ public abstract class PenGolem extends WorkerGolem {
 		return this.travelTo(level, spot, WORK_REACH);
 	}
 
-	/** Whether the container at {@code pos} can be used from inside the pen. */
+	/** Whether the container at {@code pos} can be used from inside the pen, and it has not lately found it out of its way. */
 	protected boolean canReach(final @Nullable BlockPos pos) {
-		return pos != null && this.pen != null && this.pen.standNear(pos, CONTAINER_REACH) != null;
+		return pos != null && !this.isUnreachable(pos) && this.pen != null && this.pen.standNear(pos, CONTAINER_REACH) != null;
 	}
 
 	/**
@@ -195,6 +216,10 @@ public abstract class PenGolem extends WorkerGolem {
 	protected @Nullable Container reachContainer(final ServerLevel level, final BlockPos pos) {
 		BlockPos stand = this.pen.standNear(pos, CONTAINER_REACH);
 		if (stand == null || !this.travelTo(level, stand, 0.8)) {
+			if (this.hasGivenUp()) {
+				this.markUnreachable(pos);
+			}
+
 			return null;
 		}
 

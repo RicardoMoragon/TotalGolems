@@ -113,7 +113,7 @@ public class BoneGolem extends PenGolem {
 	}
 
 	private <T extends Entity> @Nullable T nearest(final List<T> entities, final Predicate<T> wanted) {
-		return entities.stream().filter(wanted).min(Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
+		return entities.stream().filter(entity -> !this.isUnreachable(entity) && wanted.test(entity)).min(Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
 	}
 
 	/** Ready to breed: grown, not already in love and not resting from the last time. */
@@ -188,7 +188,7 @@ public class BoneGolem extends PenGolem {
 		// with the longest wait before it can breed again, and never one in love if another will do.
 		if (this.hasTool() && animals.size() > MAX_ANIMALS && this.tickCount >= this.nextCullTick) {
 			Animal surplus = animals.stream()
-				.filter(BoneGolem::canBeCulled)
+				.filter(animal -> canBeCulled(animal) && !this.isUnreachable(animal))
 				.min(Comparator.comparingInt((Animal animal) -> -animal.getAge())
 					.thenComparing(Animal::isInLove)
 					.thenComparingDouble(this::distanceToSqr))
@@ -199,6 +199,13 @@ public class BoneGolem extends PenGolem {
 		}
 
 		return mayStore && !this.drops.isEmpty() && this.start(Errand.STORE, null);
+	}
+
+	@Override
+	protected void onGaveUp() {
+		if (this.target != null) {
+			this.markUnreachable(this.target);
+		}
 	}
 
 	private boolean start(final Errand errand, final @Nullable Entity target) {
