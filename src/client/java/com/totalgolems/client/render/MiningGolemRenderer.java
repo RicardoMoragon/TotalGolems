@@ -2,7 +2,6 @@ package com.totalgolems.client.render;
 
 import com.totalgolems.TotalGolems;
 import com.totalgolems.entity.WorkerGolem;
-import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.block.BlockModelResolver;
 import net.minecraft.client.renderer.entity.CopperGolemRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -24,8 +23,9 @@ import org.jspecify.annotations.Nullable;
 public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRenderState, MiningGolemModel> {
 	private final BlockModelResolver blockModelResolver;
 
-	public MiningGolemRenderer(final EntityRendererProvider.Context context) {
-		super(context, new MiningGolemModel(context.bakeLayer(ModelLayers.COPPER_GOLEM)), 0.5F);
+	/** A renderer for one kind of golem, {@code golem} as in its texture names, with that golem's own model. */
+	public MiningGolemRenderer(final EntityRendererProvider.Context context, final String golem) {
+		super(context, new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem), 0.5F);
 		this.blockModelResolver = context.getBlockModelResolver();
 		this.addLayer(
 			new LivingEntityEmissiveLayer<>(
@@ -33,18 +33,18 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 				state -> TotalGolems.id("textures/entity/mining_golem/" + ((MiningGolemRenderState)state).eyesTextureId + "_golem_eyes.png"),
 				// The base texture has the eyes switched off; this layer lights them while the golem has work to do.
 				(state, ageInTicks) -> ((MiningGolemRenderState)state).active ? 1.0F : 0.0F,
-				new MiningGolemModel(context.bakeLayer(ModelLayers.COPPER_GOLEM)),
+				new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem),
 				RenderTypes::eyes,
 				false
 			)
 		);
-		// Glints on the ore and amethyst golems and embers on the coal one, lit like the eyes.
+		// Glints on the ore and amethyst golems and the coal one's glowing core, lit like the eyes.
 		this.addLayer(
 			new LivingEntityEmissiveLayer<>(
 				this,
 				MiningGolemRenderer::effectFrame,
 				(state, ageInTicks) -> effect(((MiningGolemRenderState)state).textureId) != null && !"bone".equals(((MiningGolemRenderState)state).textureId) ? 1.0F : 0.0F,
-				new MiningGolemModel(context.bakeLayer(ModelLayers.COPPER_GOLEM)),
+				new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem),
 				RenderTypes::eyes,
 				false
 			)
@@ -55,14 +55,14 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 				this,
 				MiningGolemRenderer::effectFrame,
 				(state, ageInTicks) -> "bone".equals(((MiningGolemRenderState)state).textureId) ? 1.0F : 0.0F,
-				new MiningGolemModel(context.bakeLayer(ModelLayers.COPPER_GOLEM)),
+				new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem),
 				RenderTypes::entityTranslucent,
 				false
 			)
 		);
-		// The tool of its trade, held in its right hand.
+		// The tool of its trade, held in its right hand, and the flower that switches it on.
 		this.addLayer(new ItemInHandLayer<>(this));
-		this.addLayer(new BlockDecorationLayer<>(this, state -> state.blockOnAntenna, this.model::applyBlockOnAntennaTransform));
+		this.addLayer(new BlockDecorationLayer<>(this, state -> state.blockOnAntenna, this.model::applyFlowerTransform));
 	}
 
 	/**

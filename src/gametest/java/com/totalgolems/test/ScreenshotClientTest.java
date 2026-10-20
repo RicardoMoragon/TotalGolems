@@ -110,6 +110,29 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 				context.waitTicks(2);
 				context.takeScreenshot("totalgolems_work_" + frame);
 			}
+
+			// Each golem's shape close up, three quarters from the front and from behind, in two groups.
+			String[][][] groups = {
+				{workers[0], workers[1], workers[2], workers[3]},
+				{workers[4], workers[5], {"coal_golem", null, "oxeye_daisy"}},
+			};
+			for (int g = 0; g < groups.length; g++) {
+				for (int side = 0; side < 2; side++) {
+					server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 15");
+					context.waitTicks(5);
+					server.runCommand(at + "fill ~1 ~-1 ~-6 ~8 ~3 ~6 air");
+					server.runCommand(at + "fill ~1 ~-1 ~-6 ~8 ~-1 ~6 grass_block");
+					String[][] group = groups[g];
+					for (int i = 0; i < group.length; i++) {
+						String tool = group[i][1] == null ? "" : "mainhand:{id:\"minecraft:" + group[i][1] + "\",count:1},";
+						server.runCommand(at + "summon totalgolems:" + group[i][0] + " ~2.8 ~ ~" + (-1.9 + 1.25 * i)
+							+ " {NoAI:1b,unlocked:1b,Rotation:[" + (side == 0 ? 125 : -55) + "f,0f],equipment:{" + tool + "saddle:{id:\"minecraft:" + group[i][2] + "\",count:1}}}");
+					}
+
+					context.waitTicks(40);
+					context.takeScreenshot("totalgolems_shape_" + g + (side == 0 ? "_front" : "_back"));
+				}
+			}
 		}
 	}
 

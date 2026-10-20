@@ -1,20 +1,24 @@
-"""Builds the Blockbench projects in art/ for the textures that had none: the chests and the copper golem's
-Efficiency dots, and adds any golem texture missing from mining_golem.bbmodel.
+"""Builds the Blockbench projects in art/: one per golem (golem_<name>.bbmodel) with its own shape, from
+golem_geometry.py; the copper golem's, for its Efficiency dots; and the chests'.
 
 Each texture in a project points at its file, so Ctrl+S on a texture in Blockbench saves it: the golems'
 straight into the mod, the chests' into art/textures/chest, from which make_effects.py makes the mod's
-animated ones. Run again after adding textures: python art/make_bbmodels.py
+animated ones (run it again after changing a golem's texture too, for its glints, cracks or glow). Run this
+again after adding textures or changing a shape: python art/make_bbmodels.py. A golem's shape in the game is
+in GolemModelLayers.java, which has to be changed to match.
 """
 import base64
 import copy
 import json
+import math
 import os
 import uuid
 from pathlib import Path
 
+from golem_geometry import COPPER, GOLEMS
+
 ART = Path(__file__).resolve().parent
 TEXTURES = ART.parent / 'src' / 'main' / 'resources' / 'assets' / 'totalgolems' / 'textures'
-GOLEM = ART / 'mining_golem.bbmodel'
 CHESTS = ['iron', 'diamond', 'netherite', 'amethyst', 'hay', 'bone']
 
 
@@ -27,7 +31,7 @@ def png(path):
 
 
 def texture(template, index, path, name=None, saved=True):
-    """A texture entry like those of mining_golem.bbmodel, linked to {@code path} when it is one of the mod's."""
+    """A texture entry of a project, linked to {@code path} when it is one of the mod's."""
     entry = copy.deepcopy(template)
     entry.update({
         'name': name or path.name,
@@ -52,46 +56,95 @@ def write(path, project):
     print('wrote', path.relative_to(ART.parent))
 
 
-golem = json.loads(GOLEM.read_text(encoding='utf-8'))
-template = {k: v for k, v in golem['textures'][0].items()}
+template = {
+    'namespace': 'totalgolems', 'group': '', 'scope': 0, 'width': 64, 'height': 64, 'uv_width': 64, 'uv_height': 64,
+    'particle': False, 'use_as_default': False, 'layers_enabled': False, 'sync_to_project': '', 'file_format': 'png',
+    'render_mode': 'default', 'render_sides': 'auto', 'wrap_mode': 'limited', 'pbr_channel': 'color', 'fps': 7,
+    'force_translucent': False, 'frame_time': 1, 'frame_order_type': 'loop', 'frame_order': '', 'frame_interpolate': False,
+    'visible': True, 'internal': True, 'saved': True,
+}
 
 # ------------------------------------------------------------------------------------ golems
 
-known = {t['name'] for t in golem['textures']}
-for path in sorted((TEXTURES / 'entity' / 'mining_golem').glob('*.png')):
-    if path.name not in known:
-        golem['textures'].append(texture(template, len(golem['textures']), path))
-        print('added', path.name, 'to', GOLEM.name)
-write(GOLEM, golem)
+
+def box_faces(u, v, w, h, d, mirror):
+    """The faces of a box-UV cube, as Blockbench lists them."""
+    faces = {
+        'north': [u + d, v + d, u + d + w, v + d + h],
+        'east': [u, v + d, u + d, v + d + h],
+        'south': [u + d + w + d, v + d, u + d + w + d + w, v + d + h],
+        'west': [u + d + w, v + d, u + d + w + d, v + d + h],
+        'up': [u + d + w, v + d, u + d, v],
+        'down': [u + d + w + w, v, u + d + w, v + d],
+    }
+    if mirror:
+        faces['east'], faces['west'] = faces['west'], faces['east']
+        faces = {k: [f[2], f[1], f[0], f[3]] for k, f in faces.items()}
+    return {k: {'uv': f, 'texture': 0} for k, f in faces.items()}
+
+
+def golem_project(name, parts, textures):
+    """
+    A Blockbench project of a golem built of {@code parts} (see golem_geometry.py). Blockbench has y up and the
+    golem's right at +x, the other way round from the game on both counts; it works out the game's numbers again
+    when it exports.
+    """
+    elements, groups = [], []
+
+    def add(node, parent_pivot):
+        px, py, pz = (parent_pivot[i] + node['pivot'][i] for i in range(3))
+        origin = [-px, 24 - py, pz]
+        # Turned round as the axes are (and + 0.0 so that no angle is written as -0).
+        rx, ry, rz = (round(a * 180 / math.pi, 3) + 0.0 for a in node['rotation'])
+        group = {
+            'name': node['name'], 'uuid': new_id(), 'export': True, 'locked': False, 'scope': 0, 'selected': False,
+            'visibility': True, 'origin': origin, 'rotation': [0.0 - rx, 0.0 - ry, rz], 'color': 0, 'children': [], 'reset': False,
+            'shade': True, 'mirror_uv': False, 'autouv': 0, 'isOpen': True, 'primary_selected': False,
+        }
+        groups.append(group)
+        children = []
+        for c in node['cubes']:
+            x, y, z, w, h, d = c['box']
+            element = {
+                'name': c['name'] or node['name'], 'box_uv': True, 'render_order': 'default', 'locked': False,
+                'export': True, 'scope': 0, 'allow_mirror_modeling': True, 'mirror_uv': c['mirror'],
+                'from': [-(px + x + w), 24 - (py + y + h), pz + z], 'to': [-(px + x), 24 - (py + y), pz + z + d],
+                'inflate': c['inflate'], 'autouv': 0, 'color': len(elements) % 8, 'origin': origin,
+                'uv_offset': list(c['uv']), 'faces': box_faces(*c['uv'], w, h, d, c['mirror']), 'type': 'cube', 'uuid': new_id(),
+            }
+            elements.append(element)
+            children.append(element['uuid'])
+        for child in node['children']:
+            children.append(add(child, (px, py, pz)))
+        return {'uuid': group['uuid'], 'isOpen': True, 'children': children}
+
+    # The game raises the root's parts by 24, to stand on the ground.
+    outliner = [add(node, (0, 24, 0)) for node in parts]
+    return {
+        'meta': {'format_version': '5.0', 'model_format': 'modded_entity', 'box_uv': True},
+        'name': name, 'model_identifier': name, 'modded_entity_entity_class': '', 'modded_entity_version': '1.17',
+        'modded_entity_flip_y': True, 'visible_box': [1, 1, 0], 'variable_placeholders': '', 'multi_file_ruleset': '',
+        'variable_placeholder_buttons': [], 'timeline_setups': [], 'unhandled_root_fields': {},
+        'resolution': {'width': 64, 'height': 64}, 'elements': elements, 'groups': groups, 'outliner': outliner,
+        'textures': textures,
+    }
+
+
+# One project per golem, with its own shape, its texture and its lit eyes.
+golem_textures = TEXTURES / 'entity' / 'mining_golem'
+for name, parts in GOLEMS.items():
+    paths = sorted(golem_textures.glob(f'{name}_*golem*.png'), key=lambda p: (p.name != f'{name}_golem.png', p.name))
+    write(ART / f'golem_{name}.bbmodel', golem_project(f'{name}_golem', parts, [texture(template, i, p) for i, p in enumerate(paths)]))
 
 # ------------------------------------------------------------------------------------ copper golem
 
-# The copper golem has the same body as the mod's golems, so the same cubes. The vanilla texture is there
-# to see the dots against; it is not linked to a file.
+# The copper golem with its antenna, for its Efficiency dots. The vanilla texture is there to see the dots
+# against; it is not linked to a file.
 vanilla = ART / 'reference' / 'copper_golem.png'
-copper = copy.deepcopy(golem)
-copper['name'] = copper['model_identifier'] = 'copper_golem_efficiency'
-copper['textures'] = [texture(template, 0, vanilla, 'copper_golem (vanilla, solo referencia).png', saved=False)]
+copper_textures = [texture(template, 0, vanilla, 'copper_golem (vanilla, solo referencia).png', saved=False)]
 for level in range(1, 6):
-    copper['textures'].append(texture(template, level, TEXTURES / 'entity' / 'copper_golem' / f'efficiency_{level}.png'))
-for element in copper['elements']:
-    element['uuid'] = new_id()
-uuids = {old['uuid']: new['uuid'] for old, new in zip(golem['elements'], copper['elements'])}
-groups = {}
-for group in copper['groups']:
-    groups[group['uuid']] = group['uuid'] = new_id()
-
-
-def renumber(node):
-    if isinstance(node, str):
-        return uuids[node]
-    node['uuid'] = groups[node['uuid']]
-    node['children'] = [renumber(child) for child in node['children']]
-    return node
-
-
-copper['outliner'] = [renumber(node) for node in copper['outliner']]
-write(ART / 'copper_golem_efficiency.bbmodel', copper)
+    copper_textures.append(texture(template, level, TEXTURES / 'entity' / 'copper_golem' / f'efficiency_{level}.png'))
+write(ART / 'copper_golem_efficiency.bbmodel', golem_project('copper_golem_efficiency', COPPER, copper_textures))
 
 # ------------------------------------------------------------------------------------ chests
 
