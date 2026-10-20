@@ -110,6 +110,7 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 		miningState.effectOffset = entity.getId() * 7;
 		miningState.swingTicks = entity.tickCount - entity.getSwingStartTick() + partialTicks;
 		miningState.swingLength = miningState.mining ? -1.0F : entity.getSwingStopTick() - entity.getSwingStartTick();
+		miningState.swingCycle = entity.getSwingCycleTicks();
 		miningState.waveTicks = GolemGreeting.waveTicks(entity, partialTicks);
 		miningState.age = entity.getWeatherState().ordinal();
 		ItemStack flower = entity.getItemBySlot(WorkerGolem.FLOWER_SLOT);

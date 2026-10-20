@@ -20,6 +20,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.util.Mth;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -76,6 +77,8 @@ public abstract class WorkerGolem extends AbstractGolem {
 	/** {@link #nextWeatheringTick} of a waxed golem, which never weathers; and of one whose next stage is not drawn yet. */
 	private static final long WAXED = -2L;
 	private static final long UNSET = -1L;
+	/** The entity event of a single stroke of the tool, clear of vanilla's and of the greeting's. */
+	private static final byte STROKE_EVENT = 91;
 	protected static final double CHEST_REACH = 2.3;
 	protected static final int TRANSFER_INTERVAL = 10;
 	private static final int CHEST_SEARCH_RADIUS = 8;
@@ -164,13 +167,56 @@ public abstract class WorkerGolem extends AbstractGolem {
 		return this.swingStopTick;
 	}
 
+	/** How many ticks one blow of its tool takes, for the animation; 0 for a golem with no tool to swing. */
+	public int getSwingCycleTicks() {
+		return switch (this.getTextureId()) {
+			case "iron", "amethyst" -> 20;
+			case "diamond", "hay", "bone" -> 16;
+			case "netherite" -> 13;
+			default -> 0;
+		};
+	}
+
+	/**
+	 * Client side: whether a blow it started is still being played out. A blow is always shown whole, so one that
+	 * starts before the last has ended carries on from it instead of cutting it short.
+	 */
+	private boolean isMidBlow() {
+		int cycle = this.getSwingCycleTicks();
+		if (cycle <= 0) {
+			return false;
+		}
+
+		int blows = Math.max(1, Mth.ceil((float)(this.swingStopTick - this.swingStartTick) / cycle));
+		return this.swingStopTick >= this.swingStartTick && this.tickCount < this.swingStartTick + blows * cycle;
+	}
+
+	/** One stroke of its tool, for a job done in one go (tilling, sowing, reaping): shown as one whole blow. */
+	protected void playStroke() {
+		this.level().broadcastEntityEvent(this, STROKE_EVENT);
+	}
+
+	@Override
+	public void handleEntityEvent(final byte id) {
+		if (id == STROKE_EVENT) {
+			if (!this.isSwingingArm() && !this.isMidBlow()) {
+				this.swingStartTick = this.tickCount;
+				this.swingStopTick = this.tickCount;
+			}
+		} else {
+			super.handleEntityEvent(id);
+		}
+	}
+
 	@Override
 	public void tick() {
 		super.tick();
 		if (this.level().isClientSide()) {
 			boolean swinging = this.isSwingingArm();
 			if (swinging && !this.wasSwinging) {
-				this.swingStartTick = this.tickCount;
+				if (!this.isMidBlow()) {
+					this.swingStartTick = this.tickCount;
+				}
 			} else if (!swinging && this.wasSwinging) {
 				this.swingStopTick = this.tickCount;
 			}

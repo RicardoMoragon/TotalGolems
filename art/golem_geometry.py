@@ -47,24 +47,24 @@ GOLEMS = {
     'diamond': [
         part('body', (0, -5, 0), [
             cube((0, 16), (-5, -7, -3.5, 10, 7, 7), name='body'),
-            cube((14, 41), (-3, -6, 3.5, 5, 4, 1), name='back_lump'),
+            cube((14, 41), (-2.5, -6, 3.5, 5, 4, 1), inflate=0.05, name='back_lump'),
         ], [
             part('head', (0, -7, 0), [
                 cube((0, 0), (-4.5, -5, -5, 9, 5, 10), inflate=0.015, name='head'),
                 cube((56, 0), (-1, -2, -6, 2, 3, 2), name='nose'),
-                cube((0, 41), (0.5, -6, -3, 3, 1, 4), name='head_lump'),
+                cube((0, 41), (-1.5, -6, -3, 3, 1, 4), inflate=0.05, name='head_lump'),
             ]),
             part('right_arm', (-5, -7, 0), [
                 cube((38, 0), (-4, -1, -2.5, 4, 10, 5), name='right_arm'),
-                cube((40, 31), (-4.5, -2, -3, 5, 2, 6), name='right_shoulder'),
+                cube((40, 31), (-4.5, -2, -3, 5, 2, 6), inflate=0.05, name='right_shoulder'),
             ]),
             part('left_arm', (5, -7, 0), [
-                cube((34, 16), (0, -1, -2.5, 4, 10, 5), name='left_arm'),
-                cube((40, 31), (-0.5, -2, -3, 5, 2, 6), mirror=True, name='left_shoulder'),
+                cube((38, 0), (0, -1, -2.5, 4, 10, 5), mirror=True, name='left_arm'),
+                cube((40, 31), (-0.5, -2, -3, 5, 2, 6), mirror=True, inflate=0.05, name='left_shoulder'),
             ]),
         ]),
         part('right_leg', (0, -5, 0), [cube((0, 31), (-5, 0, -2.5, 5, 5, 5), name='right_leg')]),
-        part('left_leg', (0, -5, 0), [cube((20, 31), (0, 0, -2.5, 5, 5, 5), name='left_leg')]),
+        part('left_leg', (0, -5, 0), [cube((0, 31), (0, 0, -2.5, 5, 5, 5), mirror=True, name='left_leg')]),
     ],
     # Forged like armour: plated shoulders, a crest along the head and a belt.
     'netherite': base(
@@ -72,11 +72,11 @@ GOLEMS = {
         body=[cube((0, 46), (-4.5, -1.5, -3.5, 9, 2, 7), name='belt')],
         right_arm=[
             cube((36, 16), (-3, -1, -2, 3, 10, 4), name='right_arm'),
-            cube((0, 36), (-4, -2, -3, 5, 3, 6), name='right_pauldron'),
+            cube((0, 36), (-4, -2, -3, 5, 3, 6), inflate=0.05, name='right_pauldron'),
         ],
         left_arm=[
             cube((50, 16), (0, -1, -2, 3, 10, 4), name='left_arm'),
-            cube((0, 36), (-1, -2, -3, 5, 3, 6), mirror=True, name='left_pauldron'),
+            cube((0, 36), (-1, -2, -3, 5, 3, 6), mirror=True, inflate=0.05, name='left_pauldron'),
         ],
     ),
     # Little amethyst crystals growing out of its head and arms.
@@ -103,7 +103,7 @@ GOLEMS = {
         ]),
     ]),
     # A ribcage, see-through between the ribs (in the texture), with its spine inside.
-    'bone': base(body=[cube((28, 15), (-1, -6, 1, 2, 6, 2), name='spine')]),
+    'bone': base(body=[cube((28, 15), (-1, -6, 1, 2, 6, 2), inflate=-0.1, name='spine')]),
     # A shell with holes in it and a glowing core inside each part.
     'coal': base(
         head=[cube((20, 36), (-3, -4, -4, 6, 3, 8), name='head_core')],

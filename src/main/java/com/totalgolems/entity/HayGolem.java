@@ -178,12 +178,14 @@ public class HayGolem extends PenGolem {
 					return false;
 				}
 
-				this.getLookControl().setLookAt(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-				this.setSwingingArm(this.errand != Errand.SOW);
+				// Not down at its feet: at the soil a little ahead, as a farmer with a long-handled hoe would.
+				this.getLookControl().setLookAt(pos.getX() + 0.5, pos.getY() + 0.4, pos.getZ() + 0.5);
 				if (!this.isActTick()) {
 					return false;
 				}
 
+				// Each job is one stroke of the hoe, tilling, sowing or reaping alike.
+				this.playStroke();
 				switch (this.errand) {
 					case TILL -> this.till(level, pos);
 					case SOW -> this.sow(level, pos);

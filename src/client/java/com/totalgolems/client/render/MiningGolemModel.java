@@ -67,7 +67,7 @@ public class MiningGolemModel extends CopperGolemModel {
 			this.rightArm.xRot -= 0.35F;
 		}
 
-		float cycle = cycleTicks(golem.textureId);
+		float cycle = golem.swingCycle;
 		float swing = golem.swingTicks;
 		boolean finishing = golem.swingLength >= 0.0F && swing < Math.max(1.0F, Mth.ceil(golem.swingLength / cycle)) * cycle;
 		if (cycle > 0.0F && (golem.mining || finishing)) {
@@ -87,18 +87,6 @@ public class MiningGolemModel extends CopperGolemModel {
 
 		// A greeting, with the hand that holds no tool.
 		GolemWave.apply(this.leftArm, golem.waveTicks, true);
-	}
-
-	/** How many ticks one blow takes, or 0 for a golem with no tool to swing. */
-	private static float cycleTicks(final String golem) {
-		return switch (golem) {
-			case "iron" -> 20.0F;
-			case "diamond" -> 16.0F;
-			case "netherite" -> 13.0F;
-			case "amethyst" -> 20.0F;
-			case "hay", "bone" -> 16.0F;
-			default -> 0.0F;
-		};
 	}
 
 	/** Eased from 0 to 1 as {@code t} goes from {@code from} to {@code to}. */
@@ -134,11 +122,12 @@ public class MiningGolemModel extends CopperGolemModel {
 		this.head.yRot -= this.body.yRot * 0.5F;
 	}
 
-	/** Bent over the field: the hoe lifted and struck down into the soil, the other arm hanging low. */
+	/** Leaning over the field: the hoe lifted and struck down into the soil, the other arm hanging low. */
 	private void hoe(final float t) {
 		float lift = ease(t, 0.0F, 0.5F) - ease(t, 0.5F, 0.65F);
-		this.body.xRot = 0.45F;
-		this.head.xRot += 0.25F;
+		// Leaning in a little, the head kept up so that it looks at the soil ahead and not at its feet.
+		this.body.xRot = 0.25F;
+		this.head.xRot -= 0.15F;
 		this.rightArm.xRot = Mth.lerp(lift, -0.3F, -2.4F);
 		this.rightArm.yRot = 0.0F;
 		this.rightArm.zRot = 0.0F;
@@ -205,24 +194,50 @@ public class MiningGolemModel extends CopperGolemModel {
 	}
 
 	/**
-	 * Where the flower goes, for the layer that draws it with its top at the origin: on top of the head,
-	 * leaning a little, away from whatever else grows there; on the farmer, stuck in its hat band.
+	 * Where the flower goes, for the layer that draws it with its top at the origin: somewhere of its own on
+	 * each golem, from the farmer's hat band to the bone golem's ribcage.
 	 */
 	public void applyFlowerTransform(final PoseStack poseStack) {
 		this.root().translateAndRotate(poseStack);
 		this.body.translateAndRotate(poseStack);
-		this.head.translateAndRotate(poseStack);
-		if (this.hat != null) {
-			this.hat.translateAndRotate(poseStack);
-			flower(poseStack, 3.0F, -1.0F, 0.5F, 25.0F, 0.55F);
-		} else {
-			switch (this.golem) {
-				case "diamond" -> flower(poseStack, -2.5F, -5.0F, 1.0F, -12.0F, 0.7F);
-				case "amethyst" -> flower(poseStack, -1.5F, -5.0F, 2.5F, -10.0F, 0.7F);
-				default -> flower(poseStack, 2.5F, -5.0F, 1.5F, 12.0F, 0.7F);
+		switch (this.golem) {
+			case "hay" -> {
+				this.head.translateAndRotate(poseStack);
+				if (this.hat != null) {
+					this.hat.translateAndRotate(poseStack);
+				}
+
+				flower(poseStack, 3.0F, -1.0F, 0.5F, 25.0F, 0.55F);
+			}
+			case "iron" -> {
+				// Behind its ear, sticking out sideways.
+				this.head.translateAndRotate(poseStack);
+				flower(poseStack, 4.0F, -3.0F, 2.0F, -60.0F, 0.6F);
+			}
+			case "diamond" -> {
+				// Planted on top of its right shoulder.
+				this.rightArm.translateAndRotate(poseStack);
+				flower(poseStack, -2.0F, -2.0F, 0.0F, 10.0F, 0.6F);
+			}
+			case "netherite" -> {
+				// Tucked into its belt, at the front.
+				flower(poseStack, -2.5F, -0.5F, -3.6F, 8.0F, 0.55F);
+			}
+			case "bone" -> {
+				// Growing inside its ribcage, seen between the ribs.
+				flower(poseStack, 1.0F, -0.5F, 0.0F, 0.0F, 0.55F);
+			}
+			case "amethyst" -> {
+				this.head.translateAndRotate(poseStack);
+				flower(poseStack, -1.5F, -5.0F, 2.5F, -10.0F, 0.7F);
+			}
+			default -> {
+				this.head.translateAndRotate(poseStack);
+				flower(poseStack, 2.5F, -5.0F, 1.5F, 12.0F, 0.7F);
 			}
 		}
 	}
+
 
 	/** Moves to {@code x, y, z} (in pixels), leans {@code lean} degrees to the side and shrinks to {@code scale}. */
 	private static void flower(final PoseStack poseStack, final float x, final float y, final float z, final float lean, final float scale) {

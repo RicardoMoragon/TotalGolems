@@ -26,6 +26,11 @@ import net.minecraft.client.model.geom.builders.PartDefinition;
  * art/golem_geometry.py has the same shapes, for the Blockbench projects.
  */
 public final class GolemModelLayers {
+	/**
+	 * Lumps, plates and pads sit a hair proud of what they are on, so that no face of theirs lies in the same plane
+	 * as another's and flickers with it.
+	 */
+	private static final CubeDeformation LUMP = new CubeDeformation(0.05F);
 	public static final List<String> GOLEMS = List.of("iron", "diamond", "netherite", "amethyst", "hay", "bone", "coal");
 
 	private GolemModelLayers() {
@@ -48,8 +53,8 @@ public final class GolemModelLayers {
 			case "netherite" -> {
 				Parts parts = base(
 					root,
-					arm(true).texOffs(0, 36).addBox(-4.0F, -2.0F, -3.0F, 5.0F, 3.0F, 6.0F),
-					arm(false).texOffs(0, 36).mirror().addBox(-1.0F, -2.0F, -3.0F, 5.0F, 3.0F, 6.0F)
+					arm(true).texOffs(0, 36).addBox(-4.0F, -2.0F, -3.0F, 5.0F, 3.0F, 6.0F, LUMP),
+					arm(false).texOffs(0, 36).mirror().addBox(-1.0F, -2.0F, -3.0F, 5.0F, 3.0F, 6.0F, LUMP)
 				);
 				parts.body.addOrReplaceChild("belt", CubeListBuilder.create().texOffs(0, 46).addBox(-4.5F, -1.5F, -3.5F, 9.0F, 2.0F, 7.0F), PartPose.ZERO);
 				parts.head.addOrReplaceChild("crest", CubeListBuilder.create().texOffs(22, 36).addBox(-0.5F, -7.0F, -4.0F, 1.0F, 2.0F, 8.0F), PartPose.ZERO);
@@ -76,7 +81,7 @@ public final class GolemModelLayers {
 			}
 			case "bone" -> {
 				Parts parts = base(root, arm(true), arm(false));
-				parts.body.addOrReplaceChild("spine", CubeListBuilder.create().texOffs(28, 15).addBox(-1.0F, -6.0F, 1.0F, 2.0F, 6.0F, 2.0F), PartPose.ZERO);
+				parts.body.addOrReplaceChild("spine", CubeListBuilder.create().texOffs(28, 15).addBox(-1.0F, -6.0F, 1.0F, 2.0F, 6.0F, 2.0F, new CubeDeformation(-0.1F)), PartPose.ZERO);
 			}
 			case "coal" -> {
 				Parts parts = base(
@@ -134,7 +139,7 @@ public final class GolemModelLayers {
 			"body",
 			CubeListBuilder.create()
 				.texOffs(0, 16).addBox(-5.0F, -7.0F, -3.5F, 10.0F, 7.0F, 7.0F)
-				.texOffs(14, 41).addBox(-3.0F, -6.0F, 3.5F, 5.0F, 4.0F, 1.0F),
+				.texOffs(14, 41).addBox(-2.5F, -6.0F, 3.5F, 5.0F, 4.0F, 1.0F, LUMP),
 			PartPose.offset(0.0F, -5.0F, 0.0F)
 		);
 		body.addOrReplaceChild(
@@ -142,28 +147,28 @@ public final class GolemModelLayers {
 			CubeListBuilder.create()
 				.texOffs(0, 0).addBox(-4.5F, -5.0F, -5.0F, 9.0F, 5.0F, 10.0F, new CubeDeformation(0.015F))
 				.texOffs(56, 0).addBox(-1.0F, -2.0F, -6.0F, 2.0F, 3.0F, 2.0F)
-				.texOffs(0, 41).addBox(0.5F, -6.0F, -3.0F, 3.0F, 1.0F, 4.0F),
+				.texOffs(0, 41).addBox(-1.5F, -6.0F, -3.0F, 3.0F, 1.0F, 4.0F, LUMP),
 			PartPose.offset(0.0F, -7.0F, 0.0F)
 		);
 		body.addOrReplaceChild(
 			"right_arm",
 			CubeListBuilder.create()
 				.texOffs(38, 0).addBox(-4.0F, -1.0F, -2.5F, 4.0F, 10.0F, 5.0F)
-				.texOffs(40, 31).addBox(-4.5F, -2.0F, -3.0F, 5.0F, 2.0F, 6.0F),
+				.texOffs(40, 31).addBox(-4.5F, -2.0F, -3.0F, 5.0F, 2.0F, 6.0F, LUMP),
 			PartPose.offset(-5.0F, -7.0F, 0.0F)
 		);
 		body.addOrReplaceChild(
 			"left_arm",
 			CubeListBuilder.create()
-				.texOffs(34, 16).addBox(0.0F, -1.0F, -2.5F, 4.0F, 10.0F, 5.0F)
-				.texOffs(40, 31).mirror().addBox(-0.5F, -2.0F, -3.0F, 5.0F, 2.0F, 6.0F),
+				.texOffs(38, 0).mirror().addBox(0.0F, -1.0F, -2.5F, 4.0F, 10.0F, 5.0F)
+				.texOffs(40, 31).addBox(-0.5F, -2.0F, -3.0F, 5.0F, 2.0F, 6.0F, LUMP),
 			PartPose.offset(5.0F, -7.0F, 0.0F)
 		);
 		root.addOrReplaceChild(
 			"right_leg", CubeListBuilder.create().texOffs(0, 31).addBox(-5.0F, 0.0F, -2.5F, 5.0F, 5.0F, 5.0F), PartPose.offset(0.0F, -5.0F, 0.0F)
 		);
 		root.addOrReplaceChild(
-			"left_leg", CubeListBuilder.create().texOffs(20, 31).addBox(0.0F, 0.0F, -2.5F, 5.0F, 5.0F, 5.0F), PartPose.offset(0.0F, -5.0F, 0.0F)
+			"left_leg", CubeListBuilder.create().texOffs(0, 31).mirror().addBox(0.0F, 0.0F, -2.5F, 5.0F, 5.0F, 5.0F), PartPose.offset(0.0F, -5.0F, 0.0F)
 		);
 	}
 
