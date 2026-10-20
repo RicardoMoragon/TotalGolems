@@ -11,4 +11,10 @@ public class MiningGolemRenderState extends CopperGolemRenderState {
 	/** Lights the eyes. */
 	public boolean active;
 	public boolean mining;
+	/** Shifts its animated textures along, so that golems side by side do not glint in step. */
+	public int effectOffset;
+	/** Ticks since it started swinging its tool. */
+	public float swingTicks;
+	/** How long it swung for, once it has stopped; negative while it is still swinging. */
+	public float swingLength = -1.0F;
 }

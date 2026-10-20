@@ -13,7 +13,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -230,11 +229,6 @@ public class QuarryPlan {
 	/** Whether {@code pos} is in this quarry's chunk and no higher than where it was started. */
 	public boolean isInsidePit(final BlockPos pos) {
 		return this.contains(pos) && pos.getY() <= this.topY;
-	}
-
-	/** The whole pit, dug or not: the chunk from the layer being worked on up to the top of the first one. */
-	public BoundingBox pit() {
-		return new BoundingBox(this.minX, this.layerFeetY(), this.minZ, this.minX + SIZE - 1, this.topY + this.height - 1, this.minZ + SIZE - 1);
 	}
 
 	public int layerFeetY() {

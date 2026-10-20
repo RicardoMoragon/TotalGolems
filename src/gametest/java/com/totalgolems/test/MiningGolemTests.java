@@ -400,6 +400,41 @@ public class MiningGolemTests {
 	}
 
 	/**
+	 * A golem with no pickaxe goes to its chest for one, and takes the shovel there too. Through dirt and
+	 * gravel it digs with the shovel, so that is what wears, and the pickaxe is as good as new.
+	 */
+	@GameTest(maxTicks = 1200)
+	public void minerTakesAShovelAndDigsDirtAndGravelWithIt(final GameTestHelper helper) {
+		MiningGolem golem = setUp(helper, ModEntities.IRON_MINING_GOLEM, ModBlocks.IRON_CHEST);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+		chest(helper).setItem(0, new ItemStack(Items.IRON_PICKAXE));
+		chest(helper).setItem(1, new ItemStack(Items.IRON_SHOVEL));
+		for (int x = 2; x <= 5; x++) {
+			helper.setBlock(x, 1, 3, Blocks.DIRT);
+			helper.setBlock(x, 2, 3, Blocks.GRAVEL);
+		}
+
+		stopper(helper, 6);
+		walls(helper, 3, 0, 7);
+		give(helper, golem, new ItemStack(Items.POPPY), Direction.EAST);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(golem.isHalted(), "it should have dug through to the bedrock");
+			helper.assertTrue(golem.getShovel().is(Items.IRON_SHOVEL) && golem.getShovel().getDamageValue() > 0, "the shovel should have done the digging");
+			helper.assertTrue(golem.getTool().is(Items.IRON_PICKAXE) && golem.getTool().getDamageValue() == 0, "the pickaxe should not have been used");
+		});
+	}
+
+	/** A poppy's mine ends at the edge of its three by three chunks, but a vein of ore across that edge is still followed a little way. */
+	@GameTest
+	public void poppyFollowsOreALittleWayPastTheEdgeOfItsMine(final GameTestHelper helper) {
+		StripPlan plan = StripPlan.create(new BlockPos(8, 40, 8), Direction.EAST, GolemTier.IRON);
+		helper.assertTrue(!plan.contains(new BlockPos(32, 40, 8)), "the mine itself ends at the edge of the chunks around");
+		helper.assertTrue(plan.reachesForOre(new BlockPos(32 + StripPlan.ORE_MARGIN - 1, 40, 8)), "ore just past the edge should still be dug");
+		helper.assertTrue(!plan.reachesForOre(new BlockPos(32 + StripPlan.ORE_MARGIN, 40, 8)), "but not far beyond it");
+		helper.succeed();
+	}
+
+	/**
 	 * These quarry a real chunk, so they are padded well away from the other tests. The chunk gets a slab
 	 * of stone with the chest and the golem on top, inside the chunk.
 	 */
@@ -789,8 +824,8 @@ public class MiningGolemTests {
 	}
 
 	/**
-	 * A quarry with a big pocket of water in the layer it digs, and more in the floor under it, and no sponge
-	 * golem to call. The golem gets the layer dug, and never goes up and down on the spot over and over.
+	 * A quarry with a big pocket of water in the layer it digs, and more in the floor under it. The golem
+	 * gets the layer dug, and never goes up and down on the spot over and over.
 	 */
 	@GameTest(maxTicks = 8000, padding = 24)
 	public void quarryGolemInWaterNeverBobsUpAndDownInPlace(final GameTestHelper helper) {

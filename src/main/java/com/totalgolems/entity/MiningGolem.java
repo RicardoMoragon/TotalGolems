@@ -26,7 +26,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
@@ -37,6 +36,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.animal.golem.AbstractGolem;
 import net.minecraft.world.entity.player.Player;
@@ -57,7 +57,6 @@ import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -76,8 +75,7 @@ import org.jspecify.annotations.Nullable;
  * has cleared and that has a floor, laying a block from its inventory where the floor is missing.
  * <p>
  * It digs with the pickaxe it takes from its chest, at that pickaxe's speed and with its
- * enchantments, and uses it on everything. When five seconds in water show that the diggings are
- * flooded, it goes home and has the sponge golem next door (see {@link SpongeGolem}) dry them out.
+ * enchantments, and uses it on everything.
  */
 public class MiningGolem extends WorkerGolem {
 	private static final EntityDataAccessor<Boolean> DATA_MINING = SynchedEntityData.defineId(MiningGolem.class, EntityDataSerializers.BOOLEAN);
@@ -91,8 +89,6 @@ public class MiningGolem extends WorkerGolem {
 	public static final double MAX_HEALTH = 60.0;
 	/** What unlocks a netherite golem. */
 	public static final Item UNLOCK_FLOWER = Items.WITHER_ROSE;
-	/** Five seconds standing in water and it calls for the sponge golem. */
-	private static final int WATER_TICKS_BEFORE_ALERT = 100;
 	private static final int STEP_TICKS_BEFORE_TELEPORT = 100;
 	/** How far away another golem can be and still be asked which chunk it is quarrying. */
 	private static final double CLAIM_SEARCH_RANGE = 96.0;
@@ -164,24 +160,20 @@ public class MiningGolem extends WorkerGolem {
 	private @Nullable BlockPos blockSource;
 	/** How many times it has gone back over a finished layer because water was still showing in it. */
 	private int dryPasses;
-	/** Whether a sponge golem is linked to its chest, which makes the water in a quarry the sponge golem's job. */
-	private boolean spongeLinked;
-	private int nextSpongeCheck;
 	/** The last tick it broke a block or got to a new cell; see {@link #checkProgress}. */
 	private int lastProgressTick;
 	/** The last few cells it has been in, to tell getting somewhere from going round in circles. */
 	private final java.util.ArrayDeque<BlockPos> recentCells = new java.util.ArrayDeque<>();
 	private int timesStuck;
-	/** Standing at its chest with nothing it can do: no pickaxe, or the sponge golem still drying the diggings. */
+	/** Standing at its chest with nothing it can do: no pickaxe, say. */
 	private boolean waiting;
-	private boolean waitingForDrain;
-	private int waterTicks;
 
 	public MiningGolem(final EntityType<? extends AbstractGolem> type, final Level level, final GolemTier tier) {
 		super(type, level);
 		this.tier = tier;
 		this.inventory = new SimpleContainer(tier.inventorySlots());
 		this.unlocked = !tier.startsLocked();
+		this.setDropChance(EquipmentSlot.OFFHAND, 0.0F);
 	}
 
 	public static AttributeSupplier.Builder createAttributes(final GolemTier tier) {
@@ -218,11 +210,6 @@ public class MiningGolem extends WorkerGolem {
 
 	public boolean isUnlocked() {
 		return this.unlocked;
-	}
-
-	/** At home until the sponge golem has dried out where it was digging. */
-	public boolean isWaitingForDrain() {
-		return this.waitingForDrain;
 	}
 
 	@Override
@@ -404,8 +391,6 @@ public class MiningGolem extends WorkerGolem {
 
 	private void stopWaiting() {
 		this.waiting = false;
-		this.waitingForDrain = false;
-		this.waterTicks = 0;
 		this.setWaitingForTool(false);
 	}
 
@@ -448,6 +433,24 @@ public class MiningGolem extends WorkerGolem {
 	// ------------------------------------------------------------------------------------ pickaxe
 
 	/**
+	 * The shovel it may carry in its other hand. It is not needed, but what a shovel digs faster than the
+	 * pickaxe (dirt, gravel, sand) it digs with that, at that shovel's speed and with its enchantments.
+	 */
+	public ItemStack getShovel() {
+		return this.getOffhandItem();
+	}
+
+	/** Takes a shovel out of {@code chest} if it has none. */
+	private void takeShovel(final Container chest) {
+		for (int slot = 0; !this.getShovel().is(ItemTags.SHOVELS) && slot < chest.getContainerSize(); slot++) {
+			if (chest.getItem(slot).is(ItemTags.SHOVELS)) {
+				this.setItemSlot(EquipmentSlot.OFFHAND, chest.removeItem(slot, 1));
+				chest.setChanged();
+			}
+		}
+	}
+
+	/**
 	 * How fast the pickaxe gets through {@code state}: what a player holding it would manage, Efficiency
 	 * included, and no better than a bare hand on what a pickaxe is not meant for.
 	 */
@@ -468,34 +471,6 @@ public class MiningGolem extends WorkerGolem {
 		return speed;
 	}
 
-	// ------------------------------------------------------------------------------------ water
-
-	/** Counts how long it has been standing in water and, at five seconds, has the sponge golem called out. */
-	private void tickWater(final ServerLevel level) {
-		this.waterTicks = this.isInWater() ? this.waterTicks + 1 : 0;
-		if (this.waterTicks < WATER_TICKS_BEFORE_ALERT) {
-			return;
-		}
-
-		// With no sponge golem to call it carries on as best it can, and looks again in another five seconds.
-		this.waterTicks = 0;
-		SpongeGolem sponge = this.chestPos == null ? null : SpongeGolem.linkedTo(level, this.chestPos);
-		if (sponge != null && sponge.requestDrain(this.feetPos(), this.diggings())) {
-			this.waitingForDrain = true;
-			this.beginDeposit(level);
-		}
-	}
-
-	/** Everything it is digging out: the pit of its quarry, or the area of its strip mine. */
-	private BoundingBox diggings() {
-		return this.strip != null ? this.strip.area() : this.quarry.pit();
-	}
-
-	/** Called by the sponge golem when no water is left. */
-	public void drainFinished() {
-		this.waitingForDrain = false;
-	}
-
 	// ------------------------------------------------------------------------------------ behaviour
 
 	@Override
@@ -508,10 +483,6 @@ public class MiningGolem extends WorkerGolem {
 		// Nothing can be dug without a pickaxe: home for one.
 		if (!this.depositing && this.isWorking() && !this.hasTool()) {
 			this.beginDeposit(level);
-		}
-
-		if (this.isWorking() && !this.depositing) {
-			this.tickWater(level);
 		}
 
 		if (this.depositing) {
@@ -621,16 +592,15 @@ public class MiningGolem extends WorkerGolem {
 			return;
 		}
 
-		// So does one without a pickaxe, with its eyes off until somebody puts one in.
+		// So does one without a pickaxe, with its eyes off until somebody puts one in. A shovel it takes if
+		// there is one, but never waits for.
 		boolean lacksTool = this.isWorking() && !this.hasTool() && !this.takeTool(chest);
 		this.setWaitingForTool(lacksTool);
-		if (this.waitingForDrain) {
-			// The sponge golem says when it is done; should it be gone, there is nothing to wait for either.
-			SpongeGolem sponge = SpongeGolem.linkedTo(level, this.chestPos);
-			this.waitingForDrain = sponge != null && sponge.isDraining();
+		if (this.isWorking()) {
+			this.takeShovel(chest);
 		}
 
-		this.waiting = lacksTool || this.waitingForDrain;
+		this.waiting = lacksTool;
 		if (this.waiting) {
 			return;
 		}
@@ -755,11 +725,6 @@ public class MiningGolem extends WorkerGolem {
 	}
 
 	private void tickWork(final ServerLevel level) {
-		if (this.tickCount >= this.nextSpongeCheck) {
-			this.spongeLinked = this.chestPos != null && SpongeGolem.linkedTo(level, this.chestPos) != null;
-			this.nextSpongeCheck = this.tickCount + SEAL_SCAN_INTERVAL;
-		}
-
 		if (this.returning && this.anchor != null && this.cellAt(this.anchor.getY()).equals(this.anchor) && this.digDownTo(level, this.anchor.getY(), this::mayDigUnderfoot)) {
 			// Right over the spot it is heading back to, with something in the way: gravel that fell in on it, say.
 			this.setMining(true);
@@ -965,7 +930,8 @@ public class MiningGolem extends WorkerGolem {
 	/**
 	 * Mines out every vein of ore it sees from where it stands, to the last block, nearest first: ore it can
 	 * see within {@value #VEIN_REACH} blocks, and all the ore connected to that, however far it goes on, as
-	 * long as it is inside the area of the mine. Returns true while there is ore to mine.
+	 * long as it is no further outside the area of the mine than {@link StripPlan#ORE_MARGIN}: ore at the edge
+	 * of the area is not left half dug. Returns true while there is ore to mine.
 	 */
 	private boolean mineVein(final ServerLevel level, final StripPlan plan) {
 		if (this.tickCount < this.nextVeinScan) {
@@ -996,7 +962,7 @@ public class MiningGolem extends WorkerGolem {
 		this.vein.removeIf(pos -> !isOre(level, pos));
 		if (this.vein.isEmpty()) {
 			for (BlockPos pos : BlockPos.betweenClosed(centre.offset(-reach, -reach, -reach), centre.offset(reach, reach, reach))) {
-				if (pos.distToCenterSqr(eye) <= VEIN_REACH * VEIN_REACH && plan.contains(pos) && !pos.equals(underfoot) && isOre(level, pos) && this.canSee(level, eye, pos)) {
+				if (pos.distToCenterSqr(eye) <= VEIN_REACH * VEIN_REACH && plan.reachesForOre(pos) && !pos.equals(underfoot) && isOre(level, pos) && this.canSee(level, eye, pos)) {
 					this.followVein(level, plan, pos.immutable());
 				}
 			}
@@ -1022,7 +988,7 @@ public class MiningGolem extends WorkerGolem {
 
 	/**
 	 * Adds the whole vein that {@code start} belongs to: every block of ore touching it, edges and corners
-	 * included, and every block touching those, within the area of the mine.
+	 * included, and every block touching those, within reach of the area of the mine.
 	 */
 	private void followVein(final ServerLevel level, final StripPlan plan, final BlockPos start) {
 		ArrayDeque<BlockPos> queue = new ArrayDeque<>(List.of(start));
@@ -1034,7 +1000,7 @@ public class MiningGolem extends WorkerGolem {
 			}
 
 			for (BlockPos near : BlockPos.betweenClosed(pos.offset(-1, -1, -1), pos.offset(1, 1, 1))) {
-				if (plan.contains(near) && !this.vein.contains(near) && isOre(level, near)) {
+				if (plan.reachesForOre(near) && !this.vein.contains(near) && isOre(level, near)) {
 					BlockPos found = near.immutable();
 					this.vein.add(found);
 					queue.add(found);
@@ -1321,9 +1287,7 @@ public class MiningGolem extends WorkerGolem {
 	 * like any other. Next to what it digs, anything running in from beyond its diggings (roof, walls, the
 	 * floor of the cell it is going into) is walled off for good where it comes in; inside a quarry's layer,
 	 * so are the sources. Without its sources the rest of the water drains away by itself. Water and lava
-	 * already inside its tunnels are left alone. While a sponge golem is linked to its chest the water is
-	 * the sponge golem's job: all of it in a quarry, and what is in the way of a tunnel, though not what
-	 * would run into it from outside. It goes from the top down, with the blocks it carries.
+	 * already inside its tunnels are left alone. It goes from the top down, with the blocks it carries.
 	 * <p>
 	 * A quarrying golem only puts blocks within {@value #SEAL_REACH} blocks of itself, and short of blocks it
 	 * digs one out of its layer, where there is no water left, before it goes to its chest for more. A
@@ -1361,7 +1325,6 @@ public class MiningGolem extends WorkerGolem {
 		// Never on top of itself, or of anyone else.
 		List<BlockPos> seal = found.stream()
 			.filter(pos -> !quarrying || pos.distToCenterSqr(from) <= SEAL_REACH * SEAL_REACH)
-			.filter(pos -> !this.spongeLinked || !level.getFluidState(pos).is(FluidTags.WATER) || !quarrying && !inSlice.contains(pos))
 			.filter(pos -> level.isUnobstructed(Blocks.STONE.defaultBlockState(), pos, CollisionContext.empty()))
 			.sorted(Comparator.comparingInt((BlockPos pos) -> -pos.getY()).thenComparingDouble(pos -> pos.distToCenterSqr(from)))
 			.toList();
@@ -1536,7 +1499,10 @@ public class MiningGolem extends WorkerGolem {
 				this.breaking.put(pos, progress);
 			}
 
-			ItemStack tool = this.getTool();
+			ItemStack pickaxe = this.getTool();
+			ItemStack shovel = this.getShovel();
+			boolean shovelling = shovel.is(ItemTags.SHOVELS) && this.diggingSpeed(shovel, state) > this.diggingSpeed(pickaxe, state);
+			ItemStack tool = shovelling ? shovel : pickaxe;
 			boolean dropsLoot = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
 			float hardness = state.getDestroySpeed(level, pos);
 			// Same formula a player digs with: tool speed over hardness, far slower with the wrong tool.
@@ -1568,9 +1534,17 @@ public class MiningGolem extends WorkerGolem {
 				}
 			}
 
-			// The pickaxe wears as it does in a player's hand: not at all on what breaks at a touch.
+			// The tool wears as it does in a player's hand: not at all on what breaks at a touch.
 			Tool wear = tool.get(DataComponents.TOOL);
-			this.wearTool(hardness == 0.0F || this.isSpared(state) ? 0 : wear != null ? wear.damagePerBlock() : 1);
+			int damage = wear != null ? wear.damagePerBlock() : 1;
+			if (shovelling) {
+				if (hardness != 0.0F) {
+					shovel.hurtAndBreak(damage, this, EquipmentSlot.OFFHAND);
+				}
+			} else {
+				this.wearTool(hardness == 0.0F || this.isSpared(state) ? 0 : damage);
+			}
+
 			if (!this.hasTool()) {
 				// It broke. Whatever else was being dug is left as it is.
 				this.clearBreaking(level);
@@ -1675,7 +1649,6 @@ public class MiningGolem extends WorkerGolem {
 		output.putBoolean("needs_blocks", this.needsBlocks);
 		output.putBoolean("halted", this.halted);
 		output.putBoolean("unlocked", this.unlocked);
-		output.putBoolean("waiting_for_drain", this.waitingForDrain);
 		this.inventory.storeAsItemList(output.list("inventory", ItemStack.CODEC));
 		ValueOutput.TypedOutputList<ItemStack> overflowList = output.list("overflow", ItemStack.CODEC);
 		this.overflow.forEach(overflowList::add);
@@ -1697,7 +1670,6 @@ public class MiningGolem extends WorkerGolem {
 		this.halted = input.getBooleanOr("halted", false);
 		// One already wearing a pattern flower was at work before the lock existed, and stays as it was.
 		this.unlocked = !this.tier.startsLocked() || input.getBooleanOr("unlocked", false) || isPatternFlower(this.getItemBySlot(FLOWER_SLOT));
-		this.waitingForDrain = input.getBooleanOr("waiting_for_drain", false);
 		this.inventory.fromItemList(input.listOrEmpty("inventory", ItemStack.CODEC));
 		this.overflow.clear();
 		input.listOrEmpty("overflow", ItemStack.CODEC).forEach(this.overflow::add);
@@ -1709,6 +1681,8 @@ public class MiningGolem extends WorkerGolem {
 		this.inventory.removeAllItems().forEach(stack -> this.spawnAtLocation(level, stack));
 		this.overflow.forEach(stack -> this.spawnAtLocation(level, stack));
 		this.overflow.clear();
+		this.spawnAtLocation(level, this.getShovel());
+		this.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
 	}
 
 	@Override

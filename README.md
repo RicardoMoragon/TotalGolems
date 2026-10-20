@@ -7,7 +7,6 @@ Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con 
 | Hierro, diamante, netherita | Minero | Amapola o diente de león | Pico | Hace minas en tiras o canteras y lo lleva a su cofre |
 | Carbón | Fundidor | Margarita (oxeye daisy) | — | Vacía los cofres de los demás: funde lo fundible y lleva el resto a un cofre de cobre |
 | Amatista | Leñador | Lirio de los valles | Hacha | Tala y replanta los árboles de su chunk (3x3 chunks con un catalejo) |
-| Esponja | Drenador | Orquídea azul | — | Seca el agua cercana con esponjas, o la que inunda a un minero |
 | Heno | Agricultor | Aciano (cornflower) | Azada | Ara, siembra y cosecha el campo vallado en el que está |
 | Hueso | Ganadero | Tulipán blanco | Espada | Alimenta, cría y sacrifica los animales de su recinto |
 
@@ -53,9 +52,13 @@ Los tres tienen **60 de vida** y pican cada bloque a la velocidad del pico, sin 
 cuántos bloques trabajan a la vez. Más bloques a la vez es más rápido, y gasta el pico igual de rápido.
 
 El material del gólem ya no decide con qué pica: **pica con el pico que lleva**, a la velocidad de ese pico y con sus
-encantamientos (**Eficiencia**, **Fortuna**, **Toque de seda**, Irrompibilidad...). Usa el pico para todos los bloques,
-así que la tierra o la arena le cuestan lo mismo que a ti con un pico en la mano, y un pico demasiado flojo para un
+encantamientos (**Eficiencia**, **Fortuna**, **Toque de seda**, Irrompibilidad...). Un pico demasiado flojo para un
 mineral lo rompe despacio y sin soltar nada. Los libros encantados ya no se le dan al gólem: encanta el pico.
+
+**Pala (opcional):** si hay una **pala** en su cofre, la coge al pasar por él y la lleva en la otra mano. Con ella pica
+**la tierra, la grava, la arena** y todo lo que una pala rompe más rápido que su pico, a la velocidad de esa pala y con
+sus encantamientos, y es la pala la que se gasta. Sin pala lo pica todo con el pico, como antes. Nunca espera por una
+pala: si se le rompe, sigue con el pico hasta que vuelva al cofre y haya otra.
 
 El gólem de **netherita** recién creado **no acepta amapola ni diente de león**. Dale primero una **rosa de Wither**: se
 gasta y lo desbloquea para siempre. Después elige patrón con amapola o diente de león como los demás.
@@ -85,8 +88,8 @@ grava), así siempre puede volver a quitarlos.
   - El de **hierro** pica túneles de 1x2, así que hace un ramal cada 4 bloques. Los de **diamante y netherita** pican de
     3x3, y hacen un ramal cada 6.
   - **Vetas:** si ve mineral en las paredes, el techo o el suelo (a menos de 5 bloques), se para y pica **la veta entera,
-    hasta el último bloque**: todo el mineral que toca a ese, aunque siga lejos del túnel o detrás de la piedra, mientras
-    esté dentro de su zona. Luego sigue con su ruta. Un mineral suelto que no ve, tapado por piedra, se queda donde está.
+    hasta el último bloque**: todo el mineral que toca a ese, aunque siga lejos del túnel o detrás de la piedra. Una veta
+    que cruza el borde de su zona la sigue hasta **8 bloques más allá**, para no dejar menas a medias. Luego sigue con su ruta. Un mineral suelto que no ve, tapado por piedra, se queda donde está.
   - **Agua y lava:** si ve agua o lava, la tapa con bloques para que no le corte el camino (ver *Agua*).
   - **Obstáculos:** si algo que no puede romper le corta un túnel (roca madre, un cofre, un generador...), ese túnel acaba
     ahí y pasa al siguiente. Si es el principal el que está cortado, se salta los ramales que hay más allá.
@@ -138,56 +141,39 @@ encuentra, como haría un jugador:
     queda agua), y si no, el más cercano que no tenga una fuente al lado. Si está lejos, va hasta él. Solo si en la capa
     no queda ninguno vuelve al cofre a por más. Solo coge bloques a los que puede llegar: al alcance, o con una casilla al
     lado en la que pueda estar.
-  - La **lava** la tapa siempre antes de picar el bloque de al lado. El **agua**, si hay un gólem de esponja vinculado a su
-    cofre, se la deja a él (ver más abajo).
+  - La **lava** la tapa siempre antes de picar el bloque de al lado.
 - En una **mina en tiras**, antes de romper cada bloque mira lo que hay alrededor del hueco que va a abrir: el techo, las
   paredes y el suelo de la casilla a la que va a entrar. Si hay agua o lava (fuente o corriente), la tapa primero con un
   bloque y luego rompe. Lo mismo al sacar mineral de una veta. También tapa las fuentes que hay en el bloque que va a
-  picar, salvo el agua cuando hay un gólem de esponja vinculado. El agua o la lava que ya está dentro de sus túneles no
-  la toca: eso es trabajo de la esponja.
+  picar. El agua o la lava que ya está dentro de sus túneles no la toca.
 - Sin fuentes, el agua que quedaba se va sola.
 - Para esto usa los bloques de construcción que lleva encima. En una mina en tiras, si no le quedan, **no rompe el
   bloque**: vuelve al cofre a por más y, si en el cofre tampoco hay, espera allí.
 
-Si aun así se queda dentro del agua y hay un **gólem de esponja con su cofre pegado al cofre del minero**, trabajan juntos:
-
-1. Cuando el minero pasa **5 segundos seguidos dentro del agua**, deja de picar, vuelve a su cofre y avisa a la esponja.
-2. El gólem de esponja va al punto donde el minero encontró el agua y quita **toda el agua, fuentes y corrientes**, de la
-   zona de trabajo del minero: el chunk entero si hace cantera, y los 3x3 chunks a la altura de sus túneles si hace mina en
-   tiras.
-3. Cuando no queda agua, avisa al minero y vuelve a su cofre. El minero **reanuda el trabajo donde lo dejó**.
-
-Los gólems flotan: en agua profunda el minero sigue trabajando aunque flote por encima de la altura de su capa, en vez
-de intentar volver una y otra vez al sitio en el que ya está.
-
-Si la esponja se queda sin esponjas secas a medias, el minero sigue esperando hasta que haya más. Sin gólem de esponja
-vinculado (o si no lleva su flor), el minero sigue picando dentro del agua.
+Si aun así se queda dentro del agua, sigue picando. Los gólems flotan: en agua profunda el minero sigue trabajando
+aunque flote por encima de la altura de su capa, en vez de intentar volver una y otra vez al sitio en el que ya está.
 
 ## Gólem de carbón (fundidor)
 
 Calabaza sobre un **bloque de carbón**. No genera cofre: el bloque se consume. Se activa con una **margarita** y trabaja en
 un radio de 16 bloques alrededor del punto donde se la des.
 
-- Coge **cualquier objeto** de los cofres de **hierro, diamante, netherita, esponja y hueso**. Lleva 9 huecos para los
+- Coge **cualquier objeto** de los cofres de **hierro, diamante, netherita y hueso**. Lleva 9 huecos para los
   hornos, 9 de carbón y 9 para lo que va al cofre de cobre.
-- Lo **fundible** lo lleva a un horno: **minerales** (menas y metal en bruto), **carne y pescado crudos**, **patatas** y
-  **esponjas mojadas**. El carbón y el carbón vegetal los usa de combustible.
+- Lo **fundible** lo lleva a un horno: **minerales** (menas y metal en bruto), **carne y pescado crudos** y **patatas**.
+  El carbón y el carbón vegetal los usa de combustible.
 - **Todo lo demás** lo lleva directamente al **cofre de cobre** más cercano (tienes que colocarlo tú).
 - **Nunca coge lo que necesita el dueño del cofre:**
-  - los **picos** de los cofres de minero y las **espadas** de los cofres de hueso;
+  - los **picos** y las **palas** de los cofres de minero y las **espadas** de los cofres de hueso;
   - en cofres de minero, **128 bloques** de los que el minero usa para construir, lo que llena sus 2 huecos de reserva (se
     lleva solo lo que pase de ahí);
-  - en cofres de esponja, las **esponjas secas** y el **carbón** de la hoguera;
   - en cofres de hueso, la **comida que come algún animal del recinto** de ese gólem de hueso, salvo las patatas.
 - Atiende hasta **5 hornos**, los más cercanos, contando juntos hornos normales, altos hornos y ahumadores.
   - Los minerales van a **altos hornos** y la comida a **ahumadores** si tiene alguno asignado; si no, a hornos normales.
-  - Las esponjas van siempre a hornos normales.
 - Pone la carga arriba y el carbón abajo. Reparte la carga a partes iguales entre los hornos que la admiten, y el carbón
   también cuando no hay suficiente para todos.
-- Lleva lo que sale de los hornos al cofre de cobre, salvo las **esponjas secas, que devuelve a un cofre de esponja**.
+- Lleva lo que sale de los hornos al cofre de cobre.
 - Solo recoge algo si tiene dónde dejarlo: un horno del tipo adecuado libre, o sitio en un cofre de cobre.
-- **Hogueras.** A cada cofre de esponja que tenga una **hoguera encendida pegada** le mantiene **8 de carbón**, que saca
-  de los cofres de los mineros. Es lo que quema el gólem de esponja para secar sus esponjas (ver más abajo).
 
 ## Gólem de cobre (el de siempre): marcos, vagonetas y Eficiencia
 
@@ -256,36 +242,6 @@ Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa c
 - **Se queda parado junto al cofre, con los ojos apagados**, si el cofre está lleno o si ya no quedan árboles en la zona.
   Cada 30 segundos vuelve a mirar si ha crecido alguno.
 
-## Gólem de esponja (drenador)
-
-Calabaza sobre una **esponja seca**; deja un cofre de esponja. Se activa con una **orquídea azul** y trabaja en un radio de
-16 bloques alrededor de su cofre.
-
-- Coge esponjas secas de su cofre (6 huecos de secas y 6 de mojadas) y va al agua más cercana.
-- En cada absorción coloca una esponja, deja que absorba y la recoge mojada: quita exactamente el agua que quitaría una
-  esponja puesta a mano (hasta 6 bloques de distancia y 64 bloques de agua).
-- Trabaja **de arriba abajo**: solo coloca esponjas en la capa de agua más alta de su zona (o de la zona del minero
-  cuando drena para uno) y no baja a la siguiente hasta que en esa no queda agua, ni fuentes ni corrientes.
-- Dentro de esa capa elige el punto desde el que una esponja quitaría más agua, descontando un poco por la distancia, y
-  la coloca desde tierra firme cuando puede. Los sitios donde ya queda poca agua los deja para el final.
-- Antes de dar una capa por seca espera un par de segundos, por si el agua vuelve a entrar.
-- **Agua que no se acaba.** Si tras 3 esponjas seguidas el agua de la capa no ha bajado (porque entra desde fuera de su
-  zona), da el trabajo por imposible: vuelve a su cofre, se queda parado con los ojos apagados y lo vuelve a intentar a
-  los 30 segundos. Si estaba drenando para un minero, le avisa de que ha terminado para que no espere para siempre.
-- Cuando se queda sin secas vuelve al cofre, deja las mojadas y coge más. Si no hay secas, se queda parado junto a él.
-- El gólem de carbón seca las mojadas y las devuelve al cofre, así que con hornos y carbón el ciclo se mantiene solo.
-- **Hoguera.** Si hay una hoguera encendida pegada al cofre de esponja y **carbón en el cofre**, el gólem que vuelve con
-  esponjas mojadas gasta **1 de carbón** (o carbón vegetal), espera **30 segundos** delante de ella y todas las que lleva
-  pasan a secas de golpe. Sin carbón en el cofre la hoguera no sirve y deja las mojadas en el cofre, como siempre. El
-  carbón lo repone el gólem de carbón, o lo pones tú.
-- **Trabaja desde tierra firme cuando puede.** Si el punto donde va la esponja se alcanza desde un bloque seco (a menos
-  de unos 3 bloques), la coloca desde ahí y no se mete en el agua.
-- Si no, **flota** y coloca las esponjas desde la superficie, bajando con el agua que quita. Las corrientes no lo
-  arrastran. Si acaba en el fondo de un hoyo sin camino de vuelta, **se teletransporta a su cofre esté a la distancia
-  que esté**: es el único gólem que puede hacerlo.
-- **Con un minero.** Si su cofre de esponja está pegado a un cofre de hierro, diamante o netherita, queda al servicio de
-  ese minero: no busca agua por su cuenta y espera junto a su cofre a que el minero lo avise (ver *Agua* en los mineros).
-
 ## Gólems de granja: el recinto vallado
 
 Los gólems de heno y de hueso trabajan en el **recinto vallado en el que están** cuando reciben la flor: todo lo que se
@@ -314,8 +270,12 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
   (ver Herramientas), y la gasta un punto por cada animal que sacrifica. Saqueo en la espada da más botín.
 - **Aspecto ígneo no hace nada**: la carne sale siempre cruda, y la cocina el gólem de carbón.
 - **Alimenta** a los animales adultos del recinto con la comida de su especie, que coge de su cofre, para que críen.
-  Solo coge comida que coma algún animal del recinto.
-- Con **20 animales o menos nunca mata**. Con más, mata adultos hasta volver a 20. Las crías cuentan para el total pero
+  Solo coge comida que coma algún animal del recinto que tenga pareja.
+- **Solo da de comer a un animal si tiene con quién criar**: otro de su especie que ya esté enamorado, o que también esté
+  listo para criar y para el que lleve comida (le hacen falta 2 de comida para una pareja). Así no gasta comida en un
+  animal que se queda sin cría.
+- Con **20 animales o menos nunca mata**. Con más, mata adultos hasta volver a 20: primero el que **más le falta para
+  poder volver a criar**, y nunca uno enamorado si hay otro. Las crías cuentan para el total pero
   nunca se matan, y tampoco las mascotas ni los animales con nombre. Entre un sacrificio y el siguiente espera 10
   segundos, para dar tiempo a que el rebaño críe. Los animales que acaban encima de la valla también cuentan.
 - **Recoge lo que hay en el suelo** del recinto y lo deja en su cofre.
@@ -327,8 +287,7 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 - Es inmune al fuego y no se ahoga.
 - Solo se mueve en chunks cargados, como cualquier otra criatura.
 - Si lleva diez segundos sin poder moverse hacia donde va, se teletransporta a su destino, siempre que esté a **16
-  bloques o menos**. Más lejos se queda donde está y lo sigue intentando a pie. La excepción es el gólem de esponja al
-  volver a su cofre.
+  bloques o menos**. Más lejos se queda donde está y lo sigue intentando a pie.
 - Un minero nunca se teletransporta por debajo de la altura a la que trabaja (su capa, sus túneles o, bajando la
   escalera, el peldaño al que va), ni a una casilla con agua o lava, ni a una sin suelo firme. Si no hay ningún sitio
   así, no se teletransporta.
@@ -338,7 +297,7 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
   cercana en la que se pueda estar; si no, vuelve al cofre y empieza de nuevo desde ahí. Si le pasa 3 veces seguidas sin
   romper un solo bloque entre medias, lo deja y espera en el cofre a que le des otra flor.
 - Los cofres también se fabrican: un cofre rodeado de 8 lingotes de hierro, diamantes, lingotes de netherita, fragmentos
-  de amatista, esponjas, trigo o huesos. Se unen en cofres dobles.
+  de amatista, trigo o huesos. Se unen en cofres dobles.
 - Un gólem invocado con `/summon` adopta el cofre de gólem más cercano (8 bloques) al recibir la flor.
 - La forma de gólem de hierro de siempre (la T de cuatro bloques) sigue creando el gólem de hierro normal.
 

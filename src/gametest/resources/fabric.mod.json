@@ -12,7 +12,8 @@
 			"com.totalgolems.test.CopperGolemTests"
 		],
 		"fabric-client-gametest": [
-			"com.totalgolems.test.ScreenshotClientTest"
+			"com.totalgolems.test.ScreenshotClientTest",
+			"com.totalgolems.test.TestWorldClientTest"
 		]
 	},
 	"depends": {

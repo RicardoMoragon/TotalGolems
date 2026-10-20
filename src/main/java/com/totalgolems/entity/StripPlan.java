@@ -6,7 +6,6 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -24,6 +23,8 @@ import org.jspecify.annotations.Nullable;
 public class StripPlan {
 	/** Blocks left standing between two branches. */
 	public static final int GAP = 3;
+	/** How far past the edge of the area it still goes after a vein of ore. */
+	public static final int ORE_MARGIN = 8;
 
 	private final BlockPos origin;
 	private final Direction forward;
@@ -219,6 +220,11 @@ public class StripPlan {
 		return pos.getX() >= this.minX && pos.getX() <= this.maxX && pos.getZ() >= this.minZ && pos.getZ() <= this.maxZ;
 	}
 
+	/** Whether {@code pos} is close enough to the area to go after ore there: within {@value #ORE_MARGIN} blocks of it. */
+	public boolean reachesForOre(final BlockPos pos) {
+		return pos.getX() >= this.minX - ORE_MARGIN && pos.getX() <= this.maxX + ORE_MARGIN && pos.getZ() >= this.minZ - ORE_MARGIN && pos.getZ() <= this.maxZ + ORE_MARGIN;
+	}
+
 	/** Whether {@code pos} is in one of the tunnels of the plan, dug or yet to be. */
 	public boolean isInDiggings(final BlockPos pos) {
 		if (!this.contains(pos) || pos.getY() < this.y() || pos.getY() >= this.y() + this.height) {
@@ -232,11 +238,6 @@ public class StripPlan {
 		int offset = Math.floorMod(this.along(pos) - this.along(this.origin), this.pitch);
 		int branch = this.along(pos) - (offset <= this.radius ? offset : offset - this.pitch);
 		return Math.min(offset, this.pitch - offset) <= this.radius && branch >= this.minBranch && branch <= this.maxBranch;
-	}
-
-	/** Everything the golem may dig: the three by three chunks at the height of its tunnels. */
-	public BoundingBox area() {
-		return new BoundingBox(this.minX, this.y(), this.minZ, this.maxX, this.y() + this.height - 1, this.maxZ);
 	}
 
 	/** What the golem digs to step into {@code next} going in {@code direction}: the tunnel's cross-section, top first, within the area. */

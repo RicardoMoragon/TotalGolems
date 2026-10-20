@@ -17,7 +17,6 @@ public class ModBlockEntities {
 				ModBlocks.DIAMOND_CHEST,
 				ModBlocks.NETHERITE_CHEST,
 				ModBlocks.AMETHYST_CHEST,
-				ModBlocks.SPONGE_CHEST,
 				ModBlocks.HAY_CHEST,
 				ModBlocks.BONE_CHEST
 			)

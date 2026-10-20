@@ -67,6 +67,10 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private @Nullable BlockPos travelTarget;
 	private double closestTravelDistance;
 	private int secondsWithoutProgress;
+	/** Client side: when it last started and stopped swinging its tool, so that each swing is shown whole. */
+	private int swingStartTick = -1000;
+	private int swingStopTick = -1000;
+	private boolean wasSwinging;
 
 	protected WorkerGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
@@ -107,6 +111,31 @@ public abstract class WorkerGolem extends AbstractGolem {
 	/** Whether the golem is hitting something, for the arm swing. */
 	public boolean isSwingingArm() {
 		return this.entityData.get(DATA_SWINGING);
+	}
+
+	/** The tick it last started swinging its tool, on the client. */
+	public int getSwingStartTick() {
+		return this.swingStartTick;
+	}
+
+	/** The tick it last stopped swinging its tool, on the client. */
+	public int getSwingStopTick() {
+		return this.swingStopTick;
+	}
+
+	@Override
+	public void tick() {
+		super.tick();
+		if (this.level().isClientSide()) {
+			boolean swinging = this.isSwingingArm();
+			if (swinging && !this.wasSwinging) {
+				this.swingStartTick = this.tickCount;
+			} else if (!swinging && this.wasSwinging) {
+				this.swingStopTick = this.tickCount;
+			}
+
+			this.wasSwinging = swinging;
+		}
 	}
 
 	protected void setSwingingArm(final boolean swinging) {
