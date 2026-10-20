@@ -13,7 +13,6 @@ import com.totalgolems.entity.BoneGolem;
 import com.totalgolems.entity.CoalGolem;
 import com.totalgolems.entity.LumberGolem;
 import com.totalgolems.entity.MiningGolem;
-import com.totalgolems.entity.SpongeGolem;
 import com.totalgolems.registry.ModBlocks;
 import com.totalgolems.registry.ModEntities;
 import java.util.List;
@@ -47,8 +46,8 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Tools that wear out, the netherite golem's lock, chests joined into one, the miner and the sponge
- * golem working together, the coal golem clearing out chests, item frames as a filter for the copper
+ * Tools that wear out, the netherite golem's lock, chests joined into one, miners in water, the coal
+ * golem clearing out chests, item frames as a filter for the copper
  * golem, and the amethyst golem's spyglass.
  */
 public class GolemUpgradeTests {
@@ -290,278 +289,33 @@ public class GolemUpgradeTests {
 
 	// ------------------------------------------------------------------------------------ water
 
-	/**
-	 * A tunnel in a channel one block deep, so that the water stays in it. Two blocks of glass in, the golem
-	 * breaks into a pocket of water and then meets obsidian, slow enough to keep it standing there. Glass
-	 * leaves it nothing to wall the water off with, so it must go home, the sponge golem next door must dry
-	 * the tunnel, and then the miner must finish it.
-	 */
-	@GameTest(maxTicks = 4000, padding = 16)
-	public void minerCallsSpongeGolemToDrainFloodedTunnel(final GameTestHelper helper) {
-		BlockPos spongeChest = CHEST.south();
-		MiningGolem miner = miner(helper, GolemTier.IRON, CHEST, new ItemStack(Items.DIAMOND_PICKAXE));
-		helper.setBlock(spongeChest, ModBlocks.SPONGE_CHEST);
-		container(helper, spongeChest).setItem(0, new ItemStack(Items.SPONGE, 2));
-		for (int x = 1; x <= 6; x++) {
-			helper.setBlock(x, 1, 2, Blocks.STONE);
-			helper.setBlock(x, 1, 4, Blocks.STONE);
-		}
-
-		helper.setBlock(2, 1, 3, Blocks.GLASS);
-		helper.setBlock(3, 1, 3, Blocks.GLASS);
-		helper.setBlock(4, 1, 3, Blocks.WATER);
-		helper.setBlock(5, 1, 3, Blocks.WATER);
-		helper.setBlock(6, 1, 3, Blocks.OBSIDIAN);
-		helper.setBlock(6, 2, 3, Blocks.OBSIDIAN);
-		stopper(helper, 7);
-		SpongeGolem sponge = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 5));
-		sponge.setChestPos(helper.absolutePos(spongeChest));
-		FarmGolemTests.give(helper, sponge, Items.BLUE_ORCHID);
-		MiningGolemTests.walls(helper, 3, 2, 7);
-		give(helper, miner, new ItemStack(Items.POPPY), Direction.EAST);
-		helper.assertTrue(sponge.isLinked(helper.getLevel()), "chests side by side should link the two golems");
-
-		boolean[] waited = {false};
-		boolean[] dugWhileWaiting = {false};
-		helper.onEachTick(() -> {
-			waited[0] |= miner.isWaitingForDrain();
-			dugWhileWaiting[0] |= miner.isWaitingForDrain() && miner.isMining();
-		});
-		helper.succeedWhen(() -> {
-			helper.assertTrue(waited[0], "the miner should have gone home to wait for the tunnel to be drained");
-			helper.assertTrue(!dugWhileWaiting[0], "and should not have dug while it waited");
-			for (int x = 1; x <= 6; x++) {
-				helper.assertTrue(helper.getBlockState(new BlockPos(x, 1, 3)).getFluidState().isEmpty(), "water left in the tunnel at " + x);
-			}
-
-			// Then the miner went back and dug the obsidian that the water was in front of.
-			helper.assertBlockPresent(Blocks.AIR, 6, 1, 3);
-			helper.assertBlockPresent(Blocks.AIR, 6, 2, 3);
-			helper.assertTrue(miner.isHalted() && !miner.isWaitingForDrain(), "the miner should have finished the tunnel");
-			helper.assertContainerContains(CHEST, Items.OBSIDIAN);
-			helper.assertContainerContains(spongeChest, Items.WET_SPONGE);
-			helper.assertTrue(!sponge.isDraining() && !sponge.isActive(), "the sponge golem should be back at rest");
-		});
-	}
-
-	/**
-	 * A pool six by six and three deep, more than one sponge can take. Built in the air, clear of other
-	 * tests' water. No sponge may go into a layer while there is still water above it.
-	 */
-	@GameTest(maxTicks = 3000, padding = 24)
-	public void spongeGolemDrainsFromTheTopLayerDown(final GameTestHelper helper) {
-		ServerLevel level = helper.getLevel();
-		BlockPos base = helper.absolutePos(BlockPos.ZERO).above(16);
-		for (int x = 0; x <= 8; x++) {
-			for (int z = 0; z <= 8; z++) {
-				for (int y = -3; y <= 0; y++) {
-					boolean pool = x >= 2 && x <= 7 && z >= 2 && z <= 7 && y >= -2;
-					level.setBlockAndUpdate(base.offset(x, y, z), (pool ? Blocks.WATER : Blocks.STONE).defaultBlockState());
-				}
-			}
-		}
-
-		BlockPos chestPos = base.offset(0, 1, 4);
-		level.setBlockAndUpdate(chestPos, ModBlocks.SPONGE_CHEST.defaultBlockState());
-		((Container)level.getBlockEntity(chestPos)).setItem(0, new ItemStack(Items.SPONGE, 8));
-		SpongeGolem golem = ModEntities.SPONGE_GOLEM.create(level, EntitySpawnReason.COMMAND);
-		golem.snapTo(Vec3.atBottomCenterOf(base.offset(1, 1, 4)));
-		level.addFreshEntity(golem);
-		golem.setChestPos(chestPos);
-		FarmGolemTests.give(helper, golem, Items.BLUE_ORCHID);
-		int[] topWater = {Integer.MIN_VALUE};
-		int[] seen = {0};
-		String[] tooDeep = {null};
-		helper.onEachTick(() -> {
-			// The water the golem saw when it chose where to put the sponge is what was there at the end of the last tick.
-			if (golem.countSpongesPlaced() > seen[0]) {
-				seen[0] = golem.countSpongesPlaced();
-				if (golem.lastSponge().getY() < topWater[0]) {
-					tooDeep[0] = "a sponge went in at " + golem.lastSponge() + " with water still at height " + topWater[0];
-				}
-			}
-
-			topWater[0] = Integer.MIN_VALUE;
-			for (BlockPos pos : BlockPos.betweenClosed(base.offset(2, -2, 2), base.offset(7, 0, 7))) {
-				if (!level.getFluidState(pos).isEmpty()) {
-					topWater[0] = Math.max(topWater[0], pos.getY());
-				}
-			}
-		});
-		helper.succeedWhen(() -> {
-			helper.assertTrue(tooDeep[0] == null, String.valueOf(tooDeep[0]));
-			helper.assertTrue(topWater[0] == Integer.MIN_VALUE, "water left in the pool");
-			helper.assertTrue(golem.countSpongesPlaced() >= 2, "a pool this size takes more than one sponge");
-			helper.assertTrue(!golem.isActive(), "with no water left it should be idle");
-			golem.discard();
-		});
-	}
-
-	/**
-	 * A sponge golem drying a miner's diggings that end in a channel of water running on beyond them,
-	 * fed by a source too far down it for any sponge to reach. The water keeps coming back, so it gives up.
-	 */
-	@GameTest(maxTicks = 3000, padding = 24)
-	public void spongeGolemGivesUpOnWaterFedFromOutsideItsArea(final GameTestHelper helper) {
-		ServerLevel level = helper.getLevel();
-		BlockPos base = helper.absolutePos(BlockPos.ZERO).above(16);
-		for (int x = -2; x <= 14; x++) {
-			for (int z = 0; z <= 4; z++) {
-				level.setBlockAndUpdate(base.offset(x, -1, z), Blocks.STONE.defaultBlockState());
-				boolean channel = z == 2 && x >= 0 && x <= 9;
-				level.setBlockAndUpdate(base.offset(x, 0, z), (channel ? Blocks.WATER : Blocks.STONE).defaultBlockState());
-			}
-		}
-
-		BlockPos spongeChest = base.offset(1, 1, 0);
-		BlockPos minerChest = base.offset(2, 1, 0);
-		level.setBlockAndUpdate(spongeChest, ModBlocks.SPONGE_CHEST.defaultBlockState());
-		level.setBlockAndUpdate(minerChest, ModBlocks.IRON_CHEST.defaultBlockState());
-		((Container)level.getBlockEntity(spongeChest)).setItem(0, new ItemStack(Items.SPONGE, 8));
-		SpongeGolem golem = ModEntities.SPONGE_GOLEM.create(level, EntitySpawnReason.COMMAND);
-		golem.snapTo(Vec3.atBottomCenterOf(base.offset(1, 1, 1)));
-		level.addFreshEntity(golem);
-		golem.setChestPos(spongeChest);
-		FarmGolemTests.give(helper, golem, Items.BLUE_ORCHID);
-		// The miner's part: the first three blocks of the channel are its tunnel.
-		helper.assertTrue(golem.requestDrain(base.offset(1, 0, 2), BoundingBox.fromCorners(base.offset(0, 0, 2), base.offset(2, 0, 2))), "the job should be taken");
-		helper.succeedWhen(() -> {
-			helper.assertTrue(golem.isResting() && !golem.isDraining(), "it should have given up and let the miner go");
-			// The first ones lower the water for good; then three in a row leave it as it was, and that is enough.
-			int placed = golem.countSpongesPlaced();
-			helper.assertTrue(placed > SpongeGolem.FRUITLESS_SPONGES_BEFORE_GIVING_UP && placed <= SpongeGolem.FRUITLESS_SPONGES_BEFORE_GIVING_UP + 3, "it should give up after a few sponges, not " + placed);
-			helper.assertTrue(golem.position().distanceTo(Vec3.atCenterOf(spongeChest)) < 3.5 && !golem.isActive(), "it waits by its chest with its eyes off");
-			helper.assertTrue(level.getBlockState(base.offset(9, 0, 2)).is(Blocks.WATER), "the source is out of its reach and still there");
-			golem.discard();
-		});
-	}
-
+	/** A glass tank four blocks deep: the miner stays on the bottom, where it works, and currents push no miner along. */
 	@GameTest(maxTicks = 300, padding = 16)
-	public void spongeGolemLinkedToMinerWaitsToBeCalled(final GameTestHelper helper) {
-		BlockPos spongeChest = CHEST.south();
+	public void minersStayOnTheBottomAndCurrentsDoNotPushThem(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
-		helper.setBlock(CHEST, ModBlocks.DIAMOND_CHEST);
-		helper.setBlock(spongeChest, ModBlocks.SPONGE_CHEST);
-		container(helper, spongeChest).setItem(0, new ItemStack(Items.SPONGE, 2));
-		// Water it would go for at once if it were working on its own.
-		helper.setBlock(5, 0, 5, Blocks.WATER);
-		helper.setBlock(5, 0, 6, Blocks.WATER);
-		SpongeGolem golem = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 5));
-		golem.setChestPos(helper.absolutePos(spongeChest));
-		FarmGolemTests.give(helper, golem, Items.BLUE_ORCHID);
-		helper.runAtTickTime(250, () -> {
-			helper.assertTrue(golem.isLinked(helper.getLevel()), "its chest touches a miner's chest");
-			helper.assertBlockPresent(Blocks.WATER, 5, 0, 5);
-			helper.assertBlockPresent(Blocks.WATER, 5, 0, 6);
-			helper.assertTrue(!golem.isActive() && golem.countDrySponges() == 0, "it should not even have taken sponges out");
-			helper.assertTrue(golem.position().distanceTo(Vec3.atCenterOf(helper.absolutePos(spongeChest))) < 3.5, "it waits by its chest");
-			helper.succeed();
-		});
-	}
-
-	/** Two glass tanks four blocks deep: the sponge golem comes up to the top of its own, the miner stays at the bottom. */
-	@GameTest(maxTicks = 300, padding = 16)
-	public void spongeGolemFloatsAndCurrentsPushNeitherItNorMiners(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		for (BlockPos tank : List.of(new BlockPos(2, 1, 2), new BlockPos(5, 1, 5))) {
-			for (int y = 0; y < 4; y++) {
-				for (Direction direction : Direction.Plane.HORIZONTAL) {
-					helper.setBlock(tank.above(y).relative(direction), Blocks.GLASS);
-				}
-
-				helper.setBlock(tank.above(y), Blocks.WATER);
+		BlockPos tank = new BlockPos(5, 1, 5);
+		for (int y = 0; y < 4; y++) {
+			for (Direction direction : Direction.Plane.HORIZONTAL) {
+				helper.setBlock(tank.above(y).relative(direction), Blocks.GLASS);
 			}
+
+			helper.setBlock(tank.above(y), Blocks.WATER);
 		}
 
-		SpongeGolem sponge = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(2, 1, 2));
-		MiningGolem miner = spawn(helper, ModEntities.IRON_MINING_GOLEM, new BlockPos(5, 1, 5));
+		MiningGolem miner = spawn(helper, ModEntities.IRON_MINING_GOLEM, tank);
 		CoalGolem other = spawn(helper, ModEntities.COAL_GOLEM, new BlockPos(1, 1, 6));
-		helper.assertTrue(!sponge.isPushedByFluid() && !miner.isPushedByFluid(), "currents must not push the sponge golem or the miners");
+		helper.assertTrue(!miner.isPushedByFluid(), "currents must not push the miners");
 		helper.assertTrue(other.isPushedByFluid(), "the other golems are carried along as before");
 		int bottom = helper.absolutePos(new BlockPos(0, 1, 0)).getY();
 		helper.runAtTickTime(200, () -> {
-			helper.assertTrue(sponge.getY() > bottom + 2.5, "the sponge golem should have floated up, but is at " + (sponge.getY() - bottom));
 			helper.assertTrue(miner.getY() < bottom + 0.5, "the miner should be standing on the bottom, but is at " + (miner.getY() - bottom));
 			helper.succeed();
 		});
 	}
 
-	/** One sponge, two blocks of water, a campfire against the sponge chest and two pieces of coal in it. */
-	@GameTest(maxTicks = 2400, padding = 16)
-	public void spongeGolemDriesItsSpongesAtCampfireByChest(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		helper.setBlock(CHEST, ModBlocks.SPONGE_CHEST);
-		helper.setBlock(CHEST.north(), Blocks.CAMPFIRE);
-		helper.setBlock(5, 0, 5, Blocks.WATER);
-		helper.setBlock(5, 0, 6, Blocks.WATER);
-		container(helper, CHEST).setItem(0, new ItemStack(Items.SPONGE, 1));
-		container(helper, CHEST).setItem(1, new ItemStack(Items.COAL, 2));
-		SpongeGolem golem = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 4));
-		golem.setChestPos(helper.absolutePos(CHEST));
-		FarmGolemTests.give(helper, golem, Items.BLUE_ORCHID);
-		long[] soakedAt = {-1};
-		helper.onEachTick(() -> {
-			if (soakedAt[0] < 0 && golem.countWetSponges() > 0) {
-				soakedAt[0] = helper.getTick();
-			}
-		});
-		helper.succeedWhen(() -> {
-			helper.assertTrue(soakedAt[0] >= 0, "it should have soaked up the water");
-			helper.assertTrue(golem.countDrySponges() == 1 && golem.countWetSponges() == 0, "its sponge should be dry again");
-			helper.assertTrue(helper.getTick() - soakedAt[0] >= SpongeGolem.DRYING_TICKS, "drying takes thirty seconds by the fire");
-			Container chest = container(helper, CHEST);
-			helper.assertTrue(chest.countItem(Items.WET_SPONGE) == 0, "with a fire it does not leave wet sponges in the chest");
-			helper.assertTrue(chest.countItem(Items.COAL) == 1, "one drying burns one piece of coal");
-			helper.assertTrue(!golem.isActive(), "with no water left it should be idle");
-		});
-	}
-
-	/** The same, but with no coal in the chest: the fire is no use, and the wet sponge is left for the coal golem. */
-	@GameTest(maxTicks = 1200, padding = 16)
-	public void spongeGolemCannotUseCampfireWithoutCoal(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		helper.setBlock(CHEST, ModBlocks.SPONGE_CHEST);
-		helper.setBlock(CHEST.north(), Blocks.CAMPFIRE);
-		helper.setBlock(5, 0, 5, Blocks.WATER);
-		helper.setBlock(5, 0, 6, Blocks.WATER);
-		container(helper, CHEST).setItem(0, new ItemStack(Items.SPONGE, 1));
-		SpongeGolem golem = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 4));
-		golem.setChestPos(helper.absolutePos(CHEST));
-		FarmGolemTests.give(helper, golem, Items.BLUE_ORCHID);
-		helper.succeedWhen(() -> {
-			helper.assertTrue(container(helper, CHEST).countItem(Items.WET_SPONGE) == 1, "without coal the wet sponge goes in the chest");
-			helper.assertTrue(golem.countDrySponges() == 0 && !golem.isActive(), "and it has nothing left to do");
-		});
-	}
-
-	/** A sponge chest with a campfire against it is kept in coal out of the miner's chest; one without gets none. */
-	@GameTest(maxTicks = 2000, padding = 16)
-	public void coalGolemKeepsSpongeChestWithCampfireInCoal(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		BlockPos ironChest = new BlockPos(0, 1, 1);
-		BlockPos withFire = new BlockPos(0, 1, 5);
-		BlockPos withoutFire = new BlockPos(6, 1, 1);
-		helper.setBlock(ironChest, ModBlocks.IRON_CHEST);
-		helper.setBlock(withFire, ModBlocks.SPONGE_CHEST);
-		helper.setBlock(withFire.south(), Blocks.CAMPFIRE);
-		helper.setBlock(withoutFire, ModBlocks.SPONGE_CHEST);
-		container(helper, ironChest).setItem(0, new ItemStack(Items.COAL, 20));
-		CoalGolem golem = spawn(helper, ModEntities.COAL_GOLEM, new BlockPos(2, 1, 3));
-		FarmGolemTests.give(helper, golem, Items.OXEYE_DAISY);
-		boolean[] tookBack = {false};
-		helper.onEachTick(() -> tookBack[0] |= container(helper, withFire).countItem(Items.COAL) > SpongeGolem.CAMPFIRE_COAL_KEPT);
-		helper.succeedWhen(() -> {
-			int coal = container(helper, withFire).countItem(Items.COAL);
-			helper.assertTrue(coal == SpongeGolem.CAMPFIRE_COAL_KEPT, "the chest by the fire should hold 8 coal, not " + coal);
-			helper.assertTrue(container(helper, withoutFire).isEmpty(), "a sponge chest with no fire gets no coal");
-			helper.assertTrue(!tookBack[0], "it never puts in more than the fire's share");
-		});
-	}
-
-	// ------------------------------------------------------------------------------------ coal
 
 	/**
-	 * A miner's chest, a sponge chest and, in the fence of a small pen with a cow and a pig, a bone
+	 * A miner's chest and, in the fence of a small pen with a cow and a pig, a bone
 	 * chest. Everything goes to the copper chest, the potatoes by way of the furnace, except what the
 	 * owner of each chest needs.
 	 */
@@ -569,7 +323,6 @@ public class GolemUpgradeTests {
 	public void coalGolemCartsEverythingAwayExceptWhatOwnersNeed(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos ironChest = new BlockPos(0, 1, 1);
-		BlockPos spongeChest = new BlockPos(0, 1, 3);
 		BlockPos boneChest = new BlockPos(4, 1, 5);
 		BlockPos copperChest = new BlockPos(0, 1, 6);
 		BlockPos furnace = new BlockPos(2, 1, 0);
@@ -580,12 +333,10 @@ public class GolemUpgradeTests {
 		}
 
 		helper.setBlock(ironChest, ModBlocks.IRON_CHEST);
-		helper.setBlock(spongeChest, ModBlocks.SPONGE_CHEST);
 		helper.setBlock(boneChest, ModBlocks.BONE_CHEST);
 		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
 		helper.setBlock(furnace, Blocks.FURNACE);
-		fill(container(helper, ironChest), new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 36), new ItemStack(Items.DIAMOND, 3), new ItemStack(Items.COAL, 1));
-		fill(container(helper, spongeChest), new ItemStack(Items.SPONGE, 2));
+		fill(container(helper, ironChest), new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.IRON_SHOVEL), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 36), new ItemStack(Items.DIAMOND, 3), new ItemStack(Items.COAL, 1));
 		fill(container(helper, boneChest), new ItemStack(Items.IRON_SWORD), new ItemStack(Items.WHEAT, 5), new ItemStack(Items.CARROT, 3), new ItemStack(Items.POTATO, 2), new ItemStack(Items.FEATHER, 4));
 		// The rancher is not at work, but the chest is still its own and the animals around it are still its herd.
 		BoneGolem rancher = spawn(helper, ModEntities.BONE_GOLEM, new BlockPos(6, 1, 6));
@@ -600,9 +351,8 @@ public class GolemUpgradeTests {
 			helper.assertTrue(copper.countItem(Items.BAKED_POTATO) == 2, "potatoes are baked on the way, even though the pig eats them");
 			helper.assertTrue(copper.countItem(Items.COBBLESTONE) == 36, "expected the 36 blocks over two stacks, found " + copper.countItem(Items.COBBLESTONE));
 			Container miners = container(helper, ironChest);
-			helper.assertTrue(miners.countItem(Items.IRON_PICKAXE) == 1, "the miner's pickaxe stays");
+			helper.assertTrue(miners.countItem(Items.IRON_PICKAXE) == 1 && miners.countItem(Items.IRON_SHOVEL) == 1, "the miner's pickaxe and shovel stay");
 			helper.assertTrue(miners.countItem(Items.COBBLESTONE) == MiningGolem.BLOCKS_KEPT_FOR_FLOOR, "the miner keeps two stacks of blocks to build with");
-			helper.assertTrue(container(helper, spongeChest).countItem(Items.SPONGE) == 2, "dry sponges stay in the sponge chest");
 			Container bones = container(helper, boneChest);
 			helper.assertTrue(bones.countItem(Items.IRON_SWORD) == 1, "the rancher's sword stays");
 			helper.assertTrue(bones.countItem(Items.WHEAT) == 5 && bones.countItem(Items.CARROT) == 3, "what the cow and the pig eat stays");

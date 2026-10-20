@@ -21,7 +21,6 @@ public class ModBlocks {
 	public static final Block DIAMOND_CHEST = registerChest("diamond_chest", MapColor.DIAMOND);
 	public static final Block NETHERITE_CHEST = registerChest("netherite_chest", MapColor.COLOR_BLACK);
 	public static final Block AMETHYST_CHEST = registerChest("amethyst_chest", MapColor.COLOR_PURPLE);
-	public static final Block SPONGE_CHEST = registerChest("sponge_chest", MapColor.COLOR_YELLOW, SoundType.SPONGE);
 	public static final Block HAY_CHEST = registerChest("hay_chest", MapColor.COLOR_YELLOW, SoundType.GRASS);
 	public static final Block BONE_CHEST = registerChest("bone_chest", MapColor.SAND, SoundType.BONE_BLOCK);
 
@@ -45,7 +44,6 @@ public class ModBlocks {
 			output.accept(DIAMOND_CHEST);
 			output.accept(NETHERITE_CHEST);
 			output.accept(AMETHYST_CHEST);
-			output.accept(SPONGE_CHEST);
 			output.accept(HAY_CHEST);
 			output.accept(BONE_CHEST);
 		});

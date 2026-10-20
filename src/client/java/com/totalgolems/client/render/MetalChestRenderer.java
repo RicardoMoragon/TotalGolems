@@ -37,7 +37,7 @@ import org.jspecify.annotations.Nullable;
  */
 public class MetalChestRenderer implements BlockEntityRenderer<MetalChestBlockEntity, MetalChestRenderer.State> {
 	private static final MultiblockChestResources<SpriteId> IRON = sprites("iron");
-	/** Each chest block's textures, found by its name: sponge_chest uses sponge, sponge_left and sponge_right. */
+	/** Each chest block's textures, found by its name: hay_chest uses hay, hay_left and hay_right. */
 	private static final Map<Block, MultiblockChestResources<SpriteId>> TEXTURES = new HashMap<>();
 	private final SpriteGetter sprites;
 	private final MultiblockChestResources<ChestModel> models;

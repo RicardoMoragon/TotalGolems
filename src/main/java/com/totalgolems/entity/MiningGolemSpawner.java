@@ -77,8 +77,6 @@ public class MiningGolemSpawner {
 			return ModEntities.COAL_GOLEM;
 		} else if (base.is(Blocks.AMETHYST_BLOCK)) {
 			return ModEntities.AMETHYST_GOLEM;
-		} else if (base.is(Blocks.SPONGE)) {
-			return ModEntities.SPONGE_GOLEM;
 		} else if (base.is(Blocks.HAY_BLOCK)) {
 			return ModEntities.HAY_GOLEM;
 		} else {
@@ -95,8 +93,6 @@ public class MiningGolemSpawner {
 
 		if (base.is(Blocks.AMETHYST_BLOCK)) {
 			return ModBlocks.AMETHYST_CHEST;
-		} else if (base.is(Blocks.SPONGE)) {
-			return ModBlocks.SPONGE_CHEST;
 		} else if (base.is(Blocks.HAY_BLOCK)) {
 			return ModBlocks.HAY_CHEST;
 		} else {

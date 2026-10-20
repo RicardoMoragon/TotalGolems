@@ -824,8 +824,8 @@ public class MiningGolemTests {
 	}
 
 	/**
-	 * A quarry with a big pocket of water in the layer it digs, and more in the floor under it, and no sponge
-	 * golem to call. The golem gets the layer dug, and never goes up and down on the spot over and over.
+	 * A quarry with a big pocket of water in the layer it digs, and more in the floor under it. The golem
+	 * gets the layer dug, and never goes up and down on the spot over and over.
 	 */
 	@GameTest(maxTicks = 8000, padding = 24)
 	public void quarryGolemInWaterNeverBobsUpAndDownInPlace(final GameTestHelper helper) {

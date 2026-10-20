@@ -5,7 +5,6 @@ import com.totalgolems.entity.CoalGolem;
 import com.totalgolems.entity.Enclosure;
 import com.totalgolems.entity.HayGolem;
 import com.totalgolems.entity.MiningGolem;
-import com.totalgolems.entity.SpongeGolem;
 import com.totalgolems.entity.WorkerGolem;
 import com.totalgolems.registry.ModBlocks;
 import com.totalgolems.registry.ModEntities;
@@ -37,16 +36,16 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** The sponge, hay and bone golems, the coal golem's dealings with their chests, and golems sharing out chunks. */
+/** The hay and bone golems, the coal golem's dealings with their chests, and golems sharing out chunks. */
 public class FarmGolemTests {
 	private static final BlockPos OWN_CHEST = new BlockPos(0, 1, 3);
 	private static final BlockPos OTHER_CHEST = new BlockPos(7, 1, 3);
 
 	@GameTest
 	public void pumpkinsBuildTheNewGolemsAndTheirChests(final GameTestHelper helper) {
-		List<Block> bodies = List.of(Blocks.SPONGE, Blocks.HAY_BLOCK, Blocks.BONE_BLOCK);
-		List<Block> chests = List.of(ModBlocks.SPONGE_CHEST, ModBlocks.HAY_CHEST, ModBlocks.BONE_CHEST);
-		List<EntityType<? extends WorkerGolem>> golems = List.of(ModEntities.SPONGE_GOLEM, ModEntities.HAY_GOLEM, ModEntities.BONE_GOLEM);
+		List<Block> bodies = List.of(Blocks.HAY_BLOCK, Blocks.BONE_BLOCK);
+		List<Block> chests = List.of(ModBlocks.HAY_CHEST, ModBlocks.BONE_CHEST);
+		List<EntityType<? extends WorkerGolem>> golems = List.of(ModEntities.HAY_GOLEM, ModEntities.BONE_GOLEM);
 		for (int i = 0; i < bodies.size(); i++) {
 			helper.setBlock(1 + 2 * i, 1, 3, bodies.get(i));
 			helper.setBlock(1 + 2 * i, 2, 3, Blocks.CARVED_PUMPKIN);
@@ -55,61 +54,6 @@ public class FarmGolemTests {
 		}
 
 		helper.succeed();
-	}
-
-	// ------------------------------------------------------------------------------------ sponge
-
-	/**
-	 * A pool five by five and two deep is fifty blocks of water: one sponge's worth, but only from the
-	 * middle. From a corner the far side is out of a sponge's reach, and one sponge is all it gets.
-	 */
-	@GameTest(maxTicks = 1200, padding = 16)
-	public void spongeGolemDrainsPoolWithAsFewSpongesAsPossible(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		for (int x = 1; x <= 7; x++) {
-			for (int z = 0; z <= 6; z++) {
-				for (int y = -2; y <= 0; y++) {
-					boolean pool = x >= 2 && x <= 6 && z >= 1 && z <= 5 && y >= -1;
-					helper.setBlock(x, y, z, pool ? Blocks.WATER : Blocks.SMOOTH_STONE);
-				}
-			}
-		}
-
-		helper.setBlock(OWN_CHEST, ModBlocks.SPONGE_CHEST);
-		// Just the one sponge: with more it would go on to dry out whatever water the neighbouring tests have.
-		container(helper, OWN_CHEST).setItem(0, new ItemStack(Items.SPONGE, 1));
-		SpongeGolem golem = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 7));
-		golem.setChestPos(helper.absolutePos(OWN_CHEST));
-		give(helper, golem, Items.BLUE_ORCHID);
-		helper.succeedWhen(() -> {
-			for (int x = 2; x <= 6; x++) {
-				for (int z = 1; z <= 5; z++) {
-					helper.assertTrue(helper.getBlockState(new BlockPos(x, 0, z)).getFluidState().isEmpty(), "water left in the pool");
-					helper.assertTrue(helper.getBlockState(new BlockPos(x, -1, z)).getFluidState().isEmpty(), "water left at the bottom of the pool");
-				}
-			}
-
-			Container chest = container(helper, OWN_CHEST);
-			helper.assertTrue(chest.countItem(Items.WET_SPONGE) == 1, "the sponge should be back in the chest, wet");
-			helper.assertTrue(golem.countSpongesPlaced() == 1 && golem.lastSponge().getY() == helper.absolutePos(BlockPos.ZERO).getY(), "one sponge, in the top layer");
-			helper.assertTrue(!golem.isActive(), "with no water left it should be idle");
-		});
-	}
-
-	@GameTest(maxTicks = 300, padding = 16)
-	public void spongeGolemWaitsByChestWithoutDrySponges(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		helper.setBlock(5, 1, 5, Blocks.WATER);
-		helper.setBlock(OWN_CHEST, ModBlocks.SPONGE_CHEST);
-		SpongeGolem golem = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 3));
-		golem.setChestPos(helper.absolutePos(OWN_CHEST));
-		give(helper, golem, Items.BLUE_ORCHID);
-		helper.runAtTickTime(200, () -> {
-			helper.assertBlockPresent(Blocks.WATER, 5, 1, 5);
-			helper.assertTrue(!golem.isActive(), "without sponges it has nothing to do");
-			helper.assertTrue(golem.position().distanceTo(Vec3.atCenterOf(helper.absolutePos(OWN_CHEST))) < 3.0, "it should stay by its chest");
-			helper.succeed();
-		});
 	}
 
 	// ------------------------------------------------------------------------------------ hay
@@ -318,18 +262,19 @@ public class FarmGolemTests {
 
 	// ------------------------------------------------------------------------------------ coal
 
-	/** One of each kind of furnace, and one chest of each kind of thing to smelt. */
+	/**
+	 * One of each kind of furnace, and one chest of each kind of thing to smelt. Ores go to the blast
+	 * furnace and meat to the smoker; the plain furnace is left with nothing.
+	 */
 	@GameTest(maxTicks = 6000, padding = 16)
-	public void coalGolemSortsOresMeatAndSpongesIntoTheRightFurnaces(final GameTestHelper helper) {
+	public void coalGolemSortsOresAndMeatIntoTheRightFurnaces(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
-		BlockPos spongeChest = new BlockPos(0, 1, 1);
 		BlockPos boneChest = new BlockPos(0, 1, 5);
 		BlockPos copperChest = new BlockPos(7, 1, 5);
 		BlockPos furnace = new BlockPos(2, 1, 0);
 		BlockPos blastFurnace = new BlockPos(4, 1, 0);
 		BlockPos smoker = new BlockPos(6, 1, 0);
 		helper.setBlock(OWN_CHEST, ModBlocks.IRON_CHEST);
-		helper.setBlock(spongeChest, ModBlocks.SPONGE_CHEST);
 		helper.setBlock(boneChest, ModBlocks.BONE_CHEST);
 		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
 		helper.setBlock(furnace, Blocks.FURNACE);
@@ -338,8 +283,6 @@ public class FarmGolemTests {
 		container(helper, OWN_CHEST).setItem(0, new ItemStack(Items.RAW_IRON, 8));
 		container(helper, OWN_CHEST).setItem(1, new ItemStack(Items.COAL, 8));
 		container(helper, OWN_CHEST).setItem(2, new ItemStack(Items.COBBLESTONE, 4));
-		container(helper, spongeChest).setItem(0, new ItemStack(Items.WET_SPONGE, 4));
-		container(helper, spongeChest).setItem(1, new ItemStack(Items.SPONGE, 2));
 		container(helper, boneChest).setItem(0, new ItemStack(Items.BEEF, 8));
 		container(helper, boneChest).setItem(1, new ItemStack(Items.BONE, 6));
 		container(helper, boneChest).setItem(2, new ItemStack(Items.COOKED_BEEF, 1));
@@ -348,7 +291,7 @@ public class FarmGolemTests {
 
 		String[] misplaced = {null};
 		helper.onEachTick(() -> {
-			check(helper, furnace, "furnace", Items.WET_SPONGE, misplaced);
+			check(helper, furnace, "furnace", Items.AIR, misplaced);
 			check(helper, blastFurnace, "blast furnace", Items.RAW_IRON, misplaced);
 			check(helper, smoker, "smoker", Items.BEEF, misplaced);
 		});
@@ -359,10 +302,6 @@ public class FarmGolemTests {
 			// The eight it cooked and the one that was in the bone chest already.
 			helper.assertTrue(copper.countItem(Items.COOKED_BEEF) == 9, "expected 9 steaks in the copper chest, found " + copper.countItem(Items.COOKED_BEEF));
 			helper.assertTrue(copper.countItem(Items.BONE) == 6, "what cannot be smelted goes straight to the copper chest");
-			helper.assertTrue(copper.countItem(Items.SPONGE) == 0, "dried sponges do not go to the copper chest");
-			// The two that were already dry, and the four it dried.
-			Container sponges = container(helper, spongeChest);
-			helper.assertTrue(sponges.countItem(Items.SPONGE) == 6 && sponges.countItem(Items.WET_SPONGE) == 0, "the dried sponges should be back in the sponge chest");
 			helper.assertTrue(container(helper, OWN_CHEST).countItem(Items.COBBLESTONE) == 4, "a miner's chest keeps its blocks for laying floor");
 			helper.assertTrue(container(helper, boneChest).isEmpty(), "the bone chest should have been emptied");
 		});

@@ -6,7 +6,6 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -239,11 +238,6 @@ public class StripPlan {
 		int offset = Math.floorMod(this.along(pos) - this.along(this.origin), this.pitch);
 		int branch = this.along(pos) - (offset <= this.radius ? offset : offset - this.pitch);
 		return Math.min(offset, this.pitch - offset) <= this.radius && branch >= this.minBranch && branch <= this.maxBranch;
-	}
-
-	/** Everything the golem may dig: the three by three chunks at the height of its tunnels. */
-	public BoundingBox area() {
-		return new BoundingBox(this.minX, this.y(), this.minZ, this.maxX, this.y() + this.height - 1, this.maxZ);
 	}
 
 	/** What the golem digs to step into {@code next} going in {@code direction}: the tunnel's cross-section, top first, within the area. */

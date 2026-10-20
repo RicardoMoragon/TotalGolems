@@ -156,7 +156,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 		set(server, 56, FEET, -22, "chest[facing=north,type=right]");
 		stock(server, 55, FEET, -22,
 			"poppy 8", "dandelion 8", "wither_rose 2", "oxeye_daisy 4", "lily_of_the_valley 4", "blue_orchid 4", "cornflower 4", "white_tulip 4",
-			"spyglass 2", "carved_pumpkin 16", "iron_block 4", "diamond_block 2", "netherite_block 2", "coal_block 2", "amethyst_block 2", "sponge 16",
+			"spyglass 2", "carved_pumpkin 16", "iron_block 4", "diamond_block 2", "netherite_block 2", "coal_block 2", "amethyst_block 2",
 			"hay_block 2", "bone_block 2", "iron_pickaxe 4", "iron_shovel 4", "iron_axe 2", "iron_hoe 2", "iron_sword 2", "cobblestone 64");
 		stock(server, 56, FEET, -22,
 			"item_frame 16", "stone_button 8", "powered_rail 16", "rail 64", "chest_minecart 4", "copper_chest 4", "cow_spawn_egg 16", "sheep_spawn_egg 16",
@@ -171,7 +171,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 
 	/**
 	 * Three miners in a row of chunks south of the spawn, chests just north of them: iron and diamond for
-	 * quarries (the diamond one's chunk has a lake in it and a sponge golem by its chest, with a campfire), and
+	 * quarries (the diamond one's chunk has a lake in it, for walling off water), and
 	 * a locked netherite one. A fourth, iron, in a room down a shaft, for a strip mine.
 	 */
 	private static void miners(final TestServerContext server) {
@@ -183,11 +183,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 		golem(server, 56, FEET, -1, "diamond_block", "south");
 		stock(server, 56, FEET, -1, "diamond_pickaxe 1", "diamond_shovel 1", "cobblestone 64", "cobblestone 64");
 		fill(server, 50, GROUND - 4, 5, 61, GROUND, 13, "water");
-		// Its sponge golem: the sponge chest against the miner's, a lit campfire against that, sponges and coal.
-		golem(server, 57, FEET, -1, "sponge", "north");
-		stock(server, 57, FEET, -1, "sponge 16", "coal 16");
-		set(server, 58, FEET, -1, "campfire[lit=true]");
-		sign(server, 55, FEET, -3, "Minero diamante", "+ esponja (orqu\u00eddea)", "chunk con lago");
+		sign(server, 55, FEET, -3, "Minero diamante", "cantera con pala", "chunk con lago");
 		// Netherite: chunk 4,0, locked until it gets a wither rose.
 		golem(server, 72, FEET, -1, "netherite_block", "south");
 		stock(server, 72, FEET, -1, "netherite_pickaxe 1", "cobblestone 64", "cobblestone 64");
