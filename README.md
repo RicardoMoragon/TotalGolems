@@ -13,6 +13,17 @@ Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con 
 Todos se crean igual: el bloque con una **calabaza tallada** encima. Se activan dándoles su flor con clic derecho y se
 paran quitándosela con la mano vacía. Tienen los **ojos encendidos solo mientras trabajan**.
 
+Tienen el cuerpo del gólem de cobre, pero **sin antena** (es solo del de cobre): llevan la flor sobre la cabeza. Cada uno
+tiene algo propio:
+
+- **Hierro:** brazos largos y gruesos que casi llegan al suelo, como los del gólem de hierro.
+- **Diamante:** más grande y tosco, con bultos de piedra en los hombros, la cabeza y la espalda.
+- **Netherita:** forjado como una armadura, con hombreras, una cresta en la cabeza y un cinturón.
+- **Amatista:** le salen cristales pequeños de la cabeza y de los brazos.
+- **Heno:** lleva un sombrero de paja, con la flor en la cinta, que salta cada vez que da un golpe de azada.
+- **Hueso:** es hueco: el pecho es una caja torácica por la que se ve a través, con la columna dentro.
+- **Carbón:** tiene agujeros donde tenía los puntos naranjas, y por ellos se ve su interior al rojo, que brilla.
+
 ## Herramientas
 
 El minero, el leñador, el agricultor y el ganadero trabajan con una **herramienta de verdad** que cogen de su propio
@@ -317,6 +328,9 @@ Hace falta un JDK 25.
 - `./gradlew runClientGameTest` abre el juego, monta una escena con los gólems y cofres y guarda una captura en
   `build/run/clientGameTest/screenshots`.
 - `python tools/generate_textures.py` genera las texturas que falten (necesita Pillow). No toca las que ya existen,
-  así que las editadas a mano están a salvo; con `--force` las regenera todas.
-- `python tools/make_blockbench_model.py` crea `art/mining_golem.bbmodel` para pintar las texturas sobre el modelo en
-  Blockbench.
+  así que las editadas a mano están a salvo. No uses `--force`: pinta los gólems y los cofres con sus formas antiguas.
+- `python art/make_bbmodels.py` crea los proyectos de Blockbench de `art/` para pintar las texturas sobre el modelo:
+  uno por gólem (`golem_<material>.bbmodel`, con su forma), el del gólem de cobre y los de los cofres. La forma de cada
+  gólem está en `art/golem_geometry.py` y, para el juego, en `GolemModelLayers.java`.
+- `python art/make_effects.py` rehace las texturas animadas (brillos, grietas, el núcleo del gólem de carbón) a partir
+  de las texturas de los gólems y de `art/textures/chest`. Hay que ejecutarlo después de editar cualquiera de ellas.

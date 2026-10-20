@@ -1,6 +1,7 @@
 package com.totalgolems.client;
 
 import com.totalgolems.client.render.CopperGolemEfficiencyLayer;
+import com.totalgolems.client.render.GolemModelLayers;
 import com.totalgolems.client.render.MetalChestRenderer;
 import com.totalgolems.client.render.MiningGolemRenderer;
 import com.totalgolems.entity.WorkerGolem;
@@ -20,8 +21,14 @@ import net.minecraft.world.entity.EntityTypes;
 public class TotalGolemsClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
+		for (String golem : GolemModelLayers.GOLEMS) {
+			ModelLayerRegistry.registerModelLayer(GolemModelLayers.of(golem), () -> GolemModelLayers.create(golem));
+		}
+
 		for (EntityType<? extends WorkerGolem> type : ModEntities.all()) {
-			EntityRenderers.register(type, MiningGolemRenderer::new);
+			// Each golem is named after what it is made of: iron_mining_golem, hay_golem...
+			String golem = EntityType.getKey(type).getPath().split("_")[0];
+			EntityRenderers.register(type, context -> new MiningGolemRenderer(context, golem));
 		}
 
 		BlockEntityRenderers.register(ModBlockEntities.METAL_CHEST, MetalChestRenderer::new);
