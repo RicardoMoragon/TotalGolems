@@ -214,9 +214,9 @@ public class MiningGolemTests {
 		});
 	}
 
-	/** The same tall oak with no blocks to climb with: it fells what it can reach from the ground and leaves the rest. */
-	@GameTest(maxTicks = 2000)
-	public void amethystGolemWithoutBlocksLeavesLogsOutOfReach(final GameTestHelper helper) {
+	/** The same tall oak with no blocks to climb with: it climbs with the logs it fells from the ground, and fells it all. */
+	@GameTest(maxTicks = 3000)
+	public void amethystGolemWithoutBlocksClimbsWithTheLogs(final GameTestHelper helper) {
 		LumberGolem golem = setUp(helper, ModEntities.AMETHYST_GOLEM, ModBlocks.AMETHYST_CHEST);
 		int height = 10;
 		helper.setBlock(4, 0, 4, Blocks.DIRT);
@@ -233,10 +233,14 @@ public class MiningGolemTests {
 		double[] highest = {0.0};
 		helper.onEachTick(() -> highest[0] = Math.max(highest[0], golem.getY() - helper.absolutePos(BlockPos.ZERO).getY()));
 		helper.succeedWhen(() -> {
-			helper.assertBlockPresent(Blocks.AIR, 4, 1, 4);
-			helper.assertBlockPresent(Blocks.OAK_LOG, 4, height, 4);
-			helper.assertTrue(highest[0] < 1.5, "with no blocks it never leaves the ground, nor teleports up the tree");
-			helper.assertTrue(golem.isResting() && !golem.isActive(), "with the rest out of reach it should rest");
+			for (int y = 1; y <= height; y++) {
+				helper.assertBlockNotPresent(Blocks.OAK_LOG, 4, y, 4);
+			}
+
+			helper.assertTrue(highest[0] > 3.0, "it should have climbed on the logs");
+			helper.assertTrue(golem.getPillarHeight() == 0, "and come down");
+			helper.assertTrue(golem.isResting() && !golem.isActive(), "then rest");
+			helper.assertTrue(chest(helper).countItem(Items.OAK_LOG) == height, "with every log in the chest");
 		});
 	}
 

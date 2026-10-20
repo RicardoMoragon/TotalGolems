@@ -245,15 +245,25 @@ Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa c
   se gasta, su zona pasa a una malla de **3x3 chunks** que recorre en espiral desde el centro, y **sus ojos cambian de
   color** (de lila a dorado). Al morir suelta el catalejo.
 - Tira **todos los troncos** del árbol, ramas incluidas. Las hojas las deja caer solas.
-- Llega tan lejos como un jugador. Para los troncos más altos **se hace un pilar** al lado del tronco con **bloques de su
-  cofre** (de los mismos que usan los mineros para construir: bloques normales que se pican con pico, como la piedra o
-  el pedrusco): salta, pone un bloque debajo y repite. Si hay hojas encima, las rompe. Al terminar baja **quitando el
-  pilar** y se queda los bloques. Lleva hasta 16, que coge de su cofre cada vez que pasa por él; si al llegar a un árbol
-  no lleva ninguno, va una vez a por ellos. Sin bloques, o con algo sólido encima, deja en el árbol los troncos a los que
-  no llega.
-- Al terminar un árbol **planta un brote** de su especie donde estaba (cuatro en los árboles de tronco 2x2), si tiene.
-- Lleva 10 huecos de madera y una reserva de hasta 64 brotes de cada tipo. Del suelo **solo recoge brotes**, y se acerca
-  a por los que ve a menos de 10 bloques.
+- Llega tan lejos como un jugador. Primero corta todo lo que alcanza desde donde está; para los troncos más altos **se
+  hace un pilar** cerca de ellos: salta, pone un bloque debajo y repite. Si hay hojas encima, las rompe.
+  - Usa **bloques de su cofre** (de los mismos que usan los mineros para construir: bloques normales que se pican con
+    pico, como la piedra o el pedrusco). Lleva hasta 64, que coge de su cofre cada vez que pasa por él; si al pie del
+    pilar no le llegan para la altura del árbol, va una vez a por más.
+  - **Si no tiene bloques, sube con los troncos del propio árbol**, que va cortando por abajo: siempre tiene con qué
+    subir. Al bajar, esos troncos vuelven con la madera y acaban en el cofre.
+  - Si un tronco queda fuera del alcance de su pilar (en la punta de una rama larga, por ejemplo), **baja quitando el
+    pilar y se hace otro más cerca**, tantas veces como haga falta hasta tirar el árbol entero.
+  - Al terminar baja **quitando el pilar** y se queda los bloques. Solo deja en el árbol un tronco si no hay forma de
+    llegar a él (algo sólido encima, o a más de 48 bloques de altura).
+- **Siempre replanta**: al terminar un árbol planta un brote de su especie donde estaba (cuatro en los árboles de tronco
+  2x2).
+  - Los brotes los guarda en su **cofre**, que es su reserva: cada vez que pasa por él coge unos cuantos de cada tipo, y
+    si le falta el de un árbol que acaba de talar, va a por él.
+  - Si no hay ninguno, **recuerda el tocón** y lo planta en cuanto consigue un brote de esa especie: recoge los que caen
+    de las hojas del árbol (busca a 10 bloques de él y de sí mismo).
+  - El gólem de carbón nunca toca el cofre de amatista, así que los bloques y los brotes del cofre están a salvo.
+- Lleva 10 huecos de madera y una reserva de hasta 64 brotes de cada tipo. Del suelo **solo recoge brotes**.
 - Lleva la madera a su cofre cuando se llena o cuando se queda sin árboles.
 - Solo considera árbol un tronco sobre tierra que tenga hojas naturales, así que no toca construcciones de troncos.
 - **Se queda parado junto al cofre, con los ojos apagados**, si el cofre está lleno o si ya no quedan árboles en la zona.

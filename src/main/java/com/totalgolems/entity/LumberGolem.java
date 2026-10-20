@@ -1,5 +1,7 @@
 package com.totalgolems.entity;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -48,6 +50,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -59,10 +62,14 @@ import org.jspecify.annotations.Nullable;
  * Given a spyglass it sees further: from then on it works the 3x3 chunks around that one, outwards
  * in a spiral, and its eyes change colour to show it.
  * <p>
- * It reaches as far as a player does. For the logs higher up it builds itself a pillar beside the
- * trunk with blocks from its chest, the same kind the miners build with, and takes it down again
- * when it is done, keeping the blocks. It never teleports: a tree, a sapling or a chest it finds no
- * way to on foot is left alone for a while.
+ * It reaches as far as a player does. For the logs higher up it builds itself a pillar with blocks
+ * from its chest, the same kind the miners build with, or else with logs of the tree itself, and takes
+ * it down again when it can reach no more from it, keeping the blocks. Logs out of reach of that pillar,
+ * out on a branch, it gets at from another, built closer. It never teleports: a tree, a sapling or a
+ * chest it finds no way to on foot is left alone for a while.
+ * <p>
+ * It always replants: with a sapling it carries, one from its chest, or one it picks up where the
+ * leaves fall. A stump it has no sapling for yet is remembered until it gets one.
  */
 public class LumberGolem extends WorkerGolem {
 	private static final EntityDataAccessor<Boolean> DATA_UPGRADED = SynchedEntityData.defineId(LumberGolem.class, EntityDataSerializers.BOOLEAN);
@@ -81,9 +88,13 @@ public class LumberGolem extends WorkerGolem {
 	/** How far from its eyes it can chop a log: as far as a player reaches. */
 	private static final double LOG_REACH = 4.5;
 	/** Blocks it keeps on it to climb with. */
-	private static final int CLIMBING_BLOCKS = 16;
+	private static final int CLIMBING_BLOCKS = 64;
 	/** No pillar taller than this. */
-	private static final int MAX_PILLAR = 24;
+	private static final int MAX_PILLAR = 48;
+	/** How far from the log's column it looks for a place to build a pillar. */
+	private static final int PILLAR_SEARCH = 3;
+	/** Saplings of each kind it takes from its chest, so as to have one for every stump. */
+	private static final int SAPLINGS_FROM_CHEST = 8;
 	private static final int CLIMB_INTERVAL = 8;
 
 	private final SimpleContainer wood = new SimpleContainer(WOOD_SLOTS);
@@ -101,6 +112,12 @@ public class LumberGolem extends WorkerGolem {
 	private @Nullable BlockPos treeStand;
 	/** It has been to the chest for blocks for this tree already: if there were none, it does without. */
 	private boolean fetchedBlocks;
+	/** The log it is chopping, for the cracks it shows. */
+	private @Nullable BlockPos chopping;
+	/** Logs of the tree it could get at from nowhere, left on it. */
+	private int skippedLogs;
+	/** Stumps waiting for a sapling of the kind that grew there. */
+	private final Map<BlockPos, Item> toPlant = new LinkedHashMap<>();
 	private boolean hasArea;
 	private int centerChunkX;
 	private int centerChunkZ;
@@ -200,6 +217,11 @@ public class LumberGolem extends WorkerGolem {
 		return this.pillar.size();
 	}
 
+	/** The bottom block of the pillar it is standing on, or null when it is on the ground. */
+	public @Nullable BlockPos getPillarBase() {
+		return this.pillar.isEmpty() ? null : this.pillar.getFirst();
+	}
+
 	@Override
 	protected boolean isActivatingFlower(final ItemStack stack) {
 		return stack.is(Items.LILY_OF_THE_VALLEY);
@@ -258,7 +280,7 @@ public class LumberGolem extends WorkerGolem {
 			this.tickRest(level);
 		} else if (this.tree != null) {
 			this.tickTree(level, this.tree);
-		} else if (!this.walkToSapling(level) && this.tickCount % SEARCH_INTERVAL == 0) {
+		} else if (!this.plantStump(level) && !this.walkToSapling(level) && this.tickCount % SEARCH_INTERVAL == 0) {
 			this.search(level);
 		}
 	}
@@ -272,6 +294,7 @@ public class LumberGolem extends WorkerGolem {
 		this.tree = level.hasChunk(chunkX, chunkZ) ? this.findTree(level, chunkX, chunkZ) : null;
 		if (this.tree != null) {
 			this.fetchedBlocks = false;
+			this.skippedLogs = 0;
 			this.resetTravel();
 			return;
 		}
@@ -320,7 +343,8 @@ public class LumberGolem extends WorkerGolem {
 
 	private static boolean isSoil(final ServerLevel level, final BlockPos pos) {
 		BlockState state = level.getBlockState(pos);
-		return state.is(BlockTags.DIRT) || state.is(Blocks.MANGROVE_ROOTS) || state.is(Blocks.MUDDY_MANGROVE_ROOTS);
+		// Grass, podzol, moss and mud as well as dirt: what trees grow on, and what is left under them once grown.
+		return state.is(BlockTags.SUBSTRATE_OVERWORLD) || state.is(Blocks.MANGROVE_ROOTS) || state.is(Blocks.MUDDY_MANGROVE_ROOTS);
 	}
 
 	/**
@@ -384,13 +408,15 @@ public class LumberGolem extends WorkerGolem {
 	}
 
 	private void tickTree(final ServerLevel level, final Tree tree) {
-		while (!tree.logs.isEmpty() && !isLog(level, tree.logs.getFirst())) {
-			tree.logs.removeFirst();
-		}
-
+		tree.logs.removeIf(log -> !isLog(level, log));
 		if (tree.logs.isEmpty()) {
 			if (this.climbDown(level)) {
 				return;
+			}
+
+			if (this.skippedLogs > 0) {
+				// Some of it is still up there: that tree is left alone for a while.
+				this.markUnreachable(tree.base);
 			}
 
 			this.stopChopping(level);
@@ -404,15 +430,23 @@ public class LumberGolem extends WorkerGolem {
 			return;
 		}
 
-		BlockPos pos = tree.logs.getFirst();
-		if (!this.canReachLog(pos)) {
+		// Whatever it can reach from where it is first, the lowest of those; else it climbs to the lowest log.
+		BlockPos pos = tree.logs.stream().filter(this::canReachLog).findFirst().orElse(null);
+		if (pos == null) {
 			this.setSwingingArm(false);
-			this.climbTowards(level, tree, pos);
+			this.clearCracks(level);
+			this.climbTowards(level, tree, tree.logs.getFirst());
 			return;
+		}
+
+		if (!pos.equals(this.chopping)) {
+			this.clearCracks(level);
+			this.chopping = pos;
 		}
 
 		BlockState state = level.getBlockState(pos);
 		this.setSwingingArm(true);
+		this.holdStillIfClimbing();
 		this.getLookControl().setLookAt(Vec3.atCenterOf(pos));
 		ItemStack axe = this.getTool();
 		float hardness = state.getDestroySpeed(level, pos);
@@ -432,11 +466,9 @@ public class LumberGolem extends WorkerGolem {
 		}
 
 		List<ItemStack> drops = Block.getDrops(state, level, pos, null, this, axe);
-		level.destroyBlockProgress(this.getId(), pos, -1);
+		this.clearCracks(level);
 		level.destroyBlock(pos, false, this);
-		this.breakProgress = 0.0F;
-		this.breakStage = -1;
-		tree.logs.removeFirst();
+		tree.logs.remove(pos);
 		for (ItemStack drop : drops) {
 			ItemStack leftover = this.wood.addItem(drop);
 			if (!leftover.isEmpty()) {
@@ -447,6 +479,24 @@ public class LumberGolem extends WorkerGolem {
 		// The axe wears with every log, as in a player's hand. If it breaks, the rest of the tree waits.
 		Tool wear = axe.get(DataComponents.TOOL);
 		this.wearTool(wear != null ? wear.damagePerBlock() : 1);
+	}
+
+	/** Takes the cracks off the log it was chopping, and starts the next from nothing. */
+	private void clearCracks(final ServerLevel level) {
+		if (this.chopping != null) {
+			level.destroyBlockProgress(this.getId(), this.chopping, -1);
+		}
+
+		this.chopping = null;
+		this.breakProgress = 0.0F;
+		this.breakStage = -1;
+	}
+
+	/** Up on its pillar it stands still while it chops, so as not to step off. */
+	private void holdStillIfClimbing() {
+		if (!this.pillar.isEmpty()) {
+			this.holdStill();
+		}
 	}
 
 	/** What a player holding the axe would manage, Efficiency included. */
@@ -461,29 +511,82 @@ public class LumberGolem extends WorkerGolem {
 		return speed > 1.0F && efficiency > 0 ? speed + efficiency * efficiency + 1 : speed;
 	}
 
+	/** Plants a sapling on every stump it has one for; the others it remembers, to plant when it gets one. */
 	private void replant(final ServerLevel level, final Tree tree) {
-		if (tree.sapling instanceof BlockItem blockItem) {
-			BlockState sapling = blockItem.getBlock().defaultBlockState();
-			for (BlockPos root : tree.roots) {
-				if (this.getSaplingCount(tree.sapling) > 0 && level.getBlockState(root).canBeReplaced() && sapling.canSurvive(level, root)) {
-					level.setBlockAndUpdate(root, sapling);
-					level.playSound(null, root, sapling.getSoundType().getPlaceSound(), SoundSource.BLOCKS, 1.0F, 1.0F);
-					this.saplings.merge(tree.sapling, -1, Integer::sum);
-				}
+		if (tree.sapling == null) {
+			return;
+		}
+
+		for (BlockPos root : tree.roots) {
+			if (!this.plant(level, root, tree.sapling) && stillBare(level, root, tree.sapling)) {
+				this.toPlant.put(root.immutable(), tree.sapling);
 			}
 		}
 	}
 
-	private void stopChopping(final ServerLevel level) {
-		if (this.tree != null && !this.tree.logs.isEmpty()) {
-			level.destroyBlockProgress(this.getId(), this.tree.logs.getFirst(), -1);
+	/** Plants {@code sapling} at {@code root} if it has one and the ground takes it. */
+	private boolean plant(final ServerLevel level, final BlockPos root, final Item sapling) {
+		if (this.getSaplingCount(sapling) <= 0 || !stillBare(level, root, sapling)) {
+			return false;
 		}
 
+		BlockState state = ((BlockItem)sapling).getBlock().defaultBlockState();
+		level.setBlockAndUpdate(root, state);
+		level.playSound(null, root, state.getSoundType().getPlaceSound(), SoundSource.BLOCKS, 1.0F, 1.0F);
+		this.saplings.merge(sapling, -1, Integer::sum);
+		return true;
+	}
+
+	/** Whether {@code root} can take a sapling: nobody has built or planted on it since the tree came down. */
+	private static boolean stillBare(final ServerLevel level, final BlockPos root, final Item sapling) {
+		return sapling instanceof BlockItem blockItem && level.getBlockState(root).canBeReplaced() && blockItem.getBlock().defaultBlockState().canSurvive(level, root);
+	}
+
+	/** The stumps it has no sapling for. */
+	public int getStumpsToPlant() {
+		return this.toPlant.size();
+	}
+
+	/**
+	 * Goes to plant a stump it now has the sapling for. If it has none of the kind and its chest does, it
+	 * goes for some. Returns whether it is busy at it.
+	 */
+	private boolean plantStump(final ServerLevel level) {
+		this.toPlant.entrySet().removeIf(entry -> level.isLoaded(entry.getKey()) && !stillBare(level, entry.getKey(), entry.getValue()));
+		Map.Entry<BlockPos, Item> next = this.toPlant.entrySet()
+			.stream()
+			.filter(entry -> this.getSaplingCount(entry.getValue()) > 0 && !this.isUnreachable(entry.getKey()))
+			.min(Comparator.comparingDouble(entry -> entry.getKey().distToCenterSqr(this.position())))
+			.orElse(null);
+		if (next == null) {
+			Container chest = this.toPlant.isEmpty() || this.chestPos == null || this.isUnreachable(this.chestPos) ? null : this.findChest(level);
+			if (chest != null && chest.hasAnyMatching(stack -> this.toPlant.containsValue(stack.getItem()) && this.getSaplingCount(stack.getItem()) == 0)) {
+				this.depositing = true;
+				return true;
+			}
+
+			return false;
+		}
+
+		BlockPos root = next.getKey();
+		if (!this.travelTo(level, root, 2.5)) {
+			if (this.hasGivenUp()) {
+				this.markUnreachable(root);
+			}
+
+			return true;
+		}
+
+		this.plant(level, root, next.getValue());
+		this.toPlant.remove(root);
+		return true;
+	}
+
+	private void stopChopping(final ServerLevel level) {
+		this.clearCracks(level);
 		this.tree = null;
 		this.pillarSpot = null;
 		this.treeStand = null;
-		this.breakProgress = 0.0F;
-		this.breakStage = -1;
 		this.setSwingingArm(false);
 	}
 
@@ -522,16 +625,28 @@ public class LumberGolem extends WorkerGolem {
 	}
 
 	/**
-	 * Gets within reach of a log too high to chop from where it stands: to the foot of its pillar first,
-	 * and then up a block at a time, the way a player does. Leaves block the way only until it pushes
-	 * through them. Without blocks, after one trip to the chest for some, or with something solid
-	 * overhead, it leaves the logs it cannot reach where they are.
+	 * Gets within reach of a log it cannot chop from where it is: to the foot of a pillar near it first, and
+	 * then up a block at a time, the way a player does. Leaves give way as it pushes through them. If the
+	 * pillar it is on can never get it there, out on a branch, it takes it down and builds another closer.
+	 * With no blocks it climbs with logs of the tree it is felling, and with too few for the height it goes
+	 * to its chest for more first, once a tree. A log it can get at from nowhere is left where it is.
 	 */
 	private void climbTowards(final ServerLevel level, final Tree tree, final BlockPos log) {
-		if (this.pillarSpot == null) {
-			this.pillarSpot = this.spotBeside(level, tree, log);
+		if (this.pillarSpot == null && !this.pillar.isEmpty()) {
+			this.pillarSpot = this.pillar.getFirst();
+		}
+
+		if (!this.pillar.isEmpty()) {
+			if (!this.feetPos().below().equals(this.pillar.getLast()) || !this.towerReaches(this.pillarSpot, log)) {
+				// Knocked off its pillar, or done with it: it takes it down, and starts again from the ground.
+				this.climbDown(level);
+				return;
+			}
+		} else if (this.pillarSpot == null || !this.towerReaches(this.pillarSpot, log)) {
+			this.pillarSpot = this.pillarSpotFor(level, log);
+			this.resetTravel();
 			if (this.pillarSpot == null) {
-				this.leaveOutOfReach(tree);
+				this.skipLog(tree, log);
 				return;
 			}
 		}
@@ -539,15 +654,20 @@ public class LumberGolem extends WorkerGolem {
 		if (this.pillar.isEmpty()) {
 			if (!this.travelTo(level, this.pillarSpot, 0.3)) {
 				if (this.hasGivenUp()) {
-					this.leaveOutOfReach(tree);
+					this.markUnreachable(this.pillarSpot);
+					this.pillarSpot = null;
 				}
 
 				return;
 			}
-		} else if (!this.feetPos().below().equals(this.pillar.getLast())) {
-			// Knocked off its pillar: it takes it down and starts again.
-			this.climbDown(level);
-			return;
+
+			int needed = log.getY() - this.pillarSpot.getY() - 2;
+			if (this.getClimbingBlockCount() < needed && !this.fetchedBlocks && this.chestHasBuildingBlocks(level)) {
+				// Not enough to get up there: to the chest for more, and back to the tree.
+				this.fetchedBlocks = true;
+				this.depositing = true;
+				return;
+			}
 		}
 
 		this.holdStill();
@@ -558,24 +678,23 @@ public class LumberGolem extends WorkerGolem {
 		BlockPos feet = this.pillar.isEmpty() ? this.pillarSpot : this.pillar.getLast().above();
 		BlockPos head = feet.above();
 		BlockState overhead = level.getBlockState(head);
-		if (overhead.getBlock() instanceof LeavesBlock) {
+		if (overhead.getBlock() instanceof LeavesBlock && !overhead.getValue(LeavesBlock.PERSISTENT)) {
 			level.destroyBlock(head, true, this);
 			return;
 		}
 
 		if (!isRoom(level, head) || this.pillar.size() >= MAX_PILLAR) {
-			this.leaveOutOfReach(tree);
+			this.skipLog(tree, log);
 			return;
 		}
 
-		ItemStack blocks = this.climbingBlocks.getItems().stream().filter(stack -> !stack.isEmpty()).findFirst().orElse(ItemStack.EMPTY);
+		ItemStack blocks = this.nextClimbingBlock();
 		if (blocks.isEmpty()) {
 			if (this.pillar.isEmpty() && !this.fetchedBlocks && this.chestPos != null && !this.isUnreachable(this.chestPos)) {
-				// To the chest for some, and back to the tree.
 				this.fetchedBlocks = true;
 				this.depositing = true;
 			} else {
-				this.leaveOutOfReach(tree);
+				this.skipLog(tree, log);
 			}
 
 			return;
@@ -591,9 +710,80 @@ public class LumberGolem extends WorkerGolem {
 		this.holdStill();
 	}
 
+	/** What it climbs with next: a building block if it has one, else one of the logs it has felled. */
+	private ItemStack nextClimbingBlock() {
+		for (ItemStack stack : this.climbingBlocks.getItems()) {
+			if (!stack.isEmpty()) {
+				return stack;
+			}
+		}
+
+		for (ItemStack stack : this.wood.getItems()) {
+			if (stack.is(ItemTags.LOGS) && stack.getItem() instanceof BlockItem) {
+				return stack;
+			}
+		}
+
+		return ItemStack.EMPTY;
+	}
+
+	private boolean chestHasBuildingBlocks(final ServerLevel level) {
+		if (this.chestPos == null || this.isUnreachable(this.chestPos)) {
+			return false;
+		}
+
+		Container chest = this.findChest(level);
+		return chest != null && chest.hasAnyMatching(MiningGolem::isBuildingBlock);
+	}
+
 	/**
-	 * Where to stand to get at {@code log}, or to build a pillar under it: beside the column it is in, on
-	 * firm ground about the height of the foot of the tree, with room to stand. The one nearest the golem.
+	 * Whether from a pillar on {@code spot}, as tall as need be, it could reach {@code log}: near enough to its
+	 * column, and not so far below where it stands at the bottom.
+	 */
+	private boolean towerReaches(final BlockPos spot, final BlockPos log) {
+		double dx = spot.getX() - log.getX();
+		double dz = spot.getZ() - log.getZ();
+		double dy = Math.max(0.0, spot.getY() + this.getEyeHeight() - (log.getY() + 0.5));
+		return Math.sqrt(dx * dx + dz * dz + dy * dy) <= LOG_REACH - 0.25 && log.getY() - spot.getY() <= MAX_PILLAR + 3;
+	}
+
+	/**
+	 * Where to build a pillar to get at {@code log}: on firm ground, with room to stand and to climb, in a
+	 * column near the log's own; the nearest to it, and of those the one nearest the golem.
+	 */
+	private @Nullable BlockPos pillarSpotFor(final ServerLevel level, final BlockPos log) {
+		BlockPos best = null;
+		double bestDistance = Double.MAX_VALUE;
+		int ground = this.tree != null ? this.tree.base.getY() : this.blockPosition().getY();
+		for (int dx = -PILLAR_SEARCH; dx <= PILLAR_SEARCH; dx++) {
+			for (int dz = -PILLAR_SEARCH; dz <= PILLAR_SEARCH; dz++) {
+				// From below, so as to stand on the ground and not on the leaves of a low crown.
+				for (int y = ground - 3; y <= Math.min(log.getY(), ground + 3); y++) {
+					BlockPos spot = new BlockPos(log.getX() + dx, y, log.getZ() + dz);
+					if (!isRoom(level, spot) || !(isRoom(level, spot.above()) || level.getBlockState(spot.above()).getBlock() instanceof LeavesBlock)
+						|| !level.getBlockState(spot.below()).isFaceSturdy(level, spot.below(), Direction.UP)) {
+						continue;
+					}
+
+					if (this.towerReaches(spot, log) && !this.isUnreachable(spot)) {
+						double distance = dx * dx + dz * dz + spot.distToCenterSqr(this.position()) / 10000.0;
+						if (distance < bestDistance) {
+							best = spot;
+							bestDistance = distance;
+						}
+					}
+
+					break;
+				}
+			}
+		}
+
+		return best;
+	}
+
+	/**
+	 * Where to stand to get at the foot of the tree: beside it, on firm ground about its height, with room
+	 * to stand. The one nearest the golem.
 	 */
 	private @Nullable BlockPos spotBeside(final ServerLevel level, final Tree tree, final BlockPos log) {
 		BlockPos best = null;
@@ -620,10 +810,10 @@ public class LumberGolem extends WorkerGolem {
 		return state.canBeReplaced() && state.getFluidState().isEmpty();
 	}
 
-	/** Gives up on the logs of {@code tree} it cannot reach from where it is; the tree is left alone for a while. */
-	private void leaveOutOfReach(final Tree tree) {
-		tree.logs.removeIf(log -> !this.canReachLog(log));
-		this.markUnreachable(tree.base);
+	/** Leaves {@code log} on the tree, there being no way to get at it. */
+	private void skipLog(final Tree tree, final BlockPos log) {
+		tree.logs.remove(log);
+		this.skippedLogs++;
 		if (this.pillar.isEmpty()) {
 			this.pillarSpot = null;
 		}
@@ -643,11 +833,12 @@ public class LumberGolem extends WorkerGolem {
 			BlockPos top = this.pillar.removeLast();
 			BlockState state = level.getBlockState(top);
 			ItemStack block = new ItemStack(state.getBlock().asItem());
-			// Unless somebody has put something else there.
-			if (MiningGolem.isBuildingBlock(block)) {
+			// Unless somebody has put something else there. Logs it climbed with go back with the wood.
+			boolean log = block.is(ItemTags.LOGS);
+			if (log || MiningGolem.isBuildingBlock(block)) {
 				level.removeBlock(top, false);
 				level.playSound(null, top, state.getSoundType().getBreakSound(), SoundSource.BLOCKS, 1.0F, 0.8F);
-				ItemStack left = this.climbingBlocks.addItem(block);
+				ItemStack left = (log ? this.wood : this.climbingBlocks).addItem(block);
 				if (!left.isEmpty()) {
 					this.overflow.add(left);
 				}
@@ -683,6 +874,28 @@ public class LumberGolem extends WorkerGolem {
 
 	// ------------------------------------------------------------------------------------ saplings
 
+	/**
+	 * Takes saplings from {@code chest}, where it keeps its store of them, so as to have a few of each kind on
+	 * it; of a kind it has stumps waiting for, as many as there are stumps.
+	 */
+	private void takeSaplings(final Container chest) {
+		for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+			ItemStack stack = chest.getItem(slot);
+			if (!stack.is(ItemTags.SAPLINGS)) {
+				continue;
+			}
+
+			long stumps = this.toPlant.values().stream().filter(stack.getItem()::equals).count();
+			int wanted = (int)Math.max(SAPLINGS_FROM_CHEST, stumps) - this.getSaplingCount(stack.getItem());
+			if (wanted > 0) {
+				ItemStack taken = chest.removeItem(slot, Math.min(wanted, stack.getCount()));
+				this.saplings.merge(taken.getItem(), taken.getCount(), Integer::sum);
+			}
+		}
+
+		chest.setChanged();
+	}
+
 	private boolean wantsSapling(final ItemStack stack) {
 		return stack.is(ItemTags.SAPLINGS) && this.getSaplingCount(stack.getItem()) < MAX_SAPLINGS_PER_KIND;
 	}
@@ -707,7 +920,12 @@ public class LumberGolem extends WorkerGolem {
 
 	/** Goes for a sapling lying nearby, if there is one it has room for. Returns whether it is on its way to one. */
 	private boolean walkToSapling(final ServerLevel level) {
-		List<ItemEntity> items = level.getEntitiesOfClass(ItemEntity.class, this.getBoundingBox().inflate(SAPLING_SEARCH_RANGE, 4.0, SAPLING_SEARCH_RANGE), this::canPickUp);
+		List<ItemEntity> items = new ArrayList<>(level.getEntitiesOfClass(ItemEntity.class, this.getBoundingBox().inflate(SAPLING_SEARCH_RANGE, 4.0, SAPLING_SEARCH_RANGE), this::canPickUp));
+		// Also where the leaves of the trees it has felled come down, for the stumps it has no sapling for.
+		for (BlockPos stump : this.toPlant.keySet()) {
+			items.addAll(level.getEntitiesOfClass(ItemEntity.class, new AABB(stump).inflate(SAPLING_SEARCH_RANGE, 8.0, SAPLING_SEARCH_RANGE), this::canPickUp));
+		}
+
 		ItemEntity closest = items.stream().min(Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
 		if (closest == null) {
 			return false;
@@ -744,6 +962,7 @@ public class LumberGolem extends WorkerGolem {
 		this.chestRefused = chest == null || !this.unloadInto(chest);
 		if (chest != null) {
 			this.takeClimbingBlocks(chest);
+			this.takeSaplings(chest);
 		}
 
 		if (!this.chestRefused) {
@@ -791,6 +1010,8 @@ public class LumberGolem extends WorkerGolem {
 		this.pillar.forEach(pillarList::add);
 		ValueOutput.TypedOutputList<ItemStack> overflowList = output.list("overflow", ItemStack.CODEC);
 		this.overflow.forEach(overflowList::add);
+		ValueOutput.TypedOutputList<Stump> stumpList = output.list("to_plant", Stump.CODEC);
+		this.toPlant.forEach((pos, item) -> stumpList.add(new Stump(pos, item)));
 		ValueOutput.TypedOutputList<ItemStack> saplingList = output.list("saplings", ItemStack.CODEC);
 		this.saplings.forEach((item, count) -> {
 			if (count > 0) {
@@ -814,6 +1035,8 @@ public class LumberGolem extends WorkerGolem {
 		input.listOrEmpty("pillar", BlockPos.CODEC).forEach(this.pillar::add);
 		this.overflow.clear();
 		input.listOrEmpty("overflow", ItemStack.CODEC).forEach(this.overflow::add);
+		this.toPlant.clear();
+		input.listOrEmpty("to_plant", Stump.CODEC).forEach(stump -> this.toPlant.put(stump.pos(), stump.sapling()));
 		this.saplings.clear();
 		input.listOrEmpty("saplings", ItemStack.CODEC).forEach(stack -> this.saplings.put(stack.getItem(), Math.min(stack.getCount(), MAX_SAPLINGS_PER_KIND)));
 	}
@@ -843,5 +1066,13 @@ public class LumberGolem extends WorkerGolem {
 
 	/** A tree being felled: its logs from the ground up, and where and what to replant. */
 	private record Tree(BlockPos base, List<BlockPos> logs, List<BlockPos> roots, @Nullable Item sapling) {
+	}
+
+	/** A stump waiting for a sapling, as saved. */
+	private record Stump(BlockPos pos, Item sapling) {
+		static final Codec<Stump> CODEC = RecordCodecBuilder.create(
+			i -> i.group(BlockPos.CODEC.fieldOf("pos").forGetter(Stump::pos), BuiltInRegistries.ITEM.byNameCodec().fieldOf("sapling").forGetter(Stump::sapling))
+				.apply(i, Stump::new)
+		);
 	}
 }
