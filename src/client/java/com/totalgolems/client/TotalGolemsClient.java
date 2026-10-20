@@ -38,7 +38,6 @@ public class TotalGolemsClient implements ClientModInitializer {
 		BlockEntityRenderers.register(ModBlockEntities.METAL_CHEST, MetalChestRenderer::new);
 		BlockEntityRenderers.register(ModBlockEntities.GOLEM_STATUE, GolemStatueRenderer::new);
 		SpecialModelRenderers.ID_MAPPER.put(TotalGolems.id("golem_statue"), GolemStatueSpecialRenderer.Unbaked.MAP_CODEC);
-		ModelLayerRegistry.registerModelLayer(CopperGolemEfficiencyLayer.ANTENNA_LAYER, CopperGolemEfficiencyLayer::createAntennaLayer);
 		LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
 			if (type == EntityTypes.COPPER_GOLEM) {
 				@SuppressWarnings("unchecked")

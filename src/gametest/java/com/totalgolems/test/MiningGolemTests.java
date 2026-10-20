@@ -139,7 +139,7 @@ public class MiningGolemTests {
 		helper.setBlock(firstFurnace, Blocks.FURNACE);
 		helper.setBlock(secondFurnace, Blocks.FURNACE);
 		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
-		give(helper, golem, new ItemStack(Items.OXEYE_DAISY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.CRIMSON_FUNGUS), Direction.EAST);
 
 		boolean[] fuelled = {false, false};
 		helper.onEachTick(() -> {
@@ -186,7 +186,7 @@ public class MiningGolemTests {
 		// It picks saplings up off the ground, and nothing else.
 		helper.spawnItem(Items.OAK_SAPLING, new BlockPos(2, 1, 3));
 		helper.spawnItem(Items.DIAMOND, new BlockPos(2, 1, 4));
-		give(helper, golem, new ItemStack(Items.LILY_OF_THE_VALLEY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.ALLIUM), Direction.EAST);
 		int[] tallestPillar = {0};
 		helper.onEachTick(() -> tallestPillar[0] = Math.max(tallestPillar[0], golem.getPillarHeight()));
 		helper.succeedWhen(() -> {
@@ -229,7 +229,7 @@ public class MiningGolemTests {
 			helper.setBlock(leaf, Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.DISTANCE, 1));
 		}
 
-		give(helper, golem, new ItemStack(Items.LILY_OF_THE_VALLEY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.ALLIUM), Direction.EAST);
 		double[] highest = {0.0};
 		helper.onEachTick(() -> highest[0] = Math.max(highest[0], golem.getY() - helper.absolutePos(BlockPos.ZERO).getY()));
 		helper.succeedWhen(() -> {
@@ -272,7 +272,7 @@ public class MiningGolemTests {
 			}
 		}
 
-		give(helper, golem, new ItemStack(Items.OXEYE_DAISY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.CRIMSON_FUNGUS), Direction.EAST);
 		Vec3[] last = {golem.position()};
 		double[] longestStep = {0.0};
 		helper.onEachTick(() -> {

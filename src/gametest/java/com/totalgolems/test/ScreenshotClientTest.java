@@ -26,9 +26,9 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 			summon(server, "diamond", -0.5, 80, "dandelion", "diamond_pickaxe");
 			summon(server, "netherite", 0.6, 100, "poppy", "netherite_pickaxe");
 			summon(server, "netherite", 1.7, 110, null, null);
-			server.runCommand(at + "summon totalgolems:coal_golem ~1.6 ~ ~-0.6 {NoAI:1b,Rotation:[80f,0f],equipment:{saddle:{id:\"minecraft:oxeye_daisy\",count:1}}}");
+			server.runCommand(at + "summon totalgolems:coal_golem ~1.6 ~ ~-0.6 {NoAI:1b,Rotation:[80f,0f],equipment:{saddle:{id:\"minecraft:crimson_fungus\",count:1}}}");
 			// Upgraded with a spyglass, to see its other eyes.
-			server.runCommand(at + "summon totalgolems:amethyst_golem ~1.6 ~ ~0.6 {NoAI:1b,upgraded:1b,Rotation:[100f,0f],equipment:{mainhand:{id:\"minecraft:iron_axe\",count:1},saddle:{id:\"minecraft:lily_of_the_valley\",count:1}}}");
+			server.runCommand(at + "summon totalgolems:amethyst_golem ~1.6 ~ ~0.6 {NoAI:1b,upgraded:1b,Rotation:[100f,0f],equipment:{mainhand:{id:\"minecraft:iron_axe\",count:1},saddle:{id:\"minecraft:allium\",count:1}}}");
 			server.runCommand(at + "setblock ~5 ~1 ~-2 totalgolems:amethyst_chest[facing=west]");
 			server.runCommand("give @p totalgolems:iron_chest");
 			server.runCommand("give @p totalgolems:diamond_chest");
@@ -40,7 +40,7 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 			context.waitTicks(5);
 			server.runCommand(at + "fill ~1 ~ ~-4 ~6 ~3 ~4 air");
 			String[] kinds = {"hay", "bone"};
-			String[] flowers = {"cornflower", "white_tulip"};
+			String[] flowers = {"cornflower", "dead_bush"};
 			for (int i = 0; i < kinds.length; i++) {
 				double z = -1.6 + 1.6 * i;
 				server.runCommand(at + "summon totalgolems:" + kinds[i] + "_golem ~3 ~ ~" + z + " {NoAI:1b,Rotation:[" + (75 + 15 * i) + "f,0f],equipment:{saddle:{id:\"minecraft:" + flowers[i] + "\",count:1}}}");
@@ -88,9 +88,9 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 				{"iron_mining_golem", "iron_pickaxe", "poppy"},
 				{"diamond_mining_golem", "diamond_pickaxe", "poppy"},
 				{"netherite_mining_golem", "netherite_pickaxe", "poppy"},
-				{"amethyst_golem", "iron_axe", "lily_of_the_valley"},
+				{"amethyst_golem", "iron_axe", "allium"},
 				{"hay_golem", "iron_hoe", "cornflower"},
-				{"bone_golem", "iron_sword", "white_tulip"},
+				{"bone_golem", "iron_sword", "dead_bush"},
 			};
 			for (int i = 0; i < workers.length; i++) {
 				server.runCommand(at + "summon totalgolems:" + workers[i][0] + " ~4 ~ ~" + (-3.75 + 1.5 * i)
@@ -114,7 +114,7 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 			// Each golem's shape close up, three quarters from the front and from behind, in two groups.
 			String[][][] groups = {
 				{workers[0], workers[1], workers[2], workers[3]},
-				{workers[4], workers[5], {"coal_golem", null, "oxeye_daisy"}},
+				{workers[4], workers[5], {"coal_golem", null, "warped_fungus"}},
 			};
 			for (int g = 0; g < groups.length; g++) {
 				for (int side = 0; side < 2; side++) {

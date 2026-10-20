@@ -210,9 +210,9 @@ public class MiningGolemModel extends CopperGolemModel {
 				flower(poseStack, 3.0F, -1.0F, 0.5F, 25.0F, 0.55F);
 			}
 			case "iron" -> {
-				// Behind its ear, sticking out sideways.
-				this.head.translateAndRotate(poseStack);
-				flower(poseStack, 4.0F, -3.0F, 2.0F, -60.0F, 0.6F);
+				// Planted on top of its left shoulder.
+				this.leftArm.translateAndRotate(poseStack);
+				flower(poseStack, 2.0F, -2.0F, 0.0F, -10.0F, 0.6F);
 			}
 			case "diamond" -> {
 				// Planted on top of its right shoulder.
@@ -224,12 +224,19 @@ public class MiningGolemModel extends CopperGolemModel {
 				flower(poseStack, -2.5F, -0.5F, -3.6F, 8.0F, 0.55F);
 			}
 			case "bone" -> {
-				// Growing inside its ribcage, seen between the ribs.
-				flower(poseStack, 1.0F, -0.5F, 0.0F, 0.0F, 0.55F);
+				// Growing inside its ribcage, seen between the ribs: small enough that a dead bush, as wide as it
+				// is tall, stays within it.
+				flower(poseStack, 0.0F, -0.2F, -0.4F, 0.0F, 0.32F);
 			}
 			case "amethyst" -> {
+				// Its stem sunk into the head, so the allium's flower sits low among the crystals.
 				this.head.translateAndRotate(poseStack);
-				flower(poseStack, -1.5F, -5.0F, 2.5F, -10.0F, 0.7F);
+				flower(poseStack, -1.5F, -1.5F, 2.5F, -10.0F, 0.7F);
+			}
+			case "coal" -> {
+				// The fungus, smaller, its stalk sunk into the top of the head.
+				this.head.translateAndRotate(poseStack);
+				flower(poseStack, 1.5F, -3.5F, 1.0F, 8.0F, 0.5F);
 			}
 			default -> {
 				this.head.translateAndRotate(poseStack);

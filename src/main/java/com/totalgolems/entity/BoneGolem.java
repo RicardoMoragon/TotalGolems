@@ -30,7 +30,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The rancher. While it wears a white tulip it looks after the animals in the fenced pen it stands
+ * The rancher. While it wears an azure bluet or a dead bush it looks after the animals in the fenced pen it stands
  * in: it feeds them from its bone chest so they breed, thins the herd when it grows past twenty,
  * and puts whatever is dropped on the ground into the chest.
  * <p>
@@ -81,7 +81,7 @@ public class BoneGolem extends PenGolem {
 
 	@Override
 	protected boolean isActivatingFlower(final ItemStack stack) {
-		return stack.is(Items.WHITE_TULIP);
+		return stack.is(Items.AZURE_BLUET) || stack.is(Items.DEAD_BUSH);
 	}
 
 	@Override

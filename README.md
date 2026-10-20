@@ -5,24 +5,27 @@ Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con 
 | Bloque | Gólem | Flor que lo activa | Herramienta | Qué hace |
 |---|---|---|---|---|
 | Hierro, diamante, netherita | Minero | Amapola o diente de león | Pico | Hace minas en tiras o canteras y lo lleva a su cofre |
-| Carbón | Fundidor | Margarita (oxeye daisy) | — | Vacía los cofres de los demás: funde lo fundible y lleva el resto a un cofre de cobre |
-| Amatista | Leñador | Lirio de los valles | Hacha | Tala y replanta los árboles de su chunk (3x3 chunks con un catalejo) |
+| Carbón | Fundidor | Hongo carmesí o distorsionado | — | Vacía los cofres de los demás: funde lo fundible y lleva el resto a un cofre de cobre |
+| Amatista | Leñador | Allium | Hacha | Tala y replanta los árboles de su chunk (3x3 chunks con un catalejo) |
 | Heno | Agricultor | Aciano (cornflower) | Azada | Ara, siembra y cosecha el campo vallado en el que está |
-| Hueso | Ganadero | Tulipán blanco | Espada | Alimenta, cría y sacrifica los animales de su recinto |
+| Hueso | Ganadero | Azulina (azure bluet) o arbusto muerto | Espada | Alimenta, cría y sacrifica los animales de su recinto |
 
 Todos se crean igual: el bloque con una **calabaza tallada** encima. Se activan dándoles su flor con clic derecho y se
 paran quitándosela con la mano vacía. Tienen los **ojos encendidos solo mientras trabajan**.
 
-Tienen el cuerpo del gólem de cobre, pero **sin antena** (es solo del de cobre): llevan la flor sobre la cabeza. Cada uno
-tiene algo propio:
+Tienen el cuerpo del gólem de cobre, pero **sin antena** (es solo del de cobre), y cada uno lleva la flor en un sitio
+distinto. Cada uno tiene algo propio:
 
-- **Hierro:** brazos largos y gruesos que casi llegan al suelo, como los del gólem de hierro.
-- **Diamante:** más grande y tosco, con bultos de piedra en los hombros, la cabeza y la espalda.
-- **Netherita:** forjado como una armadura, con hombreras, una cresta en la cabeza y un cinturón.
-- **Amatista:** le salen cristales pequeños de la cabeza y de los brazos.
+- **Hierro:** brazos largos y gruesos que casi llegan al suelo, como los del gólem de hierro. La flor, en el hombro izquierdo.
+- **Diamante:** más grande y tosco, con bultos de piedra en los hombros, la cabeza y la espalda. La flor, en el hombro
+  derecho.
+- **Netherita:** forjado como una armadura, con hombreras, una cresta en la cabeza y un cinturón, donde lleva la flor.
+- **Amatista:** le salen cristales pequeños de la cabeza y de los brazos. El allium, con el tallo metido en la cabeza.
 - **Heno:** lleva un sombrero de paja, con la flor en la cinta, que salta cada vez que da un golpe de azada.
-- **Hueso:** es hueco: el pecho es una caja torácica por la que se ve a través, con la columna dentro.
-- **Carbón:** tiene agujeros donde tenía los puntos naranjas, y por ellos se ve su interior al rojo, que brilla.
+- **Hueso:** es hueco: el pecho es una caja torácica por la que se ve a través, con la columna dentro y la flor (o el
+  arbusto muerto) entre las costillas.
+- **Carbón:** tiene agujeros donde tenía los puntos naranjas, y por ellos se ve su interior al rojo, que brilla. El hongo,
+  sobre la cabeza.
 
 ## Herramientas
 
@@ -166,7 +169,7 @@ aunque flote por encima de la altura de su capa, en vez de intentar volver una y
 
 ## Gólem de carbón (fundidor)
 
-Calabaza sobre un **bloque de carbón**. No genera cofre: el bloque se consume. Se activa con una **margarita** y trabaja en
+Calabaza sobre un **bloque de carbón**. No genera cofre: el bloque se consume. Se activa con un **hongo carmesí o distorsionado** (cualquiera de los dos) y trabaja en
 un radio de 16 bloques alrededor del punto donde se la des.
 
 - Coge **cualquier objeto** de los cofres de **hierro, diamante, netherita y hueso**. Lleva 9 huecos para los
@@ -229,8 +232,7 @@ libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qu�
 | IV | Las esperas al abrir un cofre, coger y dejar duran **la mitad** |
 | V | Esas esperas se reducen **al mínimo** y anda un **20 % más rápido** |
 
-- Con cualquier nivel, la **antena brilla** como un objeto encantado, y en el centro de la **espalda** tiene **4 puntos de
-  cobre** que se van encendiendo, con poco brillo, uno por nivel: de arriba a la izquierda hasta abajo a la derecha. Con
+- Con cualquier nivel, en el centro de la **espalda** tiene **4 puntos de cobre** que se van encendiendo, con poco brillo, uno por nivel: de arriba a la izquierda hasta abajo a la derecha. Con
   Eficiencia IV están los 4 encendidos con brillo bajo, y con V los 4 brillan más.
 - El nivel se guarda con el gólem. Si se oxida del todo y se convierte en **estatua**, la estatua lo conserva y el gólem lo
   recupera al revivirlo con un hacha. (Si picas la estatua y la recoges como objeto, el nivel se pierde.)
@@ -238,7 +240,7 @@ libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qu�
 
 ## Gólem de amatista (leñador)
 
-Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa con un **lirio de los valles**.
+Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa con un **allium**.
 
 - Necesita un **hacha** en su cofre (ver Herramientas). Se gasta con cada tronco.
 - De base tala solo **el chunk donde se activa**. Dale un **catalejo** con clic derecho para subirlo de nivel: el catalejo
@@ -292,7 +294,7 @@ arar y al cosechar**, un punto por casilla arada y otro por cada cultivo recogid
 
 ## Gólem de hueso (ganadero)
 
-Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un **tulipán blanco**.
+Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con una **azulina (azure bluet)** o un **arbusto muerto**.
 
 - **Sin espada no sacrifica**, pero sigue alimentando y recogiendo. En cuanto hay una espada en su cofre de hueso la coge
   (ver Herramientas), y la gasta un punto por cada animal que sacrifica. Saqueo en la espada da más botín.

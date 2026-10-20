@@ -55,7 +55,7 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The lumberjack. While it wears a lily of the valley it fells the trees of the chunk it was
+ * The lumberjack. While it wears an allium it fells the trees of the chunk it was
  * switched on in with the axe from its chest, replants each one with a sapling of its own and
  * takes the wood to its chest.
  * <p>
@@ -224,7 +224,7 @@ public class LumberGolem extends WorkerGolem {
 
 	@Override
 	protected boolean isActivatingFlower(final ItemStack stack) {
-		return stack.is(Items.LILY_OF_THE_VALLEY);
+		return stack.is(Items.ALLIUM);
 	}
 
 	@Override

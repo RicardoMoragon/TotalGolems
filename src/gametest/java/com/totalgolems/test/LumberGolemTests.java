@@ -156,7 +156,7 @@ public class LumberGolemTests {
 		chest.setItem(1, new ItemStack(Items.OAK_SAPLING, 8));
 		chest.setItem(2, new ItemStack(Items.OAK_LOG, 16));
 		helper.setBlock(5, 1, 5, Blocks.COPPER_CHEST.weathering().unaffected());
-		give(helper, golem, new ItemStack(Items.OXEYE_DAISY), Direction.EAST);
+		give(helper, golem, new ItemStack(Items.CRIMSON_FUNGUS), Direction.EAST);
 		helper.runAtTickTime(300, () -> {
 			helper.assertTrue(chest.countItem(Items.COBBLESTONE) == 32, "the blocks stay");
 			helper.assertTrue(chest.countItem(Items.OAK_SAPLING) == 8, "the saplings stay");
@@ -177,7 +177,7 @@ public class LumberGolemTests {
 
 		LumberGolem golem = setUp(helper, ModEntities.AMETHYST_GOLEM, ModBlocks.AMETHYST_CHEST);
 		give(helper, golem, new ItemStack(Items.SPYGLASS), Direction.EAST);
-		helper.runAfterDelay(1, () -> give(helper, golem, new ItemStack(Items.LILY_OF_THE_VALLEY), Direction.EAST));
+		helper.runAfterDelay(1, () -> give(helper, golem, new ItemStack(Items.ALLIUM), Direction.EAST));
 		return golem;
 	}
 
