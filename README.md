@@ -233,7 +233,13 @@ Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa c
 - De base tala solo **el chunk donde se activa**. Dale un **catalejo** con clic derecho para subirlo de nivel: el catalejo
   se gasta, su zona pasa a una malla de **3x3 chunks** que recorre en espiral desde el centro, y **sus ojos cambian de
   color** (de lila a dorado). Al morir suelta el catalejo.
-- Desde el pie del árbol tira **todos los troncos**, por alto que sea, ramas incluidas. Las hojas las deja caer solas.
+- Tira **todos los troncos** del árbol, ramas incluidas. Las hojas las deja caer solas.
+- Llega tan lejos como un jugador. Para los troncos más altos **se hace un pilar** al lado del tronco con **bloques de su
+  cofre** (de los mismos que usan los mineros para construir: bloques normales que se pican con pico, como la piedra o
+  el pedrusco): salta, pone un bloque debajo y repite. Si hay hojas encima, las rompe. Al terminar baja **quitando el
+  pilar** y se queda los bloques. Lleva hasta 16, que coge de su cofre cada vez que pasa por él; si al llegar a un árbol
+  no lleva ninguno, va una vez a por ellos. Sin bloques, o con algo sólido encima, deja en el árbol los troncos a los que
+  no llega.
 - Al terminar un árbol **planta un brote** de su especie donde estaba (cuatro en los árboles de tronco 2x2), si tiene.
 - Lleva 10 huecos de madera y una reserva de hasta 64 brotes de cada tipo. Del suelo **solo recoge brotes**, y se acerca
   a por los que ve a menos de 10 bloques.
@@ -241,6 +247,7 @@ Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa c
 - Solo considera árbol un tronco sobre tierra que tenga hojas naturales, así que no toca construcciones de troncos.
 - **Se queda parado junto al cofre, con los ojos apagados**, si el cofre está lleno o si ya no quedan árboles en la zona.
   Cada 30 segundos vuelve a mirar si ha crecido alguno.
+- No se teletransporta (ver *Detalles*): un árbol o un brote al que no llega andando lo deja estar.
 
 ## Gólems de granja: el recinto vallado
 
@@ -286,8 +293,14 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 
 - Es inmune al fuego y no se ahoga.
 - Solo se mueve en chunks cargados, como cualquier otra criatura.
-- Si lleva diez segundos sin poder moverse hacia donde va, se teletransporta a su destino, siempre que esté a **16
-  bloques o menos**. Más lejos se queda donde está y lo sigue intentando a pie.
+- **Solo los mineros se teletransportan.** Si un minero lleva diez segundos sin poder moverse hacia donde va, se
+  teletransporta a su destino, siempre que esté a **16 bloques o menos**. Más lejos se queda donde está y lo sigue
+  intentando a pie.
+- Los gólems de **carbón, amatista, heno y hueso**, igual que el de cobre, **nunca se teletransportan**. Si no encuentran
+  camino a pie hasta un cofre, un horno, un cultivo, un animal, un árbol o un brote (o llevan diez segundos atascados
+  sin acercarse), **lo dejan estar durante un minuto** y pasan a otra cosa. Si lo que no alcanzan es su propio cofre, esperan
+  donde están con los ojos apagados y lo vuelven a intentar pasado ese minuto. Al darles otra vez su flor lo intentan
+  todo de nuevo enseguida.
 - Un minero nunca se teletransporta por debajo de la altura a la que trabaja (su capa, sus túneles o, bajando la
   escalera, el peldaño al que va), ni a una casilla con agua o lava, ni a una sin suelo firme. Si no hay ningún sitio
   así, no se teletransporta.

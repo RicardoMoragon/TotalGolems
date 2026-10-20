@@ -2,7 +2,10 @@ package com.totalgolems.entity;
 
 import com.totalgolems.block.ChestGroup;
 import com.totalgolems.block.MetalChestBlock;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -15,6 +18,7 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
@@ -29,6 +33,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -57,6 +63,10 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private static final int SECONDS_WITHOUT_PROGRESS_BEFORE_TELEPORT = 20;
 	/** Further away than this and being stuck is not cured by teleporting. */
 	protected static final double MAX_TELEPORT_DISTANCE = 16.0;
+	/** How many paths in a row that do not get there before a golem that cannot teleport gives up on the place. */
+	private static final int DEAD_END_PATHS_BEFORE_GIVING_UP = 3;
+	/** How long a place or a creature it could not get to is left alone before it is tried again: a minute. */
+	private static final int UNREACHABLE_TICKS = 1200;
 
 	protected @Nullable BlockPos chestPos;
 	/** At its chest without a tool, and none in there either. */
@@ -67,6 +77,12 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private @Nullable BlockPos travelTarget;
 	private double closestTravelDistance;
 	private int secondsWithoutProgress;
+	private int deadEndPaths;
+	/** Set when it last gave up on getting somewhere on foot; cleared when it sets off again. */
+	private boolean gaveUp;
+	/** Places and creatures it could not get to, and the game time until which they are left alone. */
+	private final Map<BlockPos, Long> unreachablePlaces = new HashMap<>();
+	private final Map<UUID, Long> unreachableCreatures = new HashMap<>();
 	/** Client side: when it last started and stopped swinging its tool, so that each swing is shown whole. */
 	private int swingStartTick = -1000;
 	private int swingStopTick = -1000;
@@ -210,8 +226,14 @@ public abstract class WorkerGolem extends AbstractGolem {
 			return;
 		}
 
+		if (this.isUnreachable(this.chestPos)) {
+			// It could not get to the chest: it waits where it is, and tries again in a while.
+			this.waitingForTool = true;
+			return;
+		}
+
 		if (!this.travelTo(level, this.chestPos, CHEST_REACH)) {
-			this.waitingForTool = false;
+			this.waitingForTool = this.hasGivenUp();
 			return;
 		}
 
@@ -292,7 +314,8 @@ public abstract class WorkerGolem extends AbstractGolem {
 					}
 				}
 
-				// Giving the flower it already wears just starts the job again from here.
+				// Giving the flower it already wears just starts the job again from here, and everything is worth a try again.
+				this.forgetUnreachable();
 				this.onActivated(level, player);
 				this.playSound(SoundEvents.COPPER_GOLEM_SPAWN, 0.6F, 1.4F);
 			}
@@ -363,6 +386,14 @@ public abstract class WorkerGolem extends AbstractGolem {
 			return true;
 		}
 
+		if (!target.equals(this.travelTarget)) {
+			this.travelTarget = target;
+			this.closestTravelDistance = Double.MAX_VALUE;
+			this.secondsWithoutProgress = 0;
+			this.deadEndPaths = 0;
+			this.gaveUp = false;
+		}
+
 		if (distance < 1.5 && Math.abs(this.getY() - spot.y) < 0.6) {
 			// Path nodes are a whole block apart, too coarse for the last stretch.
 			this.getNavigation().stop();
@@ -371,12 +402,19 @@ public abstract class WorkerGolem extends AbstractGolem {
 			// A chest is solid, so stopping next to it will do. Anywhere else the path has to end on the spot itself:
 			// a neighbouring cell could be outside the tunnel or the quarry.
 			this.getNavigation().moveTo(spot.x, spot.y, spot.z, reach > 1.0 ? 1 : 0, 1.0);
+			this.deadEndPaths = leadsTo(this.getNavigation().getPath(), spot, reach) ? 0 : this.deadEndPaths + 1;
 		}
 
-		if (!target.equals(this.travelTarget)) {
-			this.travelTarget = target;
-			this.closestTravelDistance = Double.MAX_VALUE;
-			this.secondsWithoutProgress = 0;
+		if (!this.mayTeleport() && this.getNavigation().isDone() && distance < reach + 2.0) {
+			// The path has run out just short of the spot: the last step straight at it. A golem that teleports
+			// gets there in the end anyway; the others would stand there until they gave up.
+			this.getMoveControl().setWantedPosition(spot.x, spot.y, spot.z, 1.0);
+		}
+
+		if (!this.mayTeleport() && this.deadEndPaths >= DEAD_END_PATHS_BEFORE_GIVING_UP) {
+			// No way there on foot, as far as the golem can see.
+			this.giveUpOn(target);
+			return false;
 		}
 
 		if (++this.travelTicks % 20 == 0) {
@@ -392,6 +430,11 @@ public abstract class WorkerGolem extends AbstractGolem {
 			}
 
 			if (this.stalledSeconds >= STALLED_SECONDS_BEFORE_TELEPORT || this.secondsWithoutProgress >= SECONDS_WITHOUT_PROGRESS_BEFORE_TELEPORT) {
+				if (!this.mayTeleport()) {
+					this.giveUpOn(target);
+					return false;
+				}
+
 				this.resetTravel();
 				if (this.mayTeleportTo(target, distance)) {
 					this.teleportNextTo(level, target);
@@ -400,6 +443,25 @@ public abstract class WorkerGolem extends AbstractGolem {
 		}
 
 		return false;
+	}
+
+	/** Whether {@code path} gets the golem there: to the spot itself, or near enough to it. */
+	private static boolean leadsTo(final @Nullable Path path, final Vec3 spot, final double reach) {
+		if (path == null) {
+			return false;
+		}
+
+		Node end = path.getEndNode();
+		return path.canReach() || end != null && Vec3.atBottomCenterOf(end.asBlockPos()).distanceTo(spot) <= reach;
+	}
+
+	/**
+	 * Whether the golem gets itself unstuck by teleporting. Those that cannot give up on a place they find no
+	 * way to on foot: it counts as {@linkplain #isUnreachable(BlockPos) unreachable} for a while, and
+	 * {@link #hasGivenUp()} tells the job to choose something else.
+	 */
+	protected boolean mayTeleport() {
+		return true;
 	}
 
 	/** Whether a golem that cannot get to {@code target}, {@code distance} blocks away, may jump there. */
@@ -412,6 +474,55 @@ public abstract class WorkerGolem extends AbstractGolem {
 		this.stalledSeconds = 0;
 		this.lastTravelPosition = null;
 		this.travelTarget = null;
+		this.deadEndPaths = 0;
+		this.gaveUp = false;
+	}
+
+	private void giveUpOn(final BlockPos target) {
+		this.getNavigation().stop();
+		this.resetTravel();
+		this.markUnreachable(target);
+		this.gaveUp = true;
+	}
+
+	/** Whether the last {@link #travelTo} gave up on getting where it was going. */
+	protected boolean hasGivenUp() {
+		return this.gaveUp;
+	}
+
+	/** Leaves {@code pos} alone for a while: there is no getting to it. */
+	protected void markUnreachable(final BlockPos pos) {
+		this.unreachablePlaces.put(pos.immutable(), this.level().getGameTime() + UNREACHABLE_TICKS);
+	}
+
+	/** Leaves {@code entity} alone for a while: there is no getting to it. */
+	protected void markUnreachable(final Entity entity) {
+		this.unreachableCreatures.put(entity.getUUID(), this.level().getGameTime() + UNREACHABLE_TICKS);
+	}
+
+	/** Whether {@code pos} is one it recently found no way to. */
+	public boolean isUnreachable(final @Nullable BlockPos pos) {
+		return pos != null && isStillMarked(this.unreachablePlaces, pos, this.level().getGameTime());
+	}
+
+	/** Whether {@code entity} is one it recently found no way to. */
+	public boolean isUnreachable(final Entity entity) {
+		return isStillMarked(this.unreachableCreatures, entity.getUUID(), this.level().getGameTime());
+	}
+
+	private static <K> boolean isStillMarked(final Map<K, Long> marked, final K key, final long now) {
+		Long until = marked.get(key);
+		if (until != null && until <= now) {
+			marked.remove(key);
+			return false;
+		}
+
+		return until != null;
+	}
+
+	protected void forgetUnreachable() {
+		this.unreachablePlaces.clear();
+		this.unreachableCreatures.clear();
 	}
 
 	/** Whether a golem that teleports may land at {@code spot}, which it fits into. Any such place will do by default. */

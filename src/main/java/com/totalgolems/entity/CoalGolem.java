@@ -88,6 +88,12 @@ public class CoalGolem extends WorkerGolem {
 		return "coal";
 	}
 
+	/** It walks everywhere: a furnace or chest it cannot get to it leaves alone for a while. */
+	@Override
+	protected boolean mayTeleport() {
+		return false;
+	}
+
 	@Override
 	protected boolean isBusy() {
 		return this.target != null;
@@ -127,6 +133,11 @@ public class CoalGolem extends WorkerGolem {
 		}
 
 		if (!this.travelTo(level, this.target, CHEST_REACH)) {
+			if (this.hasGivenUp()) {
+				// No way there: on to something else.
+				this.target = null;
+			}
+
 			return;
 		}
 
@@ -195,7 +206,8 @@ public class CoalGolem extends WorkerGolem {
 
 				for (BlockEntity blockEntity : level.getChunk(chunkX, chunkZ).getBlockEntities().values()) {
 					BlockPos pos = blockEntity.getBlockPos();
-					if (Math.abs(pos.getX() - this.home.getX()) > WORK_RADIUS
+					if (this.isUnreachable(pos)
+						|| Math.abs(pos.getX() - this.home.getX()) > WORK_RADIUS
 						|| Math.abs(pos.getZ() - this.home.getZ()) > WORK_RADIUS
 						|| Math.abs(pos.getY() - this.home.getY()) > WORK_HEIGHT) {
 						continue;

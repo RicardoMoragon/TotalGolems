@@ -114,7 +114,7 @@ public class HayGolem extends PenGolem {
 	}
 
 	private @Nullable BlockPos nearestCell(final Predicate<BlockPos> wanted) {
-		return this.pen.cells().stream().filter(wanted).min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position()))).orElse(null);
+		return this.pen.cells().stream().filter(cell -> !this.isUnreachable(cell) && wanted.test(cell)).min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position()))).orElse(null);
 	}
 
 	@Override
