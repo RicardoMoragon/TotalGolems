@@ -241,7 +241,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 		}
 
 		golem(server, 8, FEET, -18, "amethyst_block", "north");
-		stock(server, 8, FEET, -18, "iron_axe 1", "iron_axe 1", "oak_sapling 16", "birch_sapling 16", "spruce_sapling 16");
+		stock(server, 8, FEET, -18, "iron_axe 1", "iron_axe 1", "oak_sapling 16", "birch_sapling 16", "spruce_sapling 16", "cobblestone 64");
 		sign(server, 9, FEET, -17, "Le\u00f1ador:", "lirio de los valles", "catalejo = 3x3");
 	}
 
