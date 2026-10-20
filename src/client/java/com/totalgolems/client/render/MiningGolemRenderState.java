@@ -17,4 +17,8 @@ public class MiningGolemRenderState extends CopperGolemRenderState {
 	public float swingTicks;
 	/** How long it swung for, once it has stopped; negative while it is still swinging. */
 	public float swingLength = -1.0F;
+	/** Ticks since it started waving at a player, or negative if it is not. */
+	public float waveTicks = -1.0F;
+	/** Stages of wear, from 0 (as new) to 3. */
+	public int age;
 }

@@ -1,7 +1,10 @@
 package com.totalgolems.client;
 
+import com.totalgolems.TotalGolems;
 import com.totalgolems.client.render.CopperGolemEfficiencyLayer;
 import com.totalgolems.client.render.GolemModelLayers;
+import com.totalgolems.client.render.GolemStatueRenderer;
+import com.totalgolems.client.render.GolemStatueSpecialRenderer;
 import com.totalgolems.client.render.MetalChestRenderer;
 import com.totalgolems.client.render.MiningGolemRenderer;
 import com.totalgolems.entity.WorkerGolem;
@@ -15,6 +18,7 @@ import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.state.CopperGolemRenderState;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderers;
+import net.minecraft.client.renderer.special.SpecialModelRenderers;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 
@@ -32,6 +36,8 @@ public class TotalGolemsClient implements ClientModInitializer {
 		}
 
 		BlockEntityRenderers.register(ModBlockEntities.METAL_CHEST, MetalChestRenderer::new);
+		BlockEntityRenderers.register(ModBlockEntities.GOLEM_STATUE, GolemStatueRenderer::new);
+		SpecialModelRenderers.ID_MAPPER.put(TotalGolems.id("golem_statue"), GolemStatueSpecialRenderer.Unbaked.MAP_CODEC);
 		ModelLayerRegistry.registerModelLayer(CopperGolemEfficiencyLayer.ANTENNA_LAYER, CopperGolemEfficiencyLayer::createAntennaLayer);
 		LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
 			if (type == EntityTypes.COPPER_GOLEM) {

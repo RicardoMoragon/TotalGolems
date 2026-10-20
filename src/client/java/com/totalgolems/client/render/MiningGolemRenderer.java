@@ -1,5 +1,6 @@
 package com.totalgolems.client.render;
 
+import com.totalgolems.GolemGreeting;
 import com.totalgolems.TotalGolems;
 import com.totalgolems.entity.WorkerGolem;
 import net.minecraft.client.renderer.block.BlockModelResolver;
@@ -88,7 +89,8 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 	// The state type has to be the copper golem's for its model and layers to fit; it is always our subclass.
 	@Override
 	public Identifier getTextureLocation(final CopperGolemRenderState state) {
-		return TotalGolems.id("textures/entity/mining_golem/" + ((MiningGolemRenderState)state).textureId + "_golem.png");
+		MiningGolemRenderState golem = (MiningGolemRenderState)state;
+		return GolemTextures.body(golem.textureId, golem.age);
 	}
 
 	@Override
@@ -108,6 +110,8 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 		miningState.effectOffset = entity.getId() * 7;
 		miningState.swingTicks = entity.tickCount - entity.getSwingStartTick() + partialTicks;
 		miningState.swingLength = miningState.mining ? -1.0F : entity.getSwingStopTick() - entity.getSwingStartTick();
+		miningState.waveTicks = GolemGreeting.waveTicks(entity, partialTicks);
+		miningState.age = entity.getWeatherState().ordinal();
 		ItemStack flower = entity.getItemBySlot(WorkerGolem.FLOWER_SLOT);
 		if (flower.getItem() instanceof BlockItem blockItem) {
 			BlockItemStateProperties blockItemState = flower.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY);

@@ -84,6 +84,9 @@ public class MiningGolemModel extends CopperGolemModel {
 		} else if (golem.textureId.equals("coal") && golem.active && state.walkAnimationSpeed > 0.05F) {
 			this.carry(state);
 		}
+
+		// A greeting, with the hand that holds no tool.
+		GolemWave.apply(this.leftArm, golem.waveTicks, true);
 	}
 
 	/** How many ticks one blow takes, or 0 for a golem with no tool to swing. */

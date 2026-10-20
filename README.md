@@ -325,6 +325,27 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con un 
 - Un gólem invocado con `/summon` adopta el cofre de gólem más cercano (8 bloques) al recibir la flor.
 - La forma de gólem de hierro de siempre (la T de cuatro bloques) sigue creando el gólem de hierro normal.
 
+## Desgaste y estatuas
+
+Todos los gólems del mod se desgastan con el tiempo igual que el gólem de cobre:
+
+- Cada **7 u 8 días** de Minecraft pasan a la siguiente fase de desgaste, hasta 3. Cada material envejece a su manera:
+  el hierro se oxida, el diamante se enturbia, la netherita y el carbón se cubren de ceniza, la amatista se blanquea,
+  la paja se pudre y el hueso amarillea y le sale musgo.
+- Con un **panal** se encera y deja de desgastarse. Con un **hacha** se le quita la cera, o si no la tiene, se le
+  raspa una fase. Un rayo también le quita una fase.
+- Del todo desgastado puede **pararse para siempre** y convertirse en una **estatua de sí mismo**, con su piel y en una
+  de las posturas de la estatua de cobre (de pie, sentado, corriendo o en estrella).
+- La estatua sigue desgastándose sola salvo que la enceres con un panal. Con el hacha se le quita la cera y luego se
+  raspa fase a fase; **raspada del todo, un hachazo más la devuelve a la vida**. Vuelve el mismo gólem: con su flor,
+  su herramienta, su cofre y lo que llevara encima. Con cualquier otra cosa en la mano cambias su postura.
+- Se puede romper con un pico (la de paja, con una azada) y colocar en otro sitio: el gólem va dentro.
+
+## Saludo
+
+Todos los gólems, el de cobre incluido, **saludan con la mano** la primera vez que ven a cada jugador cada día de
+Minecraft. Los que llevan herramienta saludan con la mano libre.
+
 ## Instalación
 
 Copia `build/libs/totalgolems-1.4.1.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
