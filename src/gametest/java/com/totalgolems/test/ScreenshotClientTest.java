@@ -35,12 +35,12 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 			server.runCommand("give @p totalgolems:netherite_chest");
 			context.waitTicks(60);
 			context.takeScreenshot("totalgolems_scene");
-			// A second scene further along for the sponge, hay and bone golems and their chests.
+			// A second scene further along for the hay and bone golems and their chests.
 			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 12");
 			context.waitTicks(5);
 			server.runCommand(at + "fill ~1 ~ ~-4 ~6 ~3 ~4 air");
-			String[] kinds = {"sponge", "hay", "bone"};
-			String[] flowers = {"blue_orchid", "cornflower", "white_tulip"};
+			String[] kinds = {"hay", "bone"};
+			String[] flowers = {"cornflower", "white_tulip"};
 			for (int i = 0; i < kinds.length; i++) {
 				double z = -1.6 + 1.6 * i;
 				server.runCommand(at + "summon totalgolems:" + kinds[i] + "_golem ~3 ~ ~" + z + " {NoAI:1b,Rotation:[" + (75 + 15 * i) + "f,0f],equipment:{saddle:{id:\"minecraft:" + flowers[i] + "\",count:1}}}");
@@ -62,6 +62,68 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 
 			context.waitTicks(60);
 			context.takeScreenshot("totalgolems_copper");
+			// Every chest, single and double, from the front and from above.
+			server.runCommand("execute as @p at @s run tp @s ~-5 ~4 ~24 -90 35");
+			context.waitTicks(5);
+			server.runCommand(at + "fill ~1 ~-4 ~-8 ~14 ~3 ~8 air");
+			server.runCommand(at + "fill ~1 ~-5 ~-8 ~14 ~-5 ~8 grass_block");
+			String[] chests = {"iron", "diamond", "netherite", "amethyst", "hay", "bone"};
+			for (int i = 0; i < chests.length; i++) {
+				int z = -7 + 2 * i;
+				server.runCommand(at + "setblock ~8 ~-4 ~" + z + " totalgolems:" + chests[i] + "_chest[facing=west]");
+				server.runCommand(at + "setblock ~11 ~-4 ~" + z + " totalgolems:" + chests[i] + "_chest[facing=west,type=right]");
+				server.runCommand(at + "setblock ~11 ~-4 ~" + (z + 1) + " totalgolems:" + chests[i] + "_chest[facing=west,type=left]");
+			}
+
+			context.waitTicks(60);
+			context.takeScreenshot("totalgolems_chests");
+			// Each golem at its work, one frame every two ticks for a whole blow.
+			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 12");
+			context.waitTicks(5);
+			server.runCommand(at + "fill ~1 ~-4 ~-8 ~14 ~3 ~8 air");
+			server.runCommand(at + "fill ~1 ~-5 ~-8 ~14 ~-5 ~8 grass_block");
+			server.runCommand(at + "fill ~1 ~-1 ~-8 ~14 ~-1 ~8 grass_block");
+			server.runCommand(at + "fill ~1 ~-4 ~-8 ~14 ~-2 ~8 dirt");
+			String[][] workers = {
+				{"iron_mining_golem", "iron_pickaxe", "poppy"},
+				{"diamond_mining_golem", "diamond_pickaxe", "poppy"},
+				{"netherite_mining_golem", "netherite_pickaxe", "poppy"},
+				{"amethyst_golem", "iron_axe", "lily_of_the_valley"},
+				{"hay_golem", "iron_hoe", "cornflower"},
+				{"bone_golem", "iron_sword", "white_tulip"},
+			};
+			for (int i = 0; i < workers.length; i++) {
+				server.runCommand(at + "summon totalgolems:" + workers[i][0] + " ~4 ~ ~" + (-3.75 + 1.5 * i)
+					+ " {NoAI:1b,unlocked:1b,Rotation:[0f,0f],equipment:{mainhand:{id:\"minecraft:" + workers[i][1] + "\",count:1},saddle:{id:\"minecraft:" + workers[i][2] + "\",count:1}}}");
+			}
+
+			context.waitTicks(5);
+			// The golems are not at work (NoAI), so they are told by hand that they are swinging their tools.
+			server.runOnServer(minecraft -> {
+				try {
+					startSwinging(minecraft.overworld());
+				} catch (ReflectiveOperationException exception) {
+					throw new IllegalStateException(exception);
+				}
+			});
+			for (int frame = 0; frame < 10; frame++) {
+				context.waitTicks(2);
+				context.takeScreenshot("totalgolems_work_" + frame);
+			}
+		}
+	}
+
+	private static void startSwinging(final net.minecraft.server.level.ServerLevel level) throws ReflectiveOperationException {
+		java.lang.reflect.Method mining = com.totalgolems.entity.MiningGolem.class.getDeclaredMethod("setMining", boolean.class);
+		java.lang.reflect.Method swinging = com.totalgolems.entity.WorkerGolem.class.getDeclaredMethod("setSwingingArm", boolean.class);
+		mining.setAccessible(true);
+		swinging.setAccessible(true);
+		for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
+			if (entity instanceof com.totalgolems.entity.MiningGolem miner) {
+				mining.invoke(miner, true);
+			} else if (entity instanceof com.totalgolems.entity.WorkerGolem worker) {
+				swinging.invoke(worker, true);
+			}
 		}
 	}
 

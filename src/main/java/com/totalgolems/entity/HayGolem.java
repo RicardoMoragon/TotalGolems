@@ -1,5 +1,6 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.block.MetalChestBlock;
 import com.totalgolems.registry.ModBlocks;
 import java.util.Comparator;
 import java.util.List;
@@ -35,6 +36,8 @@ import org.jspecify.annotations.Nullable;
  * harvest to the nearest bone chest. Every block tilled and every crop reaped wears the hoe.
  */
 public class HayGolem extends PenGolem {
+	/** About every ten seconds a little straw comes loose from it. */
+	private static final int STRAW_CHANCE = 200;
 	private static final int SEED_SLOTS = 5;
 	private static final int HARVEST_SLOTS = 9;
 	/** It keeps a stack of each kind of seed for replanting; the rest of what it harvests is delivered. */
@@ -58,6 +61,14 @@ public class HayGolem extends PenGolem {
 
 	public HayGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
+	}
+
+	@Override
+	public void tick() {
+		super.tick();
+		if (this.level().isClientSide() && this.random.nextInt(STRAW_CHANCE) == 0) {
+			MetalChestBlock.dropStraw(this.level(), this.getX(), this.getY() + 0.5 + this.random.nextDouble() * 0.4, this.getZ(), 0.3, this.random);
+		}
 	}
 
 	public static AttributeSupplier.Builder createAttributes() {
