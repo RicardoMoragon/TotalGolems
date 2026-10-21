@@ -82,7 +82,10 @@ def noise(x, y, seed):
 
 
 def faces(width):
-    """The faces of the chest's lid and base on the texture, as (x, y, width, height, seed), as ModelPart lays a box out."""
+    """
+    The faces of the chest's lid and base on the texture, as (x, y, width, height, face), as ModelPart lays a box out:
+    face is 0 to 5 on the lid (inside, top, then the sides: west, front, east, back), 10 to 15 on the base.
+    """
     out = []
     for u, v, h, part in ((0, 0, 5, 0), (0, 19, 10, 1)):
         d = 14
@@ -178,35 +181,64 @@ def bone(x, y, w, h, seed):
 DESIGNS = {'iron': iron, 'diamond': diamond, 'netherite': netherite, 'amethyst': amethyst, 'hay': hay, 'bone': bone}
 
 
-def draw(copper, material, colours, width):
+def join_edge(half, face):
+    """
+    Which edge of a face of a double chest's half meets the other half: 'left' or 'right' as on the texture, or None.
+    Each half leaves out its side facing the other (west on the left half, east on the right); the faces beside it in
+    the texture's layout are the ones that meet: the front, top and bottom on that side, the back on the other.
+    """
+    if not half:
+        return None
+    near = 'left' if half == '_left' else 'right'
+    far = 'right' if near == 'left' else 'left'
+    return {0: near, 1: near, 3: near, 5: far}.get(face % 10)
+
+
+def draw(copper, material, colours, half):
+    """
+    The chest built as vanilla builds one (a rim round each face and a dark frame a pixel in), its design within.
+    The two halves of a double chest are one chest: no rim or frame where they meet, and the design runs on from
+    one into the other. The faces of the sides are upside down on the texture, so their rows are counted from the
+    bottom; the lock sits on a plate at the middle of the front, where lid and base meet.
+    """
+    width = 15 if half else 14
     out = copper.copy()
     lock = (6 if width == 14 else 4, 5)
-    for fx, fy, fw, fh, seed in faces(width):
+    for fx, fy, fw, fh, face in faces(width):
         pixels = [(x, y) for y in range(fy, fy + fh) for x in range(fx, fx + fw) if copper.getpixel((x, y))[3]]
         if not pixels:
             continue
 
         lums = sorted(luminance(copper.getpixel(p)) for p in pixels)
         inside = lums[len(lums) // 2] < INSIDE_LUMINANCE
+        join = join_edge(half, face)
+        whole = fw * 2 if join else fw
+        side = face % 10 >= 2
+        lid = face < 10
         for x, y in pixels:
             p = copper.getpixel((x, y))
             if p[:3] == (0, 0, 0) or (x < lock[0] and y < lock[1]):
                 continue
 
-            lum = luminance(p)
-            ring = min(x - fx, y - fy, fx + fw - 1 - x, fy + fh - 1 - y)
+            # Where the pixel is on the whole face, both halves of a double chest together, rows from the top.
+            u = x - fx + (fw if join == 'left' else 0)
+            v = fh - 1 - (y - fy) if side else y - fy
+            ring = min(u, v, whole - 1 - u, fh - 1 - v)
+            seam = side and ((lid and v == fh - 1) or (not lid and v == 0))
+            plate = face % 10 == 3 and abs(u + 0.5 - whole / 2) <= 2 and ((lid and v >= fh - 2) or (not lid and v <= 1))
             if inside:
                 # The inside of the lid: dark and plain, as on every chest.
-                tone = 0 if lum < 70 else 1
-            elif lum < FRAME_LUMINANCE and ring <= 1:
-                tone = 0 if lum < 70 else 1
+                tone = 0 if luminance(p) < 70 else 1
+            elif plate:
+                tone = 2 if ring == 0 else 3
             elif ring == 0:
-                # The rim, lit or shaded as the copper chest's is.
-                tone = 6 if lum > 150 else 5
+                # The rim: lit along the top, in shadow where lid and base meet.
+                tone = 3 if seam else 6 if v == 0 else 5
+            elif ring == 1:
+                tone = 1
             else:
-                tone = DESIGNS[material](x - fx - 2, y - fy - 2, fw - 4, fh - 4, seed)
-            colour = colours[max(0, min(8, tone))]
-            out.putpixel((x, y), colour + (p[3],))
+                tone = DESIGNS[material](u - 2, v - 2, whole - 4, fh - 4, face)
+            out.putpixel((x, y), colours[max(0, min(8, tone))] + (p[3],))
     # Anything else the copper chest has outside the faces and the lock, darkest as the frame, the rest as the rim.
     covered = {(x, y) for fx, fy, fw, fh, _ in faces(width) for y in range(fy, fy + fh) for x in range(fx, fx + fw)}
     for y in range(copper.height):
@@ -221,9 +253,9 @@ def main():
     with zipfile.ZipFile(JAR) as jar:
         for material, block in BLOCKS.items():
             colours = ramp(read(jar, f'assets/minecraft/textures/block/{block}.png'))
-            for suffix, width in (('', 14), ('_left', 15), ('_right', 15)):
+            for suffix in ('', '_left', '_right'):
                 copper = read(jar, f'assets/minecraft/textures/entity/chest/copper{suffix}.png')
-                draw(copper, material, colours, width).save(OUT / f'{material}{suffix}.png')
+                draw(copper, material, colours, suffix).save(OUT / f'{material}{suffix}.png')
             print('chest', material)
 
 
