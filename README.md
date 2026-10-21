@@ -378,8 +378,8 @@ Hace falta un JDK 25.
 - `python art/make_bbmodels.py` crea los proyectos de Blockbench de `art/` para pintar las texturas sobre el modelo:
   uno por gólem (`golem_<material>.bbmodel`, con su forma), el del gólem de cobre y los de los cofres. La forma de cada
   gólem está en `art/golem_geometry.py` y, para el juego, en `GolemModelLayers.java`.
-- `python art/make_chests.py` dibuja las texturas de los cofres en `art/textures/chest` con el estilo vanilla: el cofre de
-  cobre de Minecraft con los colores del bloque de cada material. Sobrescribe esas texturas; después hay que ejecutar
-  `make_effects.py`.
+- `python art/make_chests.py` dibuja las texturas de los cofres en `art/textures/chest` al estilo del cofre de cobre
+  vanilla (canto, marco oscuro, cierre e interior) con un diseño propio de cada material y los colores de su bloque.
+  Sobrescribe esas texturas; después hay que ejecutar `make_effects.py`.
 - `python art/make_effects.py` rehace las texturas animadas (brillos, grietas, el núcleo del gólem de carbón) a partir
   de las texturas de los gólems y de `art/textures/chest`. Hay que ejecutarlo después de editar cualquiera de ellas.
