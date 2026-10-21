@@ -6,9 +6,9 @@ frame a pixel in, the grey lock and the black inside. Within each frame it gets 
 - iron: brushed plates, a riveted seam across them and a rivet in every corner;
 - diamond: cut facets, a lattice of rhombuses lit from the top left, with the odd sparkle;
 - netherite: heavy plating, bevelled bands laid like bricks, joints staggered;
-- amethyst: crystal shards, slanting, each with a lit edge and a shadowed one;
-- hay: a bale, straws running along it and, on the sides, a twine binding round it;
-- bone: bones laid side by side, each a shaft with a knuckle at either end.
+- amethyst: cells of crystal of every size, as on the amethyst block, with dark cracks between;
+- hay: straw woven like a basket, strands passing over and under each other;
+- bone: two bones crossed corner to corner on plain bone, as the braces cross the copper chest's lid.
 
 The colours are the material's vanilla block's, nine shades spread evenly from its lightest to a dark one for the
 frame (the block's own colours where it has them, darkened towards violet where it does not), lit from the top
@@ -18,6 +18,7 @@ left as vanilla is. The textures go to art/textures/chest, from which make_effec
 """
 import colorsys
 import io
+import math
 import zipfile
 from pathlib import Path
 from PIL import Image
@@ -93,7 +94,7 @@ def faces(width):
 
 # ------------------------------------------------------------------------------------ designs
 # Each takes a pixel's place within the face's frame (x, y from the frame's top left corner, w, h its size) and the
-# face's seed, and gives a shade from 0 (darkest) to 8 (lightest), or the name of a colour of its own.
+# face's seed, and gives a shade from 0 (darkest) to 8 (lightest).
 
 def iron(x, y, w, h, seed):
     # Brushed: each column of the plate a touch lighter or darker, top to bottom.
@@ -142,47 +143,42 @@ def netherite(x, y, w, h, seed):
 
 
 def amethyst(x, y, w, h, seed):
-    # Shards slanting up to the right, of uneven widths, each lit along its left edge and shadowed along its right.
-    stripe = x + y
-    edges = [0]
-    while edges[-1] < w + h:
-        edges.append(edges[-1] + 3 + int(noise(len(edges), seed, 7) * 3))
-    for i in range(len(edges) - 1):
-        if edges[i] <= stripe < edges[i + 1]:
-            if stripe == edges[i]:
-                return 8
-            if stripe == edges[i + 1] - 1:
-                return 2
-            return 6 if i % 2 else 5
-    return 5
+    # As the amethyst block: cells of crystal of every size, each lit on its upper left, with dark cracks between.
+    points = [(noise(i, 1, seed) * w, noise(i, 2, seed) * h) for i in range(max(3, w * h // 14))]
+    near = sorted((math.hypot(x - px, y - py), i) for i, (px, py) in enumerate(points))
+    if near[1][0] - near[0][0] < 0.8:
+        return 2
+    i = near[0][1]
+    px, py = points[i]
+    lit = (x - px) + (y - py) < 0
+    return (7 if lit else 5) if i % 2 else (6 if lit else 4)
 
 
 def hay(x, y, w, h, seed):
-    # Straws along the bale in runs of a few pixels, and on the sides the twine round its middle.
-    side = seed % 10 >= 2
-    if side and x == w // 2:
-        return 'twine_light' if y % 2 == 0 else 'twine'
-    if side and x == w // 2 + 1:
-        return 3
-    run = int(noise(x // 3 + y * 5, y, seed) * 4)
-    return (4, 5, 6, 7)[run]
+    # Woven like a basket: strands two pixels wide passing over and under each other.
+    if ((x // 2) + (y // 2)) % 2:
+        return 7 if x % 2 == 0 else 5
+    return 6 if y % 2 == 0 else 3
 
 
 def bone(x, y, w, h, seed):
-    # Bones side by side down the face, three pixels wide with a gap, knuckles swelling out at either end.
-    col = x % 4
-    knuckle = y <= 1 or y >= h - 2
-    if col == 3:
-        return 6 if knuckle else 2
-    if col == 0:
-        return 8 if knuckle or y % 5 else 7
-    return 6 if col == 1 else 5
+    # Two bones crossed corner to corner, knuckles at their ends, on plain bone with a crack here and there.
+    slope = w / max(1, h)
+    for d in (x - y * slope, (w - 1 - x) - y * slope):
+        if abs(d) < 1.2:
+            end = min(x, w - 1 - x) < 2 and (y < 2 or y > h - 3)
+            return 8 if d < 0 or end else 6
+        if abs(d) < 2.0:
+            return 3
+    if noise(x, y, seed) > 0.96:
+        return 3
+    return 5 if (x + y) % 2 else 6
 
 
 DESIGNS = {'iron': iron, 'diamond': diamond, 'netherite': netherite, 'amethyst': amethyst, 'hay': hay, 'bone': bone}
 
 
-def draw(copper, material, colours, extra, width):
+def draw(copper, material, colours, width):
     out = copper.copy()
     lock = (6 if width == 14 else 4, 5)
     for fx, fy, fw, fh, seed in faces(width):
@@ -209,7 +205,7 @@ def draw(copper, material, colours, extra, width):
                 tone = 6 if lum > 150 else 5
             else:
                 tone = DESIGNS[material](x - fx - 2, y - fy - 2, fw - 4, fh - 4, seed)
-            colour = extra[tone] if isinstance(tone, str) else colours[max(0, min(8, tone))]
+            colour = colours[max(0, min(8, tone))]
             out.putpixel((x, y), colour + (p[3],))
     # Anything else the copper chest has outside the faces and the lock, darkest as the frame, the rest as the rim.
     covered = {(x, y) for fx, fy, fw, fh, _ in faces(width) for y in range(fy, fy + fh) for x in range(fx, fx + fw)}
@@ -221,14 +217,15 @@ def draw(copper, material, colours, extra, width):
     return out
 
 
-with zipfile.ZipFile(JAR) as jar:
-    side = read(jar, 'assets/minecraft/textures/block/hay_block_side.png')
-    reds = sorted({side.getpixel((x, y))[:3] for y in range(16) for x in range(16)
-                   if side.getpixel((x, y))[0] > side.getpixel((x, y))[1] + 40}, key=lightness)
-    extra = {'twine': reds[len(reds) // 3], 'twine_light': reds[-1]}
-    for material, block in BLOCKS.items():
-        colours = ramp(read(jar, f'assets/minecraft/textures/block/{block}.png'))
-        for suffix, width in (('', 14), ('_left', 15), ('_right', 15)):
-            copper = read(jar, f'assets/minecraft/textures/entity/chest/copper{suffix}.png')
-            draw(copper, material, colours, extra, width).save(OUT / f'{material}{suffix}.png')
-        print('chest', material)
+def main():
+    with zipfile.ZipFile(JAR) as jar:
+        for material, block in BLOCKS.items():
+            colours = ramp(read(jar, f'assets/minecraft/textures/block/{block}.png'))
+            for suffix, width in (('', 14), ('_left', 15), ('_right', 15)):
+                copper = read(jar, f'assets/minecraft/textures/entity/chest/copper{suffix}.png')
+                draw(copper, material, colours, width).save(OUT / f'{material}{suffix}.png')
+            print('chest', material)
+
+
+if __name__ == '__main__':
+    main()
