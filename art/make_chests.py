@@ -181,6 +181,37 @@ def bone(x, y, w, h, seed):
 DESIGNS = {'iron': iron, 'diamond': diamond, 'netherite': netherite, 'amethyst': amethyst, 'hay': hay, 'bone': bone}
 
 
+def frame_colour(colours, u, v, width, height, face):
+    """
+    The frame's colour at a pixel of it: not one flat line but short runs of two to four pixels in its own dark shade,
+    a shade a third of the way to the next, and the next, so that it has some grain to it.
+    """
+    # How far round the frame, clockwise from its top left corner.
+    if v == 1:
+        along = u
+    elif u == width - 2:
+        along = width + v
+    elif v == height - 2:
+        along = width + height + (width - 1 - u)
+    else:
+        along = 2 * width + height + (height - 1 - v)
+    run = 0
+    start = 0
+    while True:
+        length = 2 + int(noise(run, face, 11) * 3)
+        if along < start + length:
+            break
+        start += length
+        run += 1
+    pick = noise(run, face, 13)
+    dark, light = colours[1], colours[2]
+    if pick < 0.3:
+        return dark
+    if pick < 0.7:
+        return tuple(round(a + (b - a) / 3) for a, b in zip(dark, light))
+    return light
+
+
 def join_edge(half, face):
     """
     Which edge of a face of a double chest's half meets the other half: 'left' or 'right' as on the texture, or None.
@@ -199,7 +230,7 @@ def draw(copper, material, colours, half):
     The chest built as vanilla builds one (a rim round each face and a dark frame a pixel in), its design within.
     The two halves of a double chest are one chest: no rim or frame where they meet, and the design runs on from
     one into the other. The faces of the sides are upside down on the texture, so their rows are counted from the
-    bottom; the lock sits on a plate at the middle of the front, where lid and base meet.
+    bottom; the lock sits on a plate at the middle of the front, where lid and base meet, in a little shadow.
     """
     width = 15 if half else 14
     out = copper.copy()
@@ -224,21 +255,31 @@ def draw(copper, material, colours, half):
             u = x - fx + (fw if join == 'left' else 0)
             v = fh - 1 - (y - fy) if side else y - fy
             ring = min(u, v, whole - 1 - u, fh - 1 - v)
+            # The lid comes a pixel down over the base: the row where they overlap is drawn on both, and has to be
+            # the same on both, or the two flicker against each other. It is left plain, shadow and lock plate only.
             seam = side and ((lid and v == fh - 1) or (not lid and v == 0))
-            plate = face % 10 == 3 and abs(u + 0.5 - whole / 2) <= 2 and ((lid and v >= fh - 2) or (not lid and v <= 1))
+            # Distance, across and up or down from where lid and base meet, from the lock at the middle of the front.
+            lock_dx = abs(u + 0.5 - whole / 2)
+            lock_dy = fh - 1 - v if lid else v
+            front = face % 10 == 3
+            plate = front and lock_dx <= 2 and lock_dy <= 1
             if inside:
                 # The inside of the lid: dark and plain, as on every chest.
-                tone = 0 if luminance(p) < 70 else 1
+                colour = colours[0 if luminance(p) < 70 else 1]
             elif plate:
-                tone = 2 if ring == 0 else 3
+                colour = colours[2]
             elif ring == 0:
                 # The rim: lit along the top, in shadow where lid and base meet.
-                tone = 3 if seam else 6 if v == 0 else 5
+                colour = colours[3 if seam else 6 if v == 0 else 5]
             elif ring == 1:
-                tone = 1
+                colour = frame_colour(colours, u, v, whole, fh, face)
             else:
                 tone = DESIGNS[material](u - 2, v - 2, whole - 4, fh - 4, face)
-            out.putpixel((x, y), colours[max(0, min(8, tone))] + (p[3],))
+                if front and lock_dx <= 3 and lock_dy <= 2:
+                    # A little shadow round the lock.
+                    tone -= 1
+                colour = colours[max(0, min(8, tone))]
+            out.putpixel((x, y), colour + (p[3],))
     # Anything else the copper chest has outside the faces and the lock, darkest as the frame, the rest as the rim.
     covered = {(x, y) for fx, fy, fw, fh, _ in faces(width) for y in range(fy, fy + fh) for x in range(fx, fx + fw)}
     for y in range(copper.height):
