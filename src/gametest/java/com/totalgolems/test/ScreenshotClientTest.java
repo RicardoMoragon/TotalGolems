@@ -182,6 +182,21 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 				}
 			}
 
+			// The mining golems close up, from the front and from behind, to see their skins.
+			for (int side = 0; side < 2; side++) {
+				server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 15");
+				context.waitTicks(5);
+				server.runCommand(at + "fill ~1 ~-1 ~-4 ~5 ~3 ~4 air");
+				server.runCommand(at + "fill ~1 ~-1 ~-4 ~5 ~-1 ~4 grass_block");
+				String[] miners = {"iron", "diamond", "netherite"};
+				for (int i = 0; i < miners.length; i++) {
+					server.runCommand(at + "summon totalgolems:" + miners[i] + "_mining_golem ~2.6 ~ ~" + (-1.3 + 1.3 * i) + " {NoAI:1b,Rotation:[" + (side == 0 ? 90 : -90) + "f,0f]}");
+				}
+
+				context.waitTicks(30);
+				context.takeScreenshot("totalgolems_closeup_" + (side == 0 ? "front" : "back"));
+			}
+
 			// A statue of each golem, in every pose and every stage of wear, and their items in the hotbar.
 			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 20");
 			context.waitTicks(5);
