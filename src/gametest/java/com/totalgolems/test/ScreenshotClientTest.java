@@ -77,6 +77,22 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 
 			context.waitTicks(60);
 			context.takeScreenshot("totalgolems_chests");
+			// The double chests close up, three at a time, to see where the halves meet and the lock between them.
+			for (int group = 0; group < 2; group++) {
+				server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 30");
+				context.waitTicks(5);
+				server.runCommand(at + "fill ~1 ~-2 ~-6 ~8 ~3 ~6 air");
+				server.runCommand(at + "fill ~1 ~-2 ~-6 ~8 ~-2 ~6 grass_block");
+				for (int i = 0; i < 3; i++) {
+					String chest = chests[group * 3 + i];
+					int z = -4 + 3 * i;
+					server.runCommand(at + "setblock ~4 ~-1 ~" + z + " totalgolems:" + chest + "_chest[facing=west,type=right]");
+					server.runCommand(at + "setblock ~4 ~-1 ~" + (z + 1) + " totalgolems:" + chest + "_chest[facing=west,type=left]");
+				}
+
+				context.waitTicks(40);
+				context.takeScreenshot("totalgolems_doubles_" + group);
+			}
 			// Each golem at its work, one frame every two ticks for a whole blow.
 			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 12");
 			context.waitTicks(5);
@@ -164,6 +180,21 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 					context.waitTicks(40);
 					context.takeScreenshot("totalgolems_worn");
 				}
+			}
+
+			// The mining golems close up, from the front and from behind, to see their skins.
+			for (int side = 0; side < 2; side++) {
+				server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 15");
+				context.waitTicks(5);
+				server.runCommand(at + "fill ~1 ~-1 ~-4 ~5 ~3 ~4 air");
+				server.runCommand(at + "fill ~1 ~-1 ~-4 ~5 ~-1 ~4 grass_block");
+				String[] miners = {"iron", "diamond", "netherite"};
+				for (int i = 0; i < miners.length; i++) {
+					server.runCommand(at + "summon totalgolems:" + miners[i] + "_mining_golem ~2.6 ~ ~" + (-1.3 + 1.3 * i) + " {NoAI:1b,Rotation:[" + (side == 0 ? 90 : -90) + "f,0f]}");
+				}
+
+				context.waitTicks(30);
+				context.takeScreenshot("totalgolems_closeup_" + (side == 0 ? "front" : "back"));
 			}
 
 			// A statue of each golem, in every pose and every stage of wear, and their items in the hotbar.
