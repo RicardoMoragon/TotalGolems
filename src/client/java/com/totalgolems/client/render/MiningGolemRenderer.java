@@ -2,6 +2,7 @@ package com.totalgolems.client.render;
 
 import com.totalgolems.GolemGreeting;
 import com.totalgolems.TotalGolems;
+import com.totalgolems.entity.MiningGolem;
 import com.totalgolems.entity.WorkerGolem;
 import net.minecraft.client.renderer.block.BlockModelResolver;
 import net.minecraft.client.renderer.entity.CopperGolemRenderer;
@@ -15,6 +16,7 @@ import net.minecraft.client.renderer.entity.state.CopperGolemRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
@@ -32,8 +34,9 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 			new LivingEntityEmissiveLayer<>(
 				this,
 				state -> TotalGolems.id("textures/entity/mining_golem/" + ((MiningGolemRenderState)state).eyesTextureId + "_golem_eyes.png"),
-				// The base texture has the eyes switched off; this layer lights them while the golem has work to do.
-				(state, ageInTicks) -> ((MiningGolemRenderState)state).active ? 1.0F : 0.0F,
+				// The base texture has the eyes switched off; this layer lights them, always: a golem with nothing to do
+				// is resting, and with its eyes dark it would look dead.
+				(state, ageInTicks) -> 1.0F,
 				new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem),
 				RenderTypes::eyes,
 				false
@@ -113,6 +116,21 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 		miningState.swingCycle = entity.getSwingCycleTicks();
 		miningState.waveTicks = GolemGreeting.waveTicks(entity, partialTicks);
 		miningState.age = entity.getWeatherState().ordinal();
+		int sinceReach = entity.getTicksSinceReach();
+		miningState.reachTicks = sinceReach < WorkerGolem.REACH_TICKS ? sinceReach + partialTicks : -1.0F;
+		// Off the ground, or the moment it steps up a block, which is a hop too.
+		int sinceStep = entity.getTicksSinceStepHop();
+		float stepHop = sinceStep < WorkerGolem.STEP_HOP_TICKS ? Mth.sin(Mth.PI * (sinceStep + partialTicks) / WorkerGolem.STEP_HOP_TICKS) : 0.0F;
+		float airborne = entity.getAirTicks() > 0 ? Mth.clamp((entity.getAirTicks() + partialTicks) / 3.0F, 0.0F, 1.0F) : 0.0F;
+		// And its little hops on the spot, which are only shown: up off the ground, and down again.
+		int sinceHop = entity.getTicksSinceHop();
+		float hop = sinceHop < WorkerGolem.HOP_TICKS ? Mth.sin(Mth.PI * (sinceHop + partialTicks) / WorkerGolem.HOP_TICKS) : 0.0F;
+		miningState.hopLift = 5.0F * hop;
+		miningState.jump = Math.max(Math.max(stepHop, airborne), hop);
+		miningState.crest = entity instanceof MiningGolem miner ? miner.getCrestRise(partialTicks) : 1.0F;
+		// Rummaging in a chest, as the copper golem does.
+		state.interactionGetItem.copyFrom(entity.getChestGetAnimation());
+		state.interactionDropItem.copyFrom(entity.getChestDropAnimation());
 		ItemStack flower = entity.getItemBySlot(WorkerGolem.FLOWER_SLOT);
 		if (flower.getItem() instanceof BlockItem blockItem) {
 			BlockItemStateProperties blockItemState = flower.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY);

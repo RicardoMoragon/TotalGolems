@@ -96,6 +96,10 @@ public class LumberGolem extends WorkerGolem {
 	/** Saplings of each kind it takes from its chest, so as to have one for every stump. */
 	private static final int SAPLINGS_FROM_CHEST = 8;
 	private static final int CLIMB_INTERVAL = 8;
+	/** How much faster than a player it chops, with the same axe. */
+	private static final float CHOPPING_SPEEDUP = 2.0F;
+	/** The longest breather it takes after a log, however long that took. */
+	private static final int MAX_REST_TICKS = 40;
 
 	private final SimpleContainer wood = new SimpleContainer(WOOD_SLOTS);
 	/** Wood that did not fit. Anything here means the golem is full and must unload. */
@@ -128,6 +132,9 @@ public class LumberGolem extends WorkerGolem {
 	private int restTicks;
 	private @Nullable Tree tree;
 	private float breakProgress;
+	/** Ticks spent chopping since the last log came down. */
+	private int ticksChopping;
+	private int restUntilTick;
 	private int breakStage = -1;
 
 	public LumberGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
@@ -445,12 +452,20 @@ public class LumberGolem extends WorkerGolem {
 		}
 
 		BlockState state = level.getBlockState(pos);
-		this.setSwingingArm(true);
 		this.holdStillIfClimbing();
 		this.getLookControl().setLookAt(Vec3.atCenterOf(pos));
+		if (this.tickCount < this.restUntilTick) {
+			// A breather after the last log, the axe down.
+			this.setSwingingArm(false);
+			return;
+		}
+
+		this.setSwingingArm(true);
+		this.ticksChopping++;
 		ItemStack axe = this.getTool();
 		float hardness = state.getDestroySpeed(level, pos);
-		this.breakProgress += hardness <= 0.0F ? 1.0F : this.choppingSpeed(axe, state) / hardness / 30.0F;
+		// Twice as fast as a player with the same axe, to make up for the breather after each log.
+		this.breakProgress += hardness <= 0.0F ? 1.0F : CHOPPING_SPEEDUP * this.choppingSpeed(axe, state) / hardness / 30.0F;
 		if (this.tickCount % 4 == 0) {
 			level.playSound(null, pos, state.getSoundType().getHitSound(), SoundSource.NEUTRAL, 0.5F, 0.75F);
 		}
@@ -467,6 +482,9 @@ public class LumberGolem extends WorkerGolem {
 
 		List<ItemStack> drops = Block.getDrops(state, level, pos, null, this, axe);
 		this.clearCracks(level);
+		// As long a breather as the chopping took: with the doubled speed it fells as much as it ever did.
+		this.restUntilTick = this.tickCount + Math.min(this.ticksChopping, MAX_REST_TICKS);
+		this.ticksChopping = 0;
 		level.destroyBlock(pos, false, this);
 		tree.logs.remove(pos);
 		for (ItemStack drop : drops) {
@@ -988,9 +1006,21 @@ public class LumberGolem extends WorkerGolem {
 
 	private void tickRest(final ServerLevel level) {
 		this.setSwingingArm(false);
-		if (this.chestPos == null || this.isUnreachable(this.chestPos) || this.travelTo(level, this.chestPos, CHEST_REACH)) {
+		if (this.chestPos == null || this.isUnreachable(this.chestPos) || this.isNearChest() || this.travelTo(level, this.chestPos, CHEST_REACH)) {
 			this.restTicks--;
 		}
+	}
+
+	/** Near enough its chest to potter about there. */
+	private boolean isNearChest() {
+		return this.chestPos != null && this.chestPos.closerToCenterThan(this.position(), WANDER_RADIUS + 2);
+	}
+
+	/** Resting by its chest, it potters about there. */
+	@Override
+	protected boolean mayWander() {
+		return this.isIdleHere()
+			&& (!this.hasFlower() || !this.hasArea || this.restTicks > 0 && this.pillar.isEmpty() && !this.depositing && (this.chestPos == null || this.isNearChest()));
 	}
 
 	// ------------------------------------------------------------------------------------ persistence

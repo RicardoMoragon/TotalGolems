@@ -49,6 +49,8 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * It leaves each chest what its owner needs: the pickaxes, shovels and swords, a stack of blocks for
  * a miner to lay as floor, and the feed for the animals in a bone golem's pen.
+ * <p>
+ * At each chest it lifts the lid and rummages in it as the copper golem does, and the same at each furnace.
  */
 public class CoalGolem extends WorkerGolem {
 	private static final int WORK_RADIUS = 16;
@@ -62,6 +64,9 @@ public class CoalGolem extends WorkerGolem {
 	private static final int ITEMS_PER_FUEL = 8;
 	private static final int PLAN_INTERVAL = 20;
 	private static final double OWNER_SEARCH_RANGE = 64.0;
+	/** As the copper golem: three seconds at each chest or furnace, the loads going in or out a third of the way through. */
+	private static final int INTERACTION_TICKS = 60;
+	private static final int INTERACTION_LANDS = 20;
 
 	/** What it is carrying to the furnaces: ores and raw food, nine stacks at most. */
 	private final SimpleContainer ores = new SimpleContainer(SLOTS);
@@ -74,6 +79,8 @@ public class CoalGolem extends WorkerGolem {
 	private final List<BlockPos> sinks = new ArrayList<>();
 	private @Nullable BlockPos home;
 	private @Nullable BlockPos target;
+	/** Ticks since it got to its target and opened it, or -1 while it is not at one. */
+	private int interactionTicks = -1;
 
 	public CoalGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
@@ -113,13 +120,29 @@ public class CoalGolem extends WorkerGolem {
 	@Override
 	protected void onDeactivated(final ServerLevel level) {
 		this.target = null;
+		this.stopInteracting(level);
 		this.getNavigation().stop();
+	}
+
+	/** With nothing to do it potters about home. */
+	@Override
+	protected boolean mayWander() {
+		return this.isIdleHere() && this.target == null;
+	}
+
+	@Override
+	protected BlockPos wanderCentre() {
+		return this.hasFlower() && this.home != null ? this.home : super.wanderCentre();
 	}
 
 	@Override
 	protected void serverStep(final ServerLevel level) {
 		if (!this.hasFlower() || this.home == null) {
 			this.target = null;
+			if (this.interactionTicks >= 0) {
+				this.stopInteracting(level);
+			}
+
 			return;
 		}
 
@@ -132,7 +155,7 @@ public class CoalGolem extends WorkerGolem {
 			return;
 		}
 
-		if (!this.travelTo(level, this.target, CHEST_REACH)) {
+		if (this.interactionTicks < 0 && !this.travelTo(level, this.target, CHEST_REACH)) {
 			if (this.hasGivenUp()) {
 				// No way there: on to something else.
 				this.target = null;
@@ -141,25 +164,38 @@ public class CoalGolem extends WorkerGolem {
 			return;
 		}
 
-		this.getLookControl().setLookAt(Vec3.atCenterOf(this.target));
-		if (this.tickCount % TRANSFER_INTERVAL != 0) {
-			return;
-		}
-
 		BlockPos reached = this.target;
 		BlockState reachedState = level.getBlockState(reached);
-		if (level.getBlockEntity(reached) instanceof AbstractFurnaceBlockEntity furnace) {
-			this.serveFurnace(level, furnace);
-		} else if (reachedState.is(BlockTags.COPPER_CHESTS)) {
-			this.storeProducts(level, reached);
-		} else if (this.isSource(reachedState)) {
-			this.takeFrom(level, reached);
+		this.getLookControl().setLookAt(Vec3.atCenterOf(reached));
+		if (this.interactionTicks < 0) {
+			// The lid up and its hands in: taking out of the golems' chests, putting into the copper chests and furnaces.
+			this.openChest(level, reached, this.isSource(reachedState) ? CHEST_GET : CHEST_DROP);
+			this.interactionTicks = 0;
 		}
 
-		this.playSound(SoundEvents.ITEM_PICKUP, 0.3F, 0.8F);
-		// Straight on to the next errand, if there is one.
-		this.plan(level);
-		this.resetTravel();
+		if (++this.interactionTicks == INTERACTION_LANDS) {
+			if (level.getBlockEntity(reached) instanceof AbstractFurnaceBlockEntity furnace) {
+				this.serveFurnace(level, furnace);
+			} else if (reachedState.is(BlockTags.COPPER_CHESTS)) {
+				this.storeProducts(level, reached);
+			} else if (this.isSource(reachedState)) {
+				this.takeFrom(level, reached);
+			}
+
+			this.playSound(this.getChestAction() == CHEST_GET ? SoundEvents.COPPER_GOLEM_ITEM_GET : SoundEvents.COPPER_GOLEM_ITEM_DROP, 0.6F, 0.8F);
+		}
+
+		if (this.interactionTicks >= INTERACTION_TICKS) {
+			this.stopInteracting(level);
+			// On to the next errand, if there is one.
+			this.plan(level);
+			this.resetTravel();
+		}
+	}
+
+	private void stopInteracting(final ServerLevel level) {
+		this.interactionTicks = -1;
+		this.closeChest(level);
 	}
 
 	/** Picks where to go next, nearest first within each kind of errand, or nowhere if there is nothing to do. */

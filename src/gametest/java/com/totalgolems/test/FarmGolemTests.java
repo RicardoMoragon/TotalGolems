@@ -135,6 +135,10 @@ public class FarmGolemTests {
 		// A closed gate is as good as a fence; an open one, or none, lets the pen run away down the strip.
 		level.setBlockAndUpdate(corner.offset(5, 1, 2), Blocks.OAK_FENCE_GATE.defaultBlockState());
 		helper.assertTrue(Enclosure.find(level, inside) != null, "a gate keeps the pen closed");
+		// A golem steps up a whole block, onto a chest and off down the strip, but a chest in the fence line closes it all the same.
+		level.setBlockAndUpdate(corner.offset(5, 1, 2), ModBlocks.BONE_CHEST.defaultBlockState());
+		Enclosure withChest = Enclosure.find(level, inside);
+		helper.assertTrue(withChest != null && withChest.cells().size() == 16, "a chest in the fence keeps the pen closed");
 		level.setBlockAndUpdate(corner.offset(5, 1, 2), Blocks.AIR.defaultBlockState());
 		helper.assertTrue(Enclosure.find(level, inside) == null, "with a gap in the fence there is no pen");
 		helper.succeed();

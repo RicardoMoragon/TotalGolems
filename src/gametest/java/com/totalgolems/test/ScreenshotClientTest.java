@@ -197,6 +197,33 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 				context.takeScreenshot("totalgolems_closeup_" + (side == 0 ? "front" : "back"));
 			}
 
+			// Their ways of showing life: the netherite golem locked and unlocked, the bone golem's eyes calm and angry,
+			// the bone golem holding out food, the coal golem rummaging in a chest, and a golem in the middle of a jump.
+			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 15");
+			context.waitTicks(5);
+			server.runCommand(at + "fill ~1 ~-1 ~-7 ~9 ~3 ~7 air");
+			server.runCommand(at + "fill ~1 ~-1 ~-7 ~9 ~-1 ~7 grass_block");
+			server.runCommand(at + "summon totalgolems:netherite_mining_golem ~5.5 ~ ~-4.2 {NoAI:1b,Rotation:[90f,0f]}");
+			server.runCommand(at + "summon totalgolems:netherite_mining_golem ~5.5 ~ ~-2.8 {NoAI:1b,unlocked:1b,Rotation:[90f,0f]}");
+			server.runCommand(at + "summon totalgolems:bone_golem ~5.5 ~ ~-1.4 {NoAI:1b,Rotation:[90f,0f],CustomName:\"calm\"}");
+			server.runCommand(at + "summon totalgolems:bone_golem ~5.5 ~ ~0 {NoAI:1b,Rotation:[90f,0f],CustomName:\"angry\",equipment:{mainhand:{id:\"minecraft:iron_sword\",count:1}}}");
+			server.runCommand(at + "summon totalgolems:bone_golem ~5.5 ~ ~1.4 {NoAI:1b,Rotation:[130f,0f],CustomName:\"feeding\",equipment:{offhand:{id:\"minecraft:wheat\",count:1}}}");
+			server.runCommand(at + "setblock ~6 ~ ~3 totalgolems:bone_chest[facing=west]");
+			server.runCommand(at + "summon totalgolems:coal_golem ~5.5 ~ ~3 {NoAI:1b,Rotation:[-90f,0f],CustomName:\"rummaging\"}");
+			server.runCommand(at + "summon totalgolems:hay_golem ~5.5 ~9 ~4.4 {Rotation:[90f,0f]}");
+			context.waitTicks(10);
+			server.runOnServer(minecraft -> {
+				try {
+					showLife(minecraft.overworld());
+				} catch (ReflectiveOperationException exception) {
+					throw new IllegalStateException(exception);
+				}
+			});
+			context.waitTicks(8);
+			context.takeScreenshot("totalgolems_life_0");
+			context.waitTicks(16);
+			context.takeScreenshot("totalgolems_life_1");
+
 			// A statue of each golem, in every pose and every stage of wear, and their items in the hotbar.
 			server.runCommand("execute as @p at @s run tp @s ~ ~ ~24 -90 20");
 			context.waitTicks(5);
@@ -225,6 +252,41 @@ public class ScreenshotClientTest implements FabricClientGameTest {
 			} else if (entity instanceof com.totalgolems.entity.WorkerGolem worker) {
 				swinging.invoke(worker, true);
 			}
+		}
+	}
+
+	/** Angers the golem named angry, has the one named feeding reach out and the one named rummaging open its chest. */
+	private static void showLife(final net.minecraft.server.level.ServerLevel level) throws ReflectiveOperationException {
+		java.lang.reflect.Field angry = com.totalgolems.entity.BoneGolem.class.getDeclaredField("DATA_ANGRY");
+		java.lang.reflect.Method reach = com.totalgolems.entity.WorkerGolem.class.getDeclaredMethod("playReach");
+		java.lang.reflect.Method open = com.totalgolems.entity.WorkerGolem.class.getDeclaredMethod(
+			"openChest", net.minecraft.server.level.ServerLevel.class, net.minecraft.core.BlockPos.class, byte.class
+		);
+		angry.setAccessible(true);
+		reach.setAccessible(true);
+		open.setAccessible(true);
+		for (net.minecraft.world.entity.Entity entity : level.getAllEntities()) {
+			String name = entity.getCustomName() == null ? "" : entity.getCustomName().getString();
+			switch (name) {
+				case "angry" -> {
+					@SuppressWarnings("unchecked")
+					net.minecraft.network.syncher.EntityDataAccessor<Boolean> accessor = (net.minecraft.network.syncher.EntityDataAccessor<Boolean>)angry.get(null);
+					entity.getEntityData().set(accessor, true);
+				}
+				case "feeding" -> reach.invoke(entity);
+				case "rummaging" -> {
+					for (net.minecraft.core.BlockPos pos : net.minecraft.core.BlockPos.betweenClosed(entity.blockPosition().offset(-2, 0, -2), entity.blockPosition().offset(2, 0, 2))) {
+						if (level.getBlockEntity(pos) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity) {
+							open.invoke(entity, level, pos.immutable(), com.totalgolems.entity.WorkerGolem.CHEST_GET);
+							break;
+						}
+					}
+				}
+				default -> {
+				}
+			}
+
+			entity.setCustomName(null);
 		}
 	}
 

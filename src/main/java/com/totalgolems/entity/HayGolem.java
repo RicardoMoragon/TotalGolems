@@ -34,6 +34,8 @@ import org.jspecify.annotations.Nullable;
  * The farmer. While it wears a cornflower it works the fenced field it stands in: with a hoe from
  * its hay chest it tills the soil, sows it, harvests what is ripe and replants it, and takes the
  * harvest to the nearest bone chest. Every block tilled and every crop reaped wears the hoe.
+ * <p>
+ * Each of those is one stroke of the hoe, done the moment it strikes the soil, with a breather before the next.
  */
 public class HayGolem extends PenGolem {
 	/** About every ten seconds a little straw comes loose from it. */
@@ -180,12 +182,11 @@ public class HayGolem extends PenGolem {
 
 				// Not down at its feet: at the soil a little ahead, as a farmer with a long-handled hoe would.
 				this.getLookControl().setLookAt(pos.getX() + 0.5, pos.getY() + 0.4, pos.getZ() + 0.5);
-				if (!this.isActTick()) {
+				// Each job is one stroke of the hoe, tilling, sowing or reaping alike, done as the hoe comes down.
+				if (!this.strike(false)) {
 					return false;
 				}
 
-				// Each job is one stroke of the hoe, tilling, sowing or reaping alike.
-				this.playStroke();
 				switch (this.errand) {
 					case TILL -> this.till(level, pos);
 					case SOW -> this.sow(level, pos);

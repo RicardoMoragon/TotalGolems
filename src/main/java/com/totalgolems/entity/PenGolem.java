@@ -37,12 +37,21 @@ public abstract class PenGolem extends WorkerGolem {
 	private static final int PEN_REFRESH_INTERVAL = 100;
 	private static final int PLAN_INTERVAL = 20;
 	private static final int ACT_INTERVAL = 8;
+	/** Ticks from the start of a stroke of the tool to the moment it lands: the hoe in the soil, the sword at full stretch. */
+	private static final int STROKE_LANDS = 10;
+	/** And of reaching out with the free hand, to feed or to pick something up, to the moment the hand gets there. */
+	private static final int REACH_LANDS = 8;
+	/** After a stroke lands, how long before the next one starts: the rest of the stroke, and a breather. */
+	private static final int REST_AFTER_STROKE = 20;
 
 	protected @Nullable Enclosure pen;
 	private @Nullable BlockPos penOrigin;
 	private boolean hasErrand;
 	/** On its way to the chest for a tool. */
 	private boolean fetchingTool;
+	/** The tick the stroke under way lands, or -1 with none under way. */
+	private int strokeLandsTick = -1;
+	private int restUntilTick;
 
 	protected PenGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
@@ -101,6 +110,7 @@ public abstract class PenGolem extends WorkerGolem {
 	private void stop() {
 		this.hasErrand = false;
 		this.fetchingTool = false;
+		this.strokeLandsTick = -1;
 		this.setWaitingForTool(false);
 		this.clearErrand();
 		this.setSwingingArm(false);
@@ -156,6 +166,7 @@ public abstract class PenGolem extends WorkerGolem {
 
 		if (done) {
 			this.setSwingingArm(false);
+			this.strokeLandsTick = -1;
 			this.clearErrand();
 			// Straight on to the next thing, if there is one.
 			this.hasErrand = this.plan(level);
@@ -197,6 +208,65 @@ public abstract class PenGolem extends WorkerGolem {
 	/** Whether this tick is one of those the golem acts on, so that jobs take a moment each. */
 	protected boolean isActTick() {
 		return this.tickCount % ACT_INTERVAL == 0;
+	}
+
+	/**
+	 * One stroke, for work done in one go: of the tool, or with {@code reach} of the free hand. The first call
+	 * starts it and the work is done when it lands, the call that returns true; then the golem takes a breather
+	 * before it starts the next. Until then every call returns false.
+	 */
+	protected boolean strike(final boolean reach) {
+		if (this.strokeLandsTick < 0) {
+			if (this.tickCount < this.restUntilTick) {
+				return false;
+			}
+
+			if (reach) {
+				this.playReach();
+			} else {
+				this.playStroke();
+			}
+
+			this.strokeLandsTick = this.tickCount + (reach ? REACH_LANDS : STROKE_LANDS);
+			return false;
+		}
+
+		if (this.tickCount < this.strokeLandsTick) {
+			return false;
+		}
+
+		this.strokeLandsTick = -1;
+		this.restUntilTick = this.tickCount + REST_AFTER_STROKE;
+		return true;
+	}
+
+	/** Whether a stroke has been started and has not landed yet. */
+	protected boolean isStriking() {
+		return this.strokeLandsTick >= 0;
+	}
+
+	/** Idle in its pen, it potters about in there; it stays put while it waits at its chest for a tool. */
+	@Override
+	protected boolean mayWander() {
+		return this.isIdleHere() && (!this.hasFlower() || this.penOrigin == null || !this.isBusy() && !this.isWaitingForTool());
+	}
+
+	/**
+	 * A spot in its pen near its chest, or near where it stands. Without its flower too, in whatever pen it is in:
+	 * it does not stroll off over a chest in the fence. Anywhere at all when it is in none.
+	 */
+	@Override
+	protected @Nullable BlockPos pickWanderSpot() {
+		Enclosure area = this.hasFlower() && this.pen != null ? this.pen : this.level() instanceof ServerLevel level ? Enclosure.find(level, this.feetPos()) : null;
+		if (area == null) {
+			return super.pickWanderSpot();
+		}
+
+		BlockPos centre = this.chestPos != null && area.standNear(this.chestPos, CONTAINER_REACH) != null ? this.chestPos : this.blockPosition();
+		List<BlockPos> near = area.cells().stream()
+			.filter(cell -> cell.closerThan(centre, WANDER_RADIUS + 1) && this.isStandableSpot(cell))
+			.toList();
+		return near.isEmpty() ? null : near.get(this.random.nextInt(near.size()));
 	}
 
 	/** Walks to within arm's reach of a spot in the pen. Returns true once there. */

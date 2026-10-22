@@ -143,7 +143,9 @@ public class LumberGolemTests {
 		helper.succeedWhen(() -> {
 			helper.assertBlockPresent(Blocks.OAK_SAPLING, TREE);
 			helper.assertTrue(golem.getStumpsToPlant() == 0, "nothing left to plant");
-			helper.assertTrue(chest(helper).countItem(Items.OAK_SAPLING) + golem.getSaplingCount(Items.OAK_SAPLING) == 1, "one of the two planted");
+			// One of the two planted; and maybe one more about, picked up where a leaf of the tree let it fall.
+			int left = chest(helper).countItem(Items.OAK_SAPLING) + golem.getSaplingCount(Items.OAK_SAPLING);
+			helper.assertTrue(left == 1 || left == 2, "one of the two planted, found " + left + " left");
 		});
 	}
 

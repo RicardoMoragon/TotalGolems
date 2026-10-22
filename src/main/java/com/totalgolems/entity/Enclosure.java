@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -99,8 +100,12 @@ public final class Enclosure {
 		}
 	}
 
+	/**
+	 * Whether the block closes off the pen. Chests do too: they stand in the fence line, and a golem, which steps up
+	 * a whole block, would otherwise walk out over one.
+	 */
 	private static boolean isFence(final BlockState state) {
-		return state.is(BlockTags.FENCES) || state.is(BlockTags.WALLS) || state.is(BlockTags.FENCE_GATES);
+		return state.is(BlockTags.FENCES) || state.is(BlockTags.WALLS) || state.is(BlockTags.FENCE_GATES) || state.getBlock() instanceof ChestBlock;
 	}
 
 	/** Whether the block is in the way of something standing at its height. Crops, carpets and the like are not. */
