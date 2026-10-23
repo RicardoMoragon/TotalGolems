@@ -16,7 +16,7 @@ import net.minecraft.client.model.geom.builders.PartDefinition;
  * and each with something of its own:
  * <ul>
  * <li>iron: long, heavy arms, like the iron golem's;</li>
- * <li>diamond: everything a size bigger and rougher, with lumps on its shoulders, head and back;</li>
+ * <li>diamond: everything a size bigger and rougher, with lumps on its shoulders and head and a gem set in its back;</li>
  * <li>netherite: forged like armour, with plated shoulders, a crest along the head and a belt;</li>
  * <li>amethyst: little crystals growing out of its head and arms;</li>
  * <li>hay: a straw hat, a part of its own so that it can hop;</li>
@@ -139,7 +139,12 @@ public final class GolemModelLayers {
 			"body",
 			CubeListBuilder.create()
 				.texOffs(0, 16).addBox(-5.0F, -7.0F, -3.5F, 10.0F, 7.0F, 7.0F)
-				.texOffs(14, 41).addBox(-2.5F, -6.0F, 3.5F, 5.0F, 4.0F, 1.0F, LUMP),
+				// A gem set in its back, row by row, sunk half into it: not inflated, so that the rows meet edge to edge
+				// and none of their faces lies over another's.
+				.texOffs(0, 48).addBox(-2.0F, -6.0F, 3.0F, 4.0F, 1.0F, 1.0F)
+				.texOffs(12, 48).addBox(-3.0F, -5.0F, 3.0F, 6.0F, 2.0F, 1.0F)
+				.texOffs(28, 48).addBox(-2.0F, -3.0F, 3.0F, 4.0F, 1.0F, 1.0F)
+				.texOffs(40, 48).addBox(-1.0F, -2.0F, 3.0F, 2.0F, 1.0F, 1.0F),
 			PartPose.offset(0.0F, -5.0F, 0.0F)
 		);
 		body.addOrReplaceChild(

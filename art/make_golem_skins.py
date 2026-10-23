@@ -96,8 +96,21 @@ def noise(x, y, seed):
 # ------------------------------------------------------------------------------------ touches of each material
 # Each gets a face as rows of shade numbers (0 lightest, 9 darkest; GOLD and on, gold), which side of which cube it is, and changes it.
 
-# Shade numbers from here on are the material's gold, where it has any: lit, then in shadow.
+# Shade numbers from here on are the material's gold, where it has any: lit, then in shadow; then pure white, for glints.
 GOLD = 10
+WHITE = 13
+
+# The diamond golem's back gem, row by row as seen from behind (see golem_geometry): lit from the upper left, darker
+# towards its point, and catching the light in a couple of glints.
+W = WHITE
+BACK_GEM = {
+    'back_gem_top': [[1, 0, W, 1]],
+    'back_gem_middle': [[1, W, 0, 1, 1, 2], [0, 1, 1, 1, 2, 3]],
+    'back_gem_lower': [[1, 1, 2, 3]],
+    'back_gem_bottom': [[2, 3]],
+}
+# Where it sits on the back of the body, in that face's columns and rows, so that the back can darken right round it.
+BACK_GEM_ROWS = {1: range(3, 7), 2: range(2, 8), 3: range(2, 8), 4: range(3, 7), 5: range(4, 6)}
 
 
 def gem(face, cx, cy, rx, ry):
@@ -124,13 +137,32 @@ def sparkle(face, seed, chance):
 
 def diamond_touch(face, name, cube, seed):
     """
-    Cut, as a diamond is: a large gem set in its chest and a small one in its back and on its crown, cleavage lines
-    slanting across arms and legs with the light above them, bright tops on its lumps, and glints here and there.
+    Cut, as a diamond is: a large gem set in its chest, a small one on its crown and a bright one set in its back,
+    cleavage lines slanting across arms and legs with the light above them, bright tops on its lumps, and glints here
+    and there.
     """
     h, w = len(face), len(face[0])
+    if cube in BACK_GEM:
+        # Brighter than anything round it: its back as drawn, its top in the light, its sides and underside less so.
+        for y in range(h):
+            for x in range(w):
+                face[y][x] = BACK_GEM[cube][y][x] if name == 'south' else 0 if name == 'up' else 4 if name == 'down' else 2
+        return
     if cube == 'body' and name == 'north':
         gem(face, (w - 1) / 2, (h - 1) / 2, 3.0, 2.4)
-    elif cube in ('body', 'head') and name in ('south', 'up') and w >= 7 and h >= 5:
+    elif cube == 'body' and name == 'south':
+        # The setting: the back darkens right round the gem, darkest where it touches it.
+        sparkle(face, seed, 0.88)
+        for y in range(h):
+            for x in range(w):
+                touching = [(x + dx in BACK_GEM_ROWS.get(y + dy, ())) for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1))]
+                corner = any(x + dx in BACK_GEM_ROWS.get(y + dy, ()) for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)))
+                if any(touching):
+                    face[y][x] = 8
+                elif corner:
+                    face[y][x] = max(face[y][x], 7)
+        return
+    elif cube == 'head' and name in ('south', 'up') and w >= 7 and h >= 5:
         gem(face, (w - 1) / 2, (h - 1) / 2, 2.0, 1.6)
     elif cube in ('right_arm', 'left_arm', 'right_leg', 'left_leg') and name not in ('up', 'down'):
         # A cleavage line from the top right down to the bottom left, lit above and shaded below.
@@ -256,6 +288,12 @@ def paint(golem, copper, copper_eyes, colours, touch):
     return out, eyes
 
 
+def colours(jar, block, high, lift):
+    """The shades a skin is painted with: the material's ten, the gold's three, and white."""
+    gold = ramp(read(jar, 'assets/minecraft/textures/block/gold_block.png'), steps=3, high=0.8, low=0.6)
+    return ramp(read(jar, f'assets/minecraft/textures/block/{block}.png'), high=high, lift=lift) + gold + [(255, 255, 255)]
+
+
 def main(names=None):
     with zipfile.ZipFile(JAR) as jar:
         copper = read(jar, 'assets/minecraft/textures/entity/copper_golem/copper_golem.png')
@@ -264,7 +302,7 @@ def main(names=None):
             if names and golem not in names:
                 continue
             old_eyes = Image.open(TEXTURES / f'{golem}_golem_eyes.png').convert('RGBA')
-            skin, eyes = paint(golem, copper, copper_eyes, ramp(read(jar, f'assets/minecraft/textures/block/{block}.png'), high=high, lift=lift) + ramp(read(jar, 'assets/minecraft/textures/block/gold_block.png'), steps=3, high=0.8, low=0.6), touch)
+            skin, eyes = paint(golem, copper, copper_eyes, colours(jar, block, high, lift), touch)
             # The eyes keep the colour they had.
             lit = [old_eyes.getpixel((x, y)) for y in range(64) for x in range(64) if old_eyes.getpixel((x, y))[3]]
             colour = max(lit, key=lightness) if lit else None

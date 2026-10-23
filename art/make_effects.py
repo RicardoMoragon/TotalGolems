@@ -15,6 +15,7 @@ Run after changing any of those textures: python art/make_effects.py
 import json
 import math
 import random
+import sys
 from pathlib import Path
 from PIL import Image
 
@@ -185,15 +186,39 @@ EFFECTS.mkdir(exist_ok=True)
 for old in EFFECTS.glob('*.png'):
     old.unlink()
 
+def back_gem(image):
+    """
+    The diamond golem's back gem: its pixels, which glow softly so that it shows bright on whatever side the light
+    is, and among them its white glints, which pulse.
+    """
+    sys.path.insert(0, str(ART))
+    from golem_geometry import GOLEMS as SHAPES  # noqa: E402
+    from make_golem_skins import cubes, faces  # noqa: E402
+    pixels = set()
+    for _, c in cubes(SHAPES['diamond']):
+        if (c['name'] or '').startswith('back_gem'):
+            for name in ('south', 'up'):
+                fx, fy, fw, fh = faces(c)[name]
+                pixels.update((x, y) for y in range(fy, fy + fh) for x in range(fx, fx + fw))
+    white = {p for p in pixels if image.getpixel(p)[:3] == (255, 255, 255)}
+    return pixels, white
+
+
 for golem in ('iron', 'diamond', 'netherite', 'amethyst'):
     image = Image.open(GOLEMS / f'{golem}_golem.png').convert('RGBA')
     tint = GLINT_TINT[golem]
+    gem, gem_glints = back_gem(image) if golem == 'diamond' else (set(), set())
     for i, lit in enumerate(glints(image, GLINT[0], golem + '_golem')):
-        # Drawn additively, like the eyes: black adds nothing, the glint adds light.
+        for p in gem:
+            # Its glints come and go twice round the loop, one after the other.
+            pulse = 0.5 + 0.5 * math.sin(2 * math.pi * (2 * i / GLINT[0] + 0.5 * sorted(gem_glints).index(p))) if p in gem_glints else 0.0
+            lit[p] = max(lit.get(p, 0.0), 0.55 + 0.45 * pulse if p in gem_glints else 0.55)
+        # Drawn lit, like the eyes, and blended over the golem by its alpha: the glint's full colour, as strong as
+        # it is bright. (Not added: a dimmed colour at full alpha would darken the pixel instead.)
         frame = Image.new('RGBA', image.size, (0, 0, 0, 0))
         for (x, y), level in lit.items():
             p = image.getpixel((x, y))
-            frame.putpixel((x, y), tuple(int((p[c] * 0.4 + tint[c] * 0.6) * 0.8 * level) for c in range(3)) + (255,))
+            frame.putpixel((x, y), tuple(int(p[c] * 0.4 + tint[c] * 0.6) for c in range(3)) + (int(255 * 0.85 * level),))
         frame.save(EFFECTS / f'{golem}_{i}.png')
     print('golem', golem)
 

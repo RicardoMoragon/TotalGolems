@@ -17,7 +17,7 @@ Tienen el cuerpo del gólem de cobre, pero **sin antena** (es solo del de cobre)
 distinto. Cada uno tiene algo propio:
 
 - **Hierro:** brazos largos y gruesos que casi llegan al suelo, como los del gólem de hierro. La flor, en el hombro izquierdo.
-- **Diamante:** más grande y tosco, con bultos de piedra en los hombros, la cabeza y la espalda. La flor, en el hombro
+- **Diamante:** más grande y tosco, con bultos de piedra en los hombros y la cabeza, y un diamante engastado en la espalda. La flor, en el hombro
   derecho.
 - **Netherita:** forjado como una armadura, con hombreras, una cresta en la cabeza y un cinturón, donde lleva la flor.
   La cresta está escondida dentro de la cabeza hasta que se le da la rosa de Wither, y entonces sale: así se ve si está
