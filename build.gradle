@@ -1,14 +1,24 @@
-plugins {
-	id 'net.fabricmc.fabric-loom' version "${loom_version}"
-	id 'maven-publish'
-}
+// The build of one Minecraft version: Stonecutter runs this script once per version listed in settings.gradle, with the
+// sources (src/, shared by all) switched to that version. Its own dependency versions are in
+// versions/<version>/gradle.properties.
 
-repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+def versionProperties = new Properties()
+rootProject.file("versions/${stonecutter.current.project}/gradle.properties").withInputStream { versionProperties.load(it) }
+versionProperties.each { key, value -> project.ext.set(key, value) }
+
+// Minecraft is obfuscated up to 1.21.11 and unobfuscated from 26.1 on. Obfuscated versions need the remapping Loom,
+// Mojang's mappings and a remapped jar; unobfuscated ones need none of that.
+def unobfuscated = stonecutter.eval(stonecutter.current.version, '>=26.1')
+def javaVersion = (project.java_version as String).toInteger()
+
+apply plugin: unobfuscated ? 'net.fabricmc.fabric-loom' : 'net.fabricmc.fabric-loom-remap'
+apply plugin: 'maven-publish'
+
+version = "${rootProject.mod_version}+${project.minecraft_version}"
+group = rootProject.maven_group
+
+base {
+	archivesName = rootProject.name
 }
 
 loom {
@@ -19,6 +29,11 @@ loom {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
+	}
+
+	// Every version runs in its own folder of the root project's run/, so their worlds and options stay apart.
+	runConfigs.configureEach {
+		runDir = "../../run/${stonecutter.current.project}"
 	}
 }
 
@@ -32,59 +47,75 @@ fabricApi {
 }
 
 dependencies {
-	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-	// Fabric API. This is technically optional, but you probably want it anyway.
-	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	if (unobfuscated) {
+		implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+		implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	} else {
+		// Mojang's names at development time, the same as the unobfuscated versions use; Loom remaps the jar.
+		mappings loom.officialMojangMappings()
+		modImplementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+		modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	}
 }
 
 processResources {
-	def version = project.version
-	inputs.property "version", version
+	def properties = [
+		version          : project.version,
+		minecraft_range  : project.minecraft_range,
+		java_version     : javaVersion,
+	]
+	inputs.properties properties
 
-	filesMatching("fabric.mod.json") {
-		expand "version": version
+	filesMatching(["fabric.mod.json", "*.mixins.json"]) {
+		expand properties
 	}
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 25
+	it.options.encoding = 'UTF-8'
+	it.options.release = javaVersion
+	it.options.compilerArgs += ['-Xmaxerrs', '2000']
 }
 
 java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
+	sourceCompatibility = JavaVersion.toVersion(javaVersion)
+	targetCompatibility = JavaVersion.toVersion(javaVersion)
 }
 
 jar {
-	def projectName = project.name
+	def projectName = rootProject.name
 	inputs.property "projectName", projectName
 
-	from("LICENSE") {
-		rename { "${it}_$projectName"}
+	from(rootProject.file("LICENSE")) {
+		rename { "${it}_$projectName" }
 	}
 }
 
-// configure the maven publication
+// The jar players install: the remapped jar on obfuscated versions, the plain jar on unobfuscated ones.
+if (!unobfuscated) {
+	tasks.named('jar') { archiveClassifier = 'dev' }
+	tasks.named('remapJar') { archiveClassifier = '' }
+}
+tasks.register('releaseJar') {
+	group = 'build'
+	description = 'Builds the jar to install for this Minecraft version.'
+	dependsOn unobfuscated ? 'jar' : 'remapJar'
+}
+
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {
 			from components.java
 		}
 	}
+}
 
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
+// `gradlew runGameTest -PtestFilter=<selector>` runs only the tests that match, as /test run does.
+if (project.hasProperty('testFilter')) {
+	tasks.matching { it.name == 'runGameTest' }.configureEach {
+		jvmArgs "-Dfabric-api.gametest.filter=${project.testFilter}"
 	}
 }

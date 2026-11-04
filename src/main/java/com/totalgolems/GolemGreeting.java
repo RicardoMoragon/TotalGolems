@@ -46,7 +46,7 @@ public final class GolemGreeting {
 			return;
 		}
 
-		long day = level.getOverworldClockTime() / DAY_TICKS;
+		long day = Compat.overworldTime(level) / DAY_TICKS;
 		Map<UUID, Long> greeted = golem.getAttachedOrElse(GREETED, Map.of());
 		for (Player player : level.getEntitiesOfClass(Player.class, golem.getBoundingBox().inflate(SIGHT_RANGE), player -> !player.isSpectator())) {
 			Long last = greeted.get(player.getUUID());
@@ -66,7 +66,7 @@ public final class GolemGreeting {
 	/** Whether {@code golem} has waved at {@code player} today. */
 	public static boolean greetedToday(final Mob golem, final Player player) {
 		Long last = golem.getAttachedOrElse(GREETED, Map.<UUID, Long>of()).get(player.getUUID());
-		return last != null && last == golem.level().getOverworldClockTime() / DAY_TICKS;
+		return last != null && last == Compat.overworldTime(golem.level()) / DAY_TICKS;
 	}
 
 	/** Client side, on the wave's entity event. */

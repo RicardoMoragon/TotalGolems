@@ -1,5 +1,6 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.Compat;
 import com.totalgolems.block.ChestGroup;
 import java.util.ArrayList;
 import java.util.List;
@@ -306,11 +307,11 @@ public abstract class PenGolem extends WorkerGolem {
 	/** The nearest block of the given kind that can be used from the pen, such as a chest to deliver to. */
 	protected @Nullable BlockPos findContainer(final ServerLevel level, final Predicate<BlockState> wanted) {
 		BlockPos centre = this.blockPosition();
-		ChunkPos min = ChunkPos.containing(centre.offset(-CHEST_SEARCH_RADIUS, 0, -CHEST_SEARCH_RADIUS));
-		ChunkPos max = ChunkPos.containing(centre.offset(CHEST_SEARCH_RADIUS, 0, CHEST_SEARCH_RADIUS));
+		ChunkPos min = Compat.chunkAt(centre.offset(-CHEST_SEARCH_RADIUS, 0, -CHEST_SEARCH_RADIUS));
+		ChunkPos max = Compat.chunkAt(centre.offset(CHEST_SEARCH_RADIUS, 0, CHEST_SEARCH_RADIUS));
 		List<BlockPos> found = new ArrayList<>();
-		for (int chunkX = min.x(); chunkX <= max.x(); chunkX++) {
-			for (int chunkZ = min.z(); chunkZ <= max.z(); chunkZ++) {
+		for (int chunkX = Compat.chunkX(min); chunkX <= Compat.chunkX(max); chunkX++) {
+			for (int chunkZ = Compat.chunkZ(min); chunkZ <= Compat.chunkZ(max); chunkZ++) {
 				if (!level.hasChunk(chunkX, chunkZ)) {
 					continue;
 				}

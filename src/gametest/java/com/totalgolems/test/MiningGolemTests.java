@@ -1,5 +1,6 @@
 package com.totalgolems.test;
 
+import com.totalgolems.Compat;
 import com.totalgolems.entity.CoalGolem;
 import com.totalgolems.entity.LumberGolem;
 import com.totalgolems.entity.MiningGolem;
@@ -126,7 +127,7 @@ public class MiningGolemTests {
 	 * A golem chest with raw iron, too little coal and some cobblestone; two furnaces; a copper chest.
 	 * Thirty-two raw iron is sixteen per furnace, which wants two coal each, but there are only two in all.
 	 */
-	@GameTest(maxTicks = 4000, padding = 16)
+	@GameTest(maxTicks = 4000/*? if >=26.1 {*/, padding = 16/*?} else {*//*, environment = "totalgolems:alone_7"*//*?}*/)
 	public void coalGolemFeedsFurnacesSharesCoalAndStoresIngots(final GameTestHelper helper) {
 		CoalGolem golem = setUp(helper, ModEntities.COAL_GOLEM, ModBlocks.IRON_CHEST);
 		Container source = chest(helper);
@@ -138,7 +139,7 @@ public class MiningGolemTests {
 		BlockPos copperChest = new BlockPos(6, 1, 5);
 		helper.setBlock(firstFurnace, Blocks.FURNACE);
 		helper.setBlock(secondFurnace, Blocks.FURNACE);
-		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(copperChest, TestCompat.copperChest());
 		give(helper, golem, new ItemStack(Items.CRIMSON_FUNGUS), Direction.EAST);
 
 		boolean[] fuelled = {false, false};
@@ -248,7 +249,7 @@ public class MiningGolemTests {
 	 * The coal golem's nearest copper chest is walled in where it cannot walk. Rather than teleport in, it
 	 * gives that one up and takes the sticks to the other copper chest, further off.
 	 */
-	@GameTest(maxTicks = 2000, padding = 16)
+	@GameTest(maxTicks = 2000/*? if >=26.1 {*/, padding = 16/*?} else {*//*, environment = "totalgolems:alone_8"*//*?}*/)
 	public void coalGolemGivesUpOnChestItCannotWalkTo(final GameTestHelper helper) {
 		for (int x = 0; x <= 11; x++) {
 			for (int z = 0; z <= 11; z++) {
@@ -260,8 +261,8 @@ public class MiningGolemTests {
 		chest(helper).setItem(0, new ItemStack(Items.STICK, 5));
 		BlockPos walledIn = new BlockPos(6, 1, 3);
 		BlockPos open = new BlockPos(2, 1, 9);
-		helper.setBlock(walledIn, Blocks.COPPER_CHEST.weathering().unaffected());
-		helper.setBlock(open, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(walledIn, TestCompat.copperChest());
+		helper.setBlock(open, TestCompat.copperChest());
 		for (int x = 4; x <= 8; x++) {
 			for (int z = 1; z <= 5; z++) {
 				if (x == 4 || x == 8 || z == 1 || z == 5) {
@@ -530,12 +531,12 @@ public class MiningGolemTests {
 	 * These quarry a real chunk, so they are padded well away from the other tests. The chunk gets a slab
 	 * of stone with the chest and the golem on top, inside the chunk.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_9"*//*?}*/)
 	public void dandelionQuarriesChunkLayerAndClimbsStairsHome(final GameTestHelper helper) {
 		quarry(helper, GolemTier.IRON, 1);
 	}
 
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_10"*//*?}*/)
 	public void dandelionQuarriesSecondLayerThreeWide(final GameTestHelper helper) {
 		quarry(helper, GolemTier.DIAMOND, 2);
 	}
@@ -604,7 +605,7 @@ public class MiningGolemTests {
 	 * A quarry with a pocket of water in the layer it digs and a pond just outside the chunk, against the
 	 * side of the pit. The pocket is filled in and dug out, the pond walled off, and the pit ends up dry.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_11"*//*?}*/)
 	public void quarryGolemWallsOffWaterAndLeavesThePitDry(final GameTestHelper helper) {
 		quarryWater(helper, false);
 	}
@@ -614,7 +615,7 @@ public class MiningGolemTests {
 	 * layer empty but for a little stone: it digs that out to wall the pond off. Were it to go to its chest
 	 * for blocks it would wait there for good.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_12"*//*?}*/)
 	public void quarryGolemDigsBlocksOutOfItsLayerToWallOffWater(final GameTestHelper helper) {
 		quarryWater(helper, true);
 	}
@@ -687,7 +688,7 @@ public class MiningGolemTests {
 	 * Where the ground dips under the top of the staircase there is nothing to stand on there: the golem
 	 * puts a block in before it goes down, and does not fall into the hole and stay there.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_13"*//*?}*/)
 	public void quarryGolemPutsAFloorUnderTheTopStep(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
@@ -706,7 +707,7 @@ public class MiningGolemTests {
 	 * The ground under the walkway from the staircase to the chest has a hole in it. The golem fills it in
 	 * on its way, instead of falling into the pit each time it tries to get to its chest.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_14"*//*?}*/)
 	public void quarryGolemMendsTheWalkwayToItsChest(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
@@ -738,7 +739,7 @@ public class MiningGolemTests {
 	 * already dug, and its pickaxe is taken so that it has to go to its chest for another. Back down in the
 	 * pit it looks over the layer again: the water is walled off and dug out, and so is the cobblestone.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_15"*//*?}*/)
 	public void quarryGolemClearsWhatTurnedUpInItsLayerWhileItWasAway(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
@@ -819,13 +820,13 @@ public class MiningGolemTests {
 	 * the last block, however far from the tunnel it runs. A lone ore it cannot see, behind the stone
 	 * between two branches, is left.
 	 */
-	@GameTest(maxTicks = 6000, padding = 24)
+	@GameTest(maxTicks = 6000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_16"*//*?}*/)
 	public void poppyStripMinesWithThreeBlocksBetweenBranches(final GameTestHelper helper) {
 		stripMine(helper, GolemTier.IRON, 15);
 	}
 
 	/** The same with a diamond golem: tunnels three wide and three high, so its branches are six apart. */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_17"*//*?}*/)
 	public void diamondGolemStripMinesThreeWideBranchesSixApart(final GameTestHelper helper) {
 		stripMine(helper, GolemTier.DIAMOND, 17);
 	}
@@ -919,7 +920,7 @@ public class MiningGolemTests {
 	 * A quarry with a big pocket of water in the layer it digs, and more in the floor under it. The golem
 	 * gets the layer dug, and never goes up and down on the spot over and over.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_18"*//*?}*/)
 	public void quarryGolemInWaterNeverBobsUpAndDownInPlace(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.DIAMOND, 1);
 		ServerLevel level = helper.getLevel();
@@ -950,7 +951,7 @@ public class MiningGolemTests {
 	 * of its reach over its layer, keeps running down into it. The golem works on in the running water, gets
 	 * the layer dug, and never goes up and down on the spot over and over.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_19"*//*?}*/)
 	public void quarryGolemInRunningWaterNeverBobsUpAndDownInPlace(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
@@ -1018,7 +1019,7 @@ public class MiningGolemTests {
 	 * nothing to stand on, only water just under the layer, inside the chunk and outside it. Unable to walk
 	 * there it would jump; it must not jump anywhere it would sink below its layer.
 	 */
-	@GameTest(maxTicks = 2400, padding = 24)
+	@GameTest(maxTicks = 2400/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_20"*//*?}*/)
 	public void quarryGolemNeverTeleportsBelowItsLayer(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
@@ -1079,7 +1080,7 @@ public class MiningGolemTests {
 	}
 
 	/** An iron golem on its own, with its chest across the border in the next chunk, quarries the chunk it stands in. */
-	@GameTest(padding = 24)
+	@GameTest(/*? if >=26.1 {*/padding = 24/*?} else {*//*environment = "totalgolems:alone_21"*//*?}*/)
 	public void ironQuarryGolemDigsItsOwnChunkWithItsChestNextDoor(final GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(16);
@@ -1094,7 +1095,7 @@ public class MiningGolemTests {
 		level.setBlockAndUpdate(chestPos, ModBlocks.IRON_CHEST.defaultBlockState());
 		MiningGolem golem = looseMiner(level, GolemTier.IRON, golemPos, chestPos);
 		give(helper, golem, new ItemStack(Items.DANDELION), Direction.WEST);
-		ChunkPos own = ChunkPos.containing(golemPos);
+		ChunkPos own = Compat.chunkAt(golemPos);
 		helper.assertTrue(own.equals(golem.getQuarryChunk()), "it should quarry " + own + ", not " + golem.getQuarryChunk());
 		golem.discard();
 		helper.succeed();
@@ -1104,7 +1105,7 @@ public class MiningGolemTests {
 	 * A golem that quarried this chunk once and has had its flower taken away is not working it any more:
 	 * a new golem given a dandelion there quarries it, and does not go off to the next one.
 	 */
-	@GameTest(padding = 24)
+	@GameTest(/*? if >=26.1 {*/padding = 24/*?} else {*//*environment = "totalgolems:alone_22"*//*?}*/)
 	public void idleMinerInTheChunkDoesNotSendANewOneAway(final GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(16);
@@ -1122,7 +1123,7 @@ public class MiningGolemTests {
 		helper.assertTrue(idle.getQuarryChunk() == null, "a golem without its flower should hold no chunk");
 		MiningGolem fresh = looseMiner(level, GolemTier.IRON, chestPos.east(2), chestPos);
 		give(helper, fresh, new ItemStack(Items.DANDELION), Direction.EAST);
-		ChunkPos own = ChunkPos.containing(chestPos);
+		ChunkPos own = Compat.chunkAt(chestPos);
 		helper.assertTrue(own.equals(fresh.getQuarryChunk()), "it should quarry " + own + ", not " + fresh.getQuarryChunk());
 		idle.discard();
 		fresh.discard();
@@ -1218,7 +1219,7 @@ public class MiningGolemTests {
 	 * Lava against the outside of the chunk, beside the layer: walled off before the block of the pit next
 	 * to it is dug, and none of it gets into the pit.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_23"*//*?}*/)
 	public void quarryGolemWallsOffLavaInTheSideOfThePitBeforeDigging(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
@@ -1252,7 +1253,7 @@ public class MiningGolemTests {
 	 * taken then too, so that it has to go up the stairs through the water to its chest and come back down.
 	 * It finishes the quarry, and never goes up and down on the spot over and over on the way.
 	 */
-	@GameTest(maxTicks = 12000, padding = 24)
+	@GameTest(maxTicks = 12000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_24"*//*?}*/)
 	public void quarryGolemGoesUpAndDownStairsWithWaterOnThem(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 2);
 		ServerLevel level = helper.getLevel();
@@ -1318,7 +1319,7 @@ public class MiningGolemTests {
 	 * new pickaxe the next step is two blocks above the hole, more than it can climb, and it has nothing to
 	 * mend the step with. It must not be stuck there: it gets to its chest and finishes the layer.
 	 */
-	@GameTest(maxTicks = 8000, padding = 24)
+	@GameTest(maxTicks = 8000/*? if >=26.1 {*/, padding = 24/*?} else {*//*, environment = "totalgolems:alone_25"*//*?}*/)
 	public void quarryGolemGetsUpItsStairsPastAMissingStep(final GameTestHelper helper) {
 		QuarrySite site = quarrySite(helper, GolemTier.IRON, 1);
 		ServerLevel level = helper.getLevel();
@@ -1506,7 +1507,7 @@ public class MiningGolemTests {
 		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 		player.setYRot(facing.toYRot());
 		player.setItemInHand(InteractionHand.MAIN_HAND, held);
-		golem.interact(player, InteractionHand.MAIN_HAND, golem.position());
+		TestCompat.interact(golem, player, InteractionHand.MAIN_HAND);
 		return player;
 	}
 }

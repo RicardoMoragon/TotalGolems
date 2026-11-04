@@ -1,6 +1,6 @@
 # Total Golems
 
-Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con bloques de mineral.
+Mod de Fabric para Minecraft 26.3 y 1.21.11 que añade gólems de trabajo construidos con bloques de mineral.
 
 | Bloque | Gólem | Flor que lo activa | Herramienta | Qué hace |
 |---|---|---|---|---|
@@ -382,19 +382,28 @@ Minecraft. Los que llevan herramienta saludan con la mano libre.
 
 ## Instalación
 
-Copia `build/libs/totalgolems-1.4.1.jar` a la carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para 26.3.
+Copia el jar de tu versión, `build/libs/totalgolems-1.4.1+26.3.jar` o `build/libs/totalgolems-1.4.1+1.21.11.jar`, a la
+carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para esa versión.
 
 ## Compilar
 
-Hace falta un JDK 25.
+Hace falta un JDK 25 (también compila la 1.21.11, para Java 21).
 
 ```bash
-./gradlew build
+./gradlew collectJars
 ```
 
-- `./gradlew runGameTest` ejecuta las pruebas de comportamiento (`src/gametest`).
-- `./gradlew runClientGameTest` abre el juego, monta una escena con los gólems y cofres y guarda una captura en
-  `build/run/clientGameTest/screenshots`.
+deja en `build/libs` un jar por versión de Minecraft.
+
+El mismo código sirve para las dos versiones con [Stonecutter](https://stonecutter.kikugie.dev): cada versión es un
+proyecto, `:26.3` y `:1.21.11`, con sus dependencias en `versions/<versión>/gradle.properties`. El código de `src/`
+está escrito para la 26.3; lo que cambia en la 1.21.11 va entre comentarios `//? if >=26.1 { ... } else { ... }`, y
+las llamadas con nombres distintos están juntas en `Compat.java` (y `TestCompat.java` para las pruebas).
+
+- `./gradlew :26.3:runGameTest` (o `:1.21.11:runGameTest`) ejecuta las pruebas de comportamiento (`src/gametest`).
+  Con `-PtestFilter=totalgolems-test:<nombre>` solo las que coinciden.
+- `./gradlew :26.3:runClientGameTest` abre el juego, monta una escena con los gólems y cofres y guarda capturas en
+  `versions/26.3/build/run/clientGameTest/screenshots`.
 - `python tools/generate_textures.py` genera las texturas que falten (necesita Pillow). No toca las que ya existen,
   así que las editadas a mano están a salvo. No uses `--force`: pinta los gólems y los cofres con sus formas antiguas.
 - `python art/make_bbmodels.py` crea los proyectos de Blockbench de `art/` para pintar las texturas sobre el modelo:

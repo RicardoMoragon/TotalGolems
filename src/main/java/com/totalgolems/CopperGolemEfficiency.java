@@ -129,9 +129,9 @@ public final class CopperGolemEfficiency {
 		if (world instanceof ServerLevel serverLevel) {
 			int current = level(golem);
 			if (current >= MAX_LEVEL) {
-				player.sendOverlayMessage(Component.translatable("message.totalgolems.efficiency_max"));
+				Compat.overlay(player, Component.translatable("message.totalgolems.efficiency_max"));
 			} else if (offered != current + 1) {
-				player.sendOverlayMessage(Component.translatable("message.totalgolems.efficiency_needed", Component.translatable("enchantment.level." + (current + 1))));
+				Compat.overlay(player, Component.translatable("message.totalgolems.efficiency_needed", Component.translatable("enchantment.level." + (current + 1))));
 			} else {
 				held.consume(1, player);
 				setLevel(golem, offered);

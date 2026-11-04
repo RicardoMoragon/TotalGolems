@@ -112,8 +112,8 @@ public final class ItemFrameFilter {
 				&& marksOn(level, pos, state).shows(stack);
 		};
 		int chunks = Math.floorDiv(SEARCH_HORIZONTAL, 16) + 1;
-		for (ChunkPos chunkPos : ChunkPos.rangeClosed(ChunkPos.containing(golem.blockPosition()), chunks).toList()) {
-			LevelChunk chunk = level.getChunkSource().getChunkNow(chunkPos.x(), chunkPos.z());
+		for (ChunkPos chunkPos : ChunkPos.rangeClosed(Compat.chunkAt(golem.blockPosition()), chunks).toList()) {
+			LevelChunk chunk = level.getChunkSource().getChunkNow(Compat.chunkX(chunkPos), Compat.chunkZ(chunkPos));
 			if (chunk != null && chunk.getBlockEntities().values().stream().anyMatch(blockEntity -> blockEntity instanceof ChestBlockEntity && showsIt.test(blockEntity))) {
 				return true;
 			}

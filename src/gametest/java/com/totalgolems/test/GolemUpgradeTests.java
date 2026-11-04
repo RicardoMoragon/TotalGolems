@@ -1,5 +1,6 @@
 package com.totalgolems.test;
 
+import com.totalgolems.Compat;
 import static com.totalgolems.test.FarmGolemTests.container;
 import static com.totalgolems.test.FarmGolemTests.floor;
 import static com.totalgolems.test.FarmGolemTests.pen;
@@ -23,7 +24,11 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.EntitySpawnReason;
+//? if >=26.1 {
 import net.minecraft.world.entity.EntityTypes;
+//?} else {
+/*import net.minecraft.world.entity.EntityType;
+*///?}
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -292,7 +297,7 @@ public class GolemUpgradeTests {
 	// ------------------------------------------------------------------------------------ water
 
 	/** A glass tank four blocks deep: the miner stays on the bottom, where it works, and currents push no miner along. */
-	@GameTest(maxTicks = 300, padding = 16)
+	@GameTest(maxTicks = 300/*? if >=26.1 {*/, padding = 16/*?} else {*//*, environment = "totalgolems:alone_4"*//*?}*/)
 	public void minersStayOnTheBottomAndCurrentsDoNotPushThem(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos tank = new BlockPos(5, 1, 5);
@@ -321,7 +326,7 @@ public class GolemUpgradeTests {
 	 * chest. Everything goes to the copper chest, the potatoes by way of the furnace, except what the
 	 * owner of each chest needs.
 	 */
-	@GameTest(maxTicks = 4000, padding = 16)
+	@GameTest(maxTicks = 4000/*? if >=26.1 {*/, padding = 16/*?} else {*//*, environment = "totalgolems:alone_5"*//*?}*/)
 	public void coalGolemCartsEverythingAwayExceptWhatOwnersNeed(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos ironChest = new BlockPos(0, 1, 1);
@@ -336,7 +341,7 @@ public class GolemUpgradeTests {
 
 		helper.setBlock(ironChest, ModBlocks.IRON_CHEST);
 		helper.setBlock(boneChest, ModBlocks.BONE_CHEST);
-		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(copperChest, TestCompat.copperChest());
 		helper.setBlock(furnace, Blocks.FURNACE);
 		fill(container(helper, ironChest), new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.IRON_SHOVEL), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 36), new ItemStack(Items.DIAMOND, 3), new ItemStack(Items.COAL, 1));
 		fill(container(helper, boneChest), new ItemStack(Items.IRON_SWORD), new ItemStack(Items.WHEAT, 5), new ItemStack(Items.CARROT, 3), new ItemStack(Items.POTATO, 2), new ItemStack(Items.FEATHER, 4));
@@ -374,7 +379,7 @@ public class GolemUpgradeTests {
 		BlockPos source = new BlockPos(1, 1, 1);
 		BlockPos wrong = new BlockPos(4, 1, 1);
 		BlockPos right = new BlockPos(4, 1, 6);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		helper.setBlock(wrong, Blocks.CHEST);
 		helper.setBlock(right, Blocks.CHEST);
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
@@ -400,7 +405,7 @@ public class GolemUpgradeTests {
 		BlockPos source = new BlockPos(1, 1, 1);
 		BlockPos unmarked = new BlockPos(4, 1, 1);
 		BlockPos marked = new BlockPos(4, 1, 6);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		helper.setBlock(unmarked, Blocks.CHEST);
 		helper.setBlock(marked, Blocks.CHEST);
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
@@ -426,7 +431,7 @@ public class GolemUpgradeTests {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos source = new BlockPos(1, 1, 1);
 		BlockPos anything = new BlockPos(4, 1, 4);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		helper.setBlock(anything, Blocks.CHEST);
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
 		container(helper, anything).setItem(0, new ItemStack(Items.GOLD_INGOT, 5));
@@ -448,7 +453,7 @@ public class GolemUpgradeTests {
 		BlockPos source = new BlockPos(1, 1, 1);
 		BlockPos anything = new BlockPos(4, 1, 1);
 		BlockPos iron = new BlockPos(4, 1, 6);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		helper.setBlock(anything, Blocks.CHEST);
 		helper.setBlock(iron, Blocks.CHEST);
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
@@ -469,7 +474,7 @@ public class GolemUpgradeTests {
 	public void copperGolemLoadsAnythingIntoAMinecartWithAnEmptyFrame(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos source = new BlockPos(1, 1, 1);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 8));
 		MinecartChest minecart = station(helper, 3, 5, Items.AIR);
 		minecart.setItem(0, new ItemStack(Items.DIRT, 10));
@@ -490,7 +495,7 @@ public class GolemUpgradeTests {
 	public void copperGolemLoadsAMinecartAndSendsItOffOnceFull(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos source = new BlockPos(1, 1, 1);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 16));
 		MinecartChest minecart = station(helper, 3, 5, null);
 		for (int slot = 0; slot < minecart.getContainerSize() - 1; slot++) {
@@ -518,7 +523,7 @@ public class GolemUpgradeTests {
 	public void copperGolemOnlyLoadsMinecartsWhoseItemFramesMatch(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos source = new BlockPos(1, 1, 1);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 8));
 		MinecartChest gold = station(helper, 3, 2, Items.GOLD_INGOT);
 		MinecartChest iron = station(helper, 3, 6, Items.IRON_INGOT);
@@ -572,14 +577,14 @@ public class GolemUpgradeTests {
 	 * A slab across two chunks with a tree on each, built in the air where chunk borders are known.
 	 * The golem fells the one in its own chunk and stops; with a spyglass it goes on to the other.
 	 */
-	@GameTest(maxTicks = 4000, padding = 40)
+	@GameTest(maxTicks = 4000/*? if >=26.1 {*/, padding = 40/*?} else {*//*, environment = "totalgolems:alone_6"*//*?}*/)
 	public void amethystGolemWorksOneChunkUntilGivenSpyglass(final GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(24);
-		ChunkPos home = ChunkPos.containing(origin);
+		ChunkPos home = Compat.chunkAt(origin);
 		int ground = origin.getY();
-		for (int chunkX = home.x(); chunkX <= home.x() + 1; chunkX++) {
-			level.setChunkForced(chunkX, home.z(), true);
+		for (int chunkX = Compat.chunkX(home); chunkX <= Compat.chunkX(home) + 1; chunkX++) {
+			level.setChunkForced(chunkX, Compat.chunkZ(home), true);
 			for (int x = 0; x < 16; x++) {
 				for (int z = 0; z < 16; z++) {
 					level.setBlockAndUpdate(new BlockPos((chunkX << 4) + x, ground, home.getMinBlockZ() + z), Blocks.DIRT.defaultBlockState());
@@ -617,8 +622,8 @@ public class GolemUpgradeTests {
 			List<ItemEntity> dropped = level.getEntitiesOfClass(ItemEntity.class, golem.getBoundingBox().inflate(4.0), item -> item.getItem().is(Items.SPYGLASS));
 			helper.assertTrue(!dropped.isEmpty(), "it should drop its spyglass when it dies");
 			level.getEntitiesOfClass(ItemEntity.class, golem.getBoundingBox().inflate(8.0)).forEach(ItemEntity::discard);
-			level.setChunkForced(home.x(), home.z(), false);
-			level.setChunkForced(home.x() + 1, home.z(), false);
+			level.setChunkForced(Compat.chunkX(home), Compat.chunkZ(home), false);
+			level.setChunkForced(Compat.chunkX(home) + 1, Compat.chunkZ(home), false);
 		});
 	}
 

@@ -78,6 +78,15 @@ public class GolemStatueBlock extends BaseEntityBlock implements SimpleWaterlogg
 		);
 	}
 
+	//? if <26.1 {
+	/*// Before 26.1 every block that holds an entity names a codec, only used by block-type data; the statue is never read
+	// from data, so it stands for itself.
+	@Override
+	protected com.mojang.serialization.MapCodec<? extends BaseEntityBlock> codec() {
+		return com.mojang.serialization.MapCodec.unit(this);
+	}
+	*///?}
+
 	/** The golem's textures are named after this, as {@link WorkerGolem#getTextureId()}. */
 	public String getTextureId() {
 		return this.textureId;
@@ -128,8 +137,12 @@ public class GolemStatueBlock extends BaseEntityBlock implements SimpleWaterlogg
 
 			if (!level.isClientSide()) {
 				level.setBlockAndUpdate(pos, state.setValue(WAXED, true));
+				//? if >=26.1 {
 				level.levelEvent(null, LevelEvent.PARTICLES_WAX_ON, pos, 0);
 				level.playSound(null, pos, SoundEvents.HONEYCOMB_WAX_ON, SoundSource.BLOCKS, 1.0F, 1.0F);
+				//?} else {
+				/*level.levelEvent(null, LevelEvent.PARTICLES_AND_SOUND_WAX_ON, pos, 0);
+				*///?}
 				itemStack.consume(1, player);
 			}
 
@@ -150,11 +163,19 @@ public class GolemStatueBlock extends BaseEntityBlock implements SimpleWaterlogg
 		if (state.getValue(WAXED)) {
 			level.setBlockAndUpdate(pos, state.setValue(WAXED, false));
 			level.levelEvent(null, LevelEvent.PARTICLES_WAX_OFF, pos, 0);
+			//? if >=26.1 {
 			level.playSound(null, pos, SoundEvents.AXE_WAX_OFF.value(), SoundSource.BLOCKS, 1.0F, 1.0F);
+			//?} else {
+			/*level.playSound(null, pos, SoundEvents.AXE_WAX_OFF, SoundSource.BLOCKS, 1.0F, 1.0F);
+			*///?}
 		} else if (state.getValue(AGE) > 0) {
 			level.setBlockAndUpdate(pos, state.setValue(AGE, state.getValue(AGE) - 1));
 			level.levelEvent(null, LevelEvent.PARTICLES_SCRAPE, pos, 0);
+			//? if >=26.1 {
 			level.playSound(null, pos, SoundEvents.AXE_SCRAPE.value(), SoundSource.BLOCKS, 1.0F, 1.0F);
+			//?} else {
+			/*level.playSound(null, pos, SoundEvents.AXE_SCRAPE, SoundSource.BLOCKS, 1.0F, 1.0F);
+			*///?}
 		} else if (level.getBlockEntity(pos) instanceof GolemStatueBlockEntity statue) {
 			WorkerGolem golem = statue.revive(state);
 			if (golem == null) {

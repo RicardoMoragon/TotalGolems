@@ -1,5 +1,6 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.Compat;
 import com.totalgolems.GolemTier;
 import com.totalgolems.block.MetalChestBlock;
 import java.util.ArrayDeque;
@@ -300,7 +301,7 @@ public class MiningGolem extends WorkerGolem {
 					this.entityData.set(DATA_UNLOCKED, true);
 					level.playSound(null, this, SoundEvents.ENCHANTMENT_TABLE_USE, this.getSoundSource(), 1.0F, 1.0F);
 				} else {
-					player.sendOverlayMessage(Component.translatable("message.totalgolems.golem_locked"));
+					Compat.overlay(player, Component.translatable("message.totalgolems.golem_locked"));
 				}
 
 				return InteractionResult.SUCCESS;
@@ -353,11 +354,11 @@ public class MiningGolem extends WorkerGolem {
 			// Back in a pit it already started, the golem carries on with it and keeps using its staircase.
 			if (this.quarry == null || !this.quarry.isInsidePit(cell)) {
 				ChunkPos chunk = this.findFreeChunk(level, cell);
-				if (!chunk.equals(ChunkPos.containing(cell))) {
-					player.sendOverlayMessage(Component.translatable("message.totalgolems.chunk_taken"));
+				if (!chunk.equals(Compat.chunkAt(cell))) {
+					Compat.overlay(player, Component.translatable("message.totalgolems.chunk_taken"));
 				}
 
-				this.quarry = QuarryPlan.create(chunk.x(), chunk.z(), cell, this.chestPos, this.tier);
+				this.quarry = QuarryPlan.create(Compat.chunkX(chunk), Compat.chunkZ(chunk), cell, this.chestPos, this.tier);
 			}
 
 			this.miningDirection = null;
@@ -380,7 +381,7 @@ public class MiningGolem extends WorkerGolem {
 	 * a chunk to itself: the one it stands in if no other golem has it, otherwise the nearest free one.
 	 */
 	private ChunkPos findFreeChunk(final ServerLevel level, final BlockPos cell) {
-		ChunkPos own = ChunkPos.containing(cell);
+		ChunkPos own = Compat.chunkAt(cell);
 		Set<ChunkPos> taken = new HashSet<>();
 		for (MiningGolem other : level.getEntitiesOfClass(MiningGolem.class, this.getBoundingBox().inflate(CLAIM_SEARCH_RANGE), golem -> golem != this && golem.isAlive())) {
 			ChunkPos chunk = other.getQuarryChunk();
@@ -392,15 +393,15 @@ public class MiningGolem extends WorkerGolem {
 		List<ChunkPos> candidates = new ArrayList<>();
 		for (int dx = -CLAIM_CHUNK_RANGE; dx <= CLAIM_CHUNK_RANGE; dx++) {
 			for (int dz = -CLAIM_CHUNK_RANGE; dz <= CLAIM_CHUNK_RANGE; dz++) {
-				candidates.add(new ChunkPos(own.x() + dx, own.z() + dz));
+				candidates.add(new ChunkPos(Compat.chunkX(own) + dx, Compat.chunkZ(own) + dz));
 			}
 		}
 
 		// Nearest first: the chunk itself, then those sharing an edge with it, then the corners, and so on outwards.
-		candidates.sort(Comparator.comparingInt((ChunkPos chunk) -> Math.max(Math.abs(chunk.x() - own.x()), Math.abs(chunk.z() - own.z())))
-			.thenComparingInt(chunk -> Math.abs(chunk.x() - own.x()) + Math.abs(chunk.z() - own.z()))
-			.thenComparingInt(ChunkPos::x)
-			.thenComparingInt(ChunkPos::z));
+		candidates.sort(Comparator.comparingInt((ChunkPos chunk) -> Math.max(Math.abs(Compat.chunkX(chunk) - Compat.chunkX(own)), Math.abs(Compat.chunkZ(chunk) - Compat.chunkZ(own))))
+			.thenComparingInt(chunk -> Math.abs(Compat.chunkX(chunk) - Compat.chunkX(own)) + Math.abs(Compat.chunkZ(chunk) - Compat.chunkZ(own)))
+			.thenComparingInt(Compat::chunkX)
+			.thenComparingInt(Compat::chunkZ));
 		return candidates.stream().filter(chunk -> !taken.contains(chunk)).findFirst().orElse(own);
 	}
 

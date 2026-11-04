@@ -12,7 +12,12 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(CopperGolemAi.class)
 public class CopperGolemAiMixin {
 	// The chest is closed again at the end of the golem's visit, which Efficiency IV and V make shorter.
+	// The lambda onReachedTargetInteraction returns: named by javac from 26.1 on, by intermediary before.
+	//? if >=26.1 {
 	@ModifyExpressionValue(method = "lambda$onReachedTargetInteraction$0", at = @At(value = "CONSTANT", args = "intValue=60"))
+	//?} else {
+	/*@ModifyExpressionValue(method = "method_72485", at = @At(value = "CONSTANT", args = "intValue=60"))
+	*///?}
 	private static int totalgolems$closeChestSooner(final int original, @Local(argsOnly = true) final PathfinderMob body) {
 		return body instanceof CopperGolem golem ? CopperGolemEfficiency.interactionTicks(CopperGolemEfficiency.level(golem)) : original;
 	}

@@ -11,7 +11,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.EntitySpawnReason;
+//? if >=26.1 {
 import net.minecraft.world.entity.EntityTypes;
+//?} else {
+/*import net.minecraft.world.entity.EntityType;
+*///?}
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.vehicle.minecart.MinecartChest;
 import net.minecraft.world.item.Item;
@@ -77,7 +81,7 @@ public class TestWorldClientTest implements FabricClientGameTest {
 						+ (level.getBlockEntity(pos) instanceof net.minecraft.world.Container chest ? chest.getItem(0) + " .. " + chest.getItem(17) : ""));
 				}
 
-				System.out.println("TOTALGOLEMS_TEST_WORLD sign " + (level.getBlockEntity(new BlockPos(58, FEET, -26)) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign ? sign.getText(net.minecraft.world.level.block.entity.SignTextSlot.FRONT).getMessages(false).get(3).getString() : "none"));
+				System.out.println("TOTALGOLEMS_TEST_WORLD sign " + (level.getBlockEntity(new BlockPos(58, FEET, -26)) instanceof net.minecraft.world.level.block.entity.SignBlockEntity sign ? sign.getText(/*? if >=26.1 {*/net.minecraft.world.level.block.entity.SignTextSlot.FRONT/*?} else {*//*true*//*?}*/).getMessages(false)/*? if >=26.1 {*/.get(3)/*?} else {*//*[3]*//*?}*/.getString() : "none"));
 			});
 			server.runCommand("tp @p 56 " + (FEET + 12) + " -34 0 35");
 			context.waitTicks(60);

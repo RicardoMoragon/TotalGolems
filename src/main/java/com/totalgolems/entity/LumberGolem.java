@@ -351,7 +351,11 @@ public class LumberGolem extends WorkerGolem {
 	private static boolean isSoil(final ServerLevel level, final BlockPos pos) {
 		BlockState state = level.getBlockState(pos);
 		// Grass, podzol, moss and mud as well as dirt: what trees grow on, and what is left under them once grown.
+		//? if >=26.1 {
 		return state.is(BlockTags.SUBSTRATE_OVERWORLD) || state.is(Blocks.MANGROVE_ROOTS) || state.is(Blocks.MUDDY_MANGROVE_ROOTS);
+		//?} else {
+		/*return state.is(BlockTags.DIRT) || state.is(Blocks.MANGROVE_ROOTS) || state.is(Blocks.MUDDY_MANGROVE_ROOTS);
+		*///?}
 	}
 
 	/**

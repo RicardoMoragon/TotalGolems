@@ -682,7 +682,11 @@ public abstract class WorkerGolem extends AbstractGolem implements ContainerUser
 
 	/** Golems that were not built on a block (summoned, for instance) adopt the closest golem chest. */
 	protected @Nullable BlockPos findNearbyChest(final ServerLevel level) {
+		//? if >=26.1 {
 		for (BlockPos pos : BlockPos.withinManhattan(this.blockPosition(), CHEST_SEARCH_RADIUS)) {
+		//?} else {
+		/*for (BlockPos pos : BlockPos.withinManhattan(this.blockPosition(), CHEST_SEARCH_RADIUS, CHEST_SEARCH_RADIUS, CHEST_SEARCH_RADIUS)) {
+		*///?}
 			if (level.getBlockState(pos).getBlock() instanceof MetalChestBlock) {
 				return pos.immutable();
 			}
@@ -916,8 +920,13 @@ public abstract class WorkerGolem extends AbstractGolem implements ContainerUser
 		}
 
 		if (wax) {
+			//? if >=26.1 {
 			level.levelEvent(this, LevelEvent.PARTICLES_WAX_ON, this.blockPosition(), 0);
 			level.playSound(null, this, SoundEvents.HONEYCOMB_WAX_ON, this.getSoundSource(), 1.0F, 1.0F);
+			//?} else {
+			/*// Before 26.1 the wax particles come with their sound.
+			level.levelEvent(null, LevelEvent.PARTICLES_AND_SOUND_WAX_ON, this.blockPosition(), 0);
+			*///?}
 			this.nextWeatheringTick = WAXED;
 			held.consume(1, player);
 		} else {
