@@ -40,6 +40,7 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 /** The hay and bone golems, the coal golem's dealings with their chests, and golems sharing out chunks. */
 public class FarmGolemTests {
@@ -114,6 +115,29 @@ public class FarmGolemTests {
 			helper.assertTrue(!golem.hasHoe() && !golem.isActive(), "without a hoe it stays switched off");
 			helper.succeed();
 		});
+	}
+
+	/**
+	 * A golem chest in a pen's fence holds the animals in like the fence: to them it is as tall as a fence post, so
+	 * they cannot jump up on it and on over the fence. To a player or a golem it is an ordinary chest.
+	 */
+	@GameTest
+	public void animalsCannotClimbOntoGolemChests(final GameTestHelper helper) {
+		BlockPos chest = new BlockPos(1, 1, 1);
+		helper.setBlock(chest, ModBlocks.HAY_CHEST);
+		BlockPos at = helper.absolutePos(chest);
+		BlockState state = helper.getLevel().getBlockState(at);
+		Animal cow = helper.spawn(EntityTypes.COW, 3, 1, 1);
+		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+		WorkerGolem golem = spawn(helper, ModEntities.HAY_GOLEM, new BlockPos(1, 1, 3));
+		double toCow = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(cow)).max(Direction.Axis.Y);
+		double toPlayer = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(player)).max(Direction.Axis.Y);
+		double toGolem = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(golem)).max(Direction.Axis.Y);
+		helper.assertTrue(toCow >= 1.5, "to a cow the chest should be as tall as a fence, not " + toCow);
+		helper.assertTrue(toPlayer < 1.0 && toGolem < 1.0, "to a player and a golem it should be an ordinary chest, not " + toPlayer + " and " + toGolem);
+		// Reaching above its block, it has to be checked against what is over it, as a fence is.
+		helper.assertTrue(state.hasLargeCollisionShape(), "an animal above the chest should be checked against it");
+		helper.succeed();
 	}
 
 	/**
