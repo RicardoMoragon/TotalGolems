@@ -6,6 +6,7 @@ import com.totalgolems.block.GolemStatueBlock;
 import com.totalgolems.block.GolemStatueBlockEntity;
 import com.totalgolems.block.MetalChestBlock;
 import com.totalgolems.registry.ModBlocks;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,8 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.AnimationState;
+import net.minecraft.world.entity.ContainerUser;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -32,6 +35,7 @@ import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.animal.golem.AbstractGolem;
@@ -41,11 +45,15 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.CopperGolemStatueBlock;
 import net.minecraft.world.level.block.LevelEvent;
 import net.minecraft.world.level.block.WeatheringCopper;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.ContainerOpenersCounter;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
@@ -56,13 +64,15 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * What every golem of the mod shares: it is switched on by wearing a flower and off by taking it
- * away, it walks to places on its own and gets itself unstuck, and its eyes are lit only while it
- * has something to do.
+ * away, and it walks to places on its own and gets itself unstuck.
+ * <p>
+ * With nothing to do it potters about near its chest, now and then giving a little hop, and its eyes
+ * stay lit all the same: it is resting, not dead.
  * <p>
  * Those that work with a tool carry a real one in their hand, taken from their own chest. It wears
  * out as it would for a player, and when it breaks they go back to the chest for another.
  */
-public abstract class WorkerGolem extends AbstractGolem {
+public abstract class WorkerGolem extends AbstractGolem implements ContainerUser {
 	/** Same slot the copper golem wears its poppy in, so the vanilla antenna layer can draw it. */
 	public static final EquipmentSlot FLOWER_SLOT = EquipmentSlot.SADDLE;
 	private static final EntityDataAccessor<Boolean> DATA_ACTIVE = SynchedEntityData.defineId(WorkerGolem.class, EntityDataSerializers.BOOLEAN);
@@ -70,6 +80,11 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private static final EntityDataAccessor<WeatheringCopper.WeatherState> DATA_WEATHER_STATE = SynchedEntityData.defineId(
 		WorkerGolem.class, EntityDataSerializers.WEATHERING_COPPER_STATE
 	);
+	/** What it is doing at a chest it has opened, for the copper golem's animations of it: nothing, taking, or putting in. */
+	private static final EntityDataAccessor<Byte> DATA_CHEST_ACTION = SynchedEntityData.defineId(WorkerGolem.class, EntityDataSerializers.BYTE);
+	public static final byte CHEST_NONE = 0;
+	public static final byte CHEST_GET = 1;
+	public static final byte CHEST_DROP = 2;
 	/** As the copper golem's: seven to eight days a stage. */
 	private static final int WEATHERING_TICK_FROM = 504000;
 	private static final int WEATHERING_TICK_TO = 552000;
@@ -79,6 +94,14 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private static final long UNSET = -1L;
 	/** The entity event of a single stroke of the tool, clear of vanilla's and of the greeting's. */
 	private static final byte STROKE_EVENT = 91;
+	/** And of reaching out with the free hand. */
+	private static final byte REACH_EVENT = 92;
+	/** And of a little hop on the spot, out of high spirits. */
+	private static final byte HOP_EVENT = 93;
+	/** How long a little hop lasts. */
+	public static final int HOP_TICKS = 10;
+	/** How long reaching out with the free hand and drawing it back takes, for the animation. */
+	public static final int REACH_TICKS = 16;
 	protected static final double CHEST_REACH = 2.3;
 	protected static final int TRANSFER_INTERVAL = 10;
 	private static final int CHEST_SEARCH_RADIUS = 8;
@@ -93,6 +116,14 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private static final int DEAD_END_PATHS_BEFORE_GIVING_UP = 3;
 	/** How long a place or a creature it could not get to is left alone before it is tried again: a minute. */
 	private static final int UNREACHABLE_TICKS = 1200;
+	/** About one tick in this many an idle golem sets off for somewhere else near its chest. */
+	private static final int WANDER_CHANCE = 120;
+	/** How far from its chest it wanders. */
+	protected static final int WANDER_RADIUS = 5;
+	/** About one tick in this many an idle golem standing still gives a hop. */
+	private static final int HOP_CHANCE = 900;
+	/** How long the hop of stepping up a block lasts, for the animation. */
+	public static final int STEP_HOP_TICKS = 6;
 
 	protected @Nullable BlockPos chestPos;
 	/** At its chest without a tool, and none in there either. */
@@ -113,6 +144,21 @@ public abstract class WorkerGolem extends AbstractGolem {
 	private int swingStartTick = -1000;
 	private int swingStopTick = -1000;
 	private boolean wasSwinging;
+	/** Client side: when it last stepped up a block, which it shows with a hop. */
+	private int stepHopTick = -1000;
+	/** Client side: how long it has been off the ground, jumping or falling. */
+	private int airTicks;
+	private int lastRiseOrFallTick = -1000;
+	/** Client side: when it last reached out with its free hand. */
+	private int reachTick = -1000;
+	/** Client side: when it last gave a little hop. */
+	private int hopTick = -1000;
+	private final AnimationState chestGetAnimation = new AnimationState();
+	private final AnimationState chestDropAnimation = new AnimationState();
+	/** The chest it has open, if any. */
+	private @Nullable BlockPos openedChestPos;
+	/** Where an idle golem with no chest potters about: where it found itself with nothing to do. */
+	private @Nullable BlockPos wanderHome;
 	private long nextWeatheringTick = UNSET;
 	private @Nullable UUID lastLightningBoltUUID;
 
@@ -135,7 +181,7 @@ public abstract class WorkerGolem extends AbstractGolem {
 	/** Names the golem's textures: {@code textures/entity/mining_golem/<id>_golem.png} and {@code <id>_golem_eyes.png}. */
 	public abstract String getTextureId();
 
-	/** Whether the golem has something to do right now. Its eyes are lit while it does. */
+	/** Whether the golem has something to do right now. */
 	protected abstract boolean isBusy();
 
 	/** One tick of the golem's job, on the server. */
@@ -196,6 +242,16 @@ public abstract class WorkerGolem extends AbstractGolem {
 		this.level().broadcastEntityEvent(this, STROKE_EVENT);
 	}
 
+	/** Reaching out with the free hand, to feed an animal or pick something up. */
+	protected void playReach() {
+		this.level().broadcastEntityEvent(this, REACH_EVENT);
+	}
+
+	/** Client side: ticks since it last reached out with its free hand. */
+	public int getTicksSinceReach() {
+		return this.tickCount - this.reachTick;
+	}
+
 	@Override
 	public void handleEntityEvent(final byte id) {
 		if (id == STROKE_EVENT) {
@@ -203,6 +259,10 @@ public abstract class WorkerGolem extends AbstractGolem {
 				this.swingStartTick = this.tickCount;
 				this.swingStopTick = this.tickCount;
 			}
+		} else if (id == REACH_EVENT) {
+			this.reachTick = this.tickCount;
+		} else if (id == HOP_EVENT) {
+			this.hopTick = this.tickCount;
 		} else {
 			super.handleEntityEvent(id);
 		}
@@ -222,9 +282,49 @@ public abstract class WorkerGolem extends AbstractGolem {
 			}
 
 			this.wasSwinging = swinging;
+			if (this.onGround() && this.getY() - this.yo > 0.3) {
+				this.stepHopTick = this.tickCount;
+			}
+
+			// Off the ground going up or down, give or take the moment it hangs at the top of a jump. Not just off the
+			// ground: the client is not always told that one that has not moved since it came into view is standing.
+			if (!this.onGround() && !this.isInWater() && !this.isPassenger() && Math.abs(this.getY() - this.yo) > 1.0E-3) {
+				this.lastRiseOrFallTick = this.tickCount;
+			}
+
+			this.airTicks = this.tickCount - this.lastRiseOrFallTick <= 2 ? this.airTicks + 1 : 0;
+
+			byte chestAction = this.getChestAction();
+			this.chestGetAnimation.animateWhen(chestAction == CHEST_GET, this.tickCount);
+			this.chestDropAnimation.animateWhen(chestAction == CHEST_DROP, this.tickCount);
 		} else {
 			this.updateWeathering((ServerLevel)this.level());
 		}
+	}
+
+	/** Client side: ticks since it last stepped up a block. */
+	public int getTicksSinceStepHop() {
+		return this.tickCount - this.stepHopTick;
+	}
+
+	/** Client side: ticks since it last gave a little hop. */
+	public int getTicksSinceHop() {
+		return this.tickCount - this.hopTick;
+	}
+
+	/** Client side: how long it has been off the ground, jumping or falling. */
+	public int getAirTicks() {
+		return this.airTicks;
+	}
+
+	/** Client side: rummaging in a chest to take something out of it. */
+	public AnimationState getChestGetAnimation() {
+		return this.chestGetAnimation;
+	}
+
+	/** Client side: rummaging in a chest to put something into it. */
+	public AnimationState getChestDropAnimation() {
+		return this.chestDropAnimation;
 	}
 
 	protected void setSwingingArm(final boolean swinging) {
@@ -336,10 +436,12 @@ public abstract class WorkerGolem extends AbstractGolem {
 		entityData.define(DATA_ACTIVE, false);
 		entityData.define(DATA_SWINGING, false);
 		entityData.define(DATA_WEATHER_STATE, WeatheringCopper.WeatherState.UNAFFECTED);
+		entityData.define(DATA_CHEST_ACTION, CHEST_NONE);
 	}
 
 	@Override
 	protected void registerGoals() {
+		this.goalSelector.addGoal(1, new WanderGoal());
 		this.goalSelector.addGoal(1, new LookAtPlayerGoal(this, Player.class, 6.0F) {
 			@Override
 			public boolean canUse() {
@@ -373,6 +475,144 @@ public abstract class WorkerGolem extends AbstractGolem {
 		if (active != this.isActive()) {
 			this.entityData.set(DATA_ACTIVE, active);
 		}
+
+		if (!this.mayWander()) {
+			this.wanderHome = null;
+		} else if (this.onGround() && this.getNavigation().isDone() && this.random.nextInt(HOP_CHANCE) == 0) {
+			// Only shown: a real jump against a fence or at the edge of a pillar could take it over.
+			this.level().broadcastEntityEvent(this, HOP_EVENT);
+		}
+	}
+
+	// ------------------------------------------------------------------------------------ idling
+
+	/**
+	 * Whether it has nothing to do and may potter about. By default only while it wears no flower; each golem
+	 * adds the times it is idle at its job, as long as the job does not need it to stay where it is.
+	 */
+	protected boolean mayWander() {
+		return !this.hasFlower() && this.isIdleHere();
+	}
+
+	/** Whether nothing keeps it where it is: no leash, no ride, no chest open. */
+	protected boolean isIdleHere() {
+		return !this.isLeashed() && !this.isPassenger() && this.openedChestPos == null;
+	}
+
+	/** Where it potters about: around its chest, or else around where it found itself with nothing to do. */
+	protected BlockPos wanderCentre() {
+		if (this.chestPos != null) {
+			return this.chestPos;
+		}
+
+		if (this.wanderHome == null) {
+			this.wanderHome = this.blockPosition();
+		}
+
+		return this.wanderHome;
+	}
+
+	/** Somewhere near {@link #wanderCentre()} to stroll to, or null if it finds nowhere this time. */
+	protected @Nullable BlockPos pickWanderSpot() {
+		BlockPos centre = this.wanderCentre();
+		for (int attempt = 0; attempt < 10; attempt++) {
+			BlockPos spot = centre.offset(
+				this.random.nextIntBetweenInclusive(-WANDER_RADIUS, WANDER_RADIUS),
+				this.random.nextIntBetweenInclusive(-2, 2),
+				this.random.nextIntBetweenInclusive(-WANDER_RADIUS, WANDER_RADIUS)
+			);
+			if (this.isStandableSpot(spot)) {
+				return spot;
+			}
+		}
+
+		return null;
+	}
+
+	/** Whether the golem fits into {@code spot}, standing on something solid and out of any fluid. */
+	protected boolean isStandableSpot(final BlockPos spot) {
+		Level level = this.level();
+		return level.getBlockState(spot).getCollisionShape(level, spot).isEmpty()
+			&& level.getBlockState(spot.above()).getCollisionShape(level, spot.above()).isEmpty()
+			&& !level.getBlockState(spot.below()).getCollisionShape(level, spot.below()).isEmpty()
+			&& level.getFluidState(spot).isEmpty()
+			&& level.getFluidState(spot.below()).isEmpty();
+	}
+
+	/** Every so often, while it has nothing to do, a stroll to somewhere near its chest. */
+	private class WanderGoal extends Goal {
+		private WanderGoal() {
+			this.setFlags(EnumSet.of(Goal.Flag.MOVE));
+		}
+
+		@Override
+		public boolean canUse() {
+			if (!WorkerGolem.this.mayWander() || WorkerGolem.this.random.nextInt(WANDER_CHANCE) != 0) {
+				return false;
+			}
+
+			BlockPos spot = WorkerGolem.this.pickWanderSpot();
+			return spot != null && WorkerGolem.this.getNavigation().moveTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, 0.6);
+		}
+
+		@Override
+		public boolean canContinueToUse() {
+			return WorkerGolem.this.mayWander() && !WorkerGolem.this.getNavigation().isDone();
+		}
+
+		@Override
+		public void stop() {
+			WorkerGolem.this.getNavigation().stop();
+		}
+	}
+
+	// ------------------------------------------------------------------------------------ opening chests
+
+	/** What it is doing at the chest it has open: {@link #CHEST_NONE}, {@link #CHEST_GET} or {@link #CHEST_DROP}. */
+	public byte getChestAction() {
+		return this.entityData.get(DATA_CHEST_ACTION);
+	}
+
+	/**
+	 * Opens the chest at {@code pos}, lid and all as a player would, and rummages in it with the copper golem's
+	 * animation of taking something out ({@link #CHEST_GET}) or putting something in ({@link #CHEST_DROP}).
+	 */
+	protected void openChest(final ServerLevel level, final BlockPos pos, final byte action) {
+		this.closeChest(level);
+		this.openedChestPos = pos.immutable();
+		if (level.getBlockEntity(pos) instanceof ChestBlockEntity chest) {
+			chest.startOpen(this);
+		}
+
+		this.entityData.set(DATA_CHEST_ACTION, action);
+	}
+
+	/** Closes the chest it has open, if any, and stops rummaging. */
+	protected void closeChest(final ServerLevel level) {
+		if (this.openedChestPos != null && level.getBlockEntity(this.openedChestPos) instanceof ChestBlockEntity chest) {
+			chest.stopOpen(this);
+		}
+
+		this.openedChestPos = null;
+		this.entityData.set(DATA_CHEST_ACTION, CHEST_NONE);
+	}
+
+	@Override
+	public boolean hasContainerOpen(final ContainerOpenersCounter container, final BlockPos pos) {
+		if (this.openedChestPos == null) {
+			return false;
+		}
+
+		BlockState state = this.level().getBlockState(this.openedChestPos);
+		return this.openedChestPos.equals(pos)
+			|| state.getBlock() instanceof ChestBlock
+				&& state.getValue(ChestBlock.TYPE) != ChestType.SINGLE
+				&& ChestBlock.getConnectedBlockPos(this.openedChestPos, state).equals(pos);
+	}
+
+	@Override
+	public double getContainerInteractionRange() {
+		return 3.0;
 	}
 
 	@Override
@@ -770,6 +1010,16 @@ public abstract class WorkerGolem extends AbstractGolem {
 		this.setItemSlot(FLOWER_SLOT, ItemStack.EMPTY);
 		this.spawnAtLocation(level, this.getTool());
 		this.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+	}
+
+	@Override
+	public void remove(final RemovalReason reason) {
+		// A chest it had open would otherwise stay open with nobody at it.
+		if (this.level() instanceof ServerLevel level) {
+			this.closeChest(level);
+		}
+
+		super.remove(reason);
 	}
 
 	@Override

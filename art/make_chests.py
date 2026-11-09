@@ -12,7 +12,8 @@ frame a pixel in, the grey lock and the black inside. Within each frame it gets 
 
 The colours are the material's vanilla block's, nine shades spread evenly from its lightest to a dark one for the
 frame (the block's own colours where it has them, darkened towards violet where it does not), lit from the top
-left as vanilla is. The textures go to art/textures/chest, from which make_effects.py makes the mod's animated ones:
+left as vanilla is. Each piece of a design (a straw, a facet, a brick, a cell, a column of the plate) has a shade of
+its own, mixed between two of the nine where it falls between them, so no chest is only a few flat colours. The textures go to art/textures/chest, from which make_effects.py makes the mod's animated ones:
 
     python art/make_chests.py && python art/make_effects.py
 """
@@ -97,88 +98,137 @@ def faces(width):
 
 # ------------------------------------------------------------------------------------ designs
 # Each takes a pixel's place within the face's frame (x, y from the frame's top left corner, w, h its size) and the
-# face's seed, and gives a shade from 0 (darkest) to 8 (lightest).
+# face's seed, and gives a shade from 0 (darkest) to 8 (lightest). Shades between two of the nine are allowed: the
+# colour is mixed from those two. Each piece of a design (a straw, a facet, a brick, a cell) has a shade of its own,
+# lighter or darker than the next, so that no material is only two or three flat colours.
+
+def vary(seed, *key, spread=1.0):
+    """A steady shift of up to {@code spread} either way for one piece of a design, the same every run."""
+    a = key[0] if key else 0
+    b = key[1] if len(key) > 1 else 0
+    return (noise(a * 31 + 7, b * 17 + 3, seed + 101) - 0.5) * 2 * spread
+
 
 def iron(x, y, w, h, seed):
-    # Brushed: each column of the plate a touch lighter or darker, top to bottom.
-    tone = 5 + (1 if noise(x, seed, 1) > 0.6 else 0) - (1 if noise(x, seed, 2) > 0.8 else 0)
-    if y == 0:
-        tone += 1
+    # Brushed: each column a shade of its own, the plate lighter towards its top, the odd bright scratch.
+    tone = 5.2 + vary(seed, x, 0, spread=0.9) + 0.7 * (1 - y / max(1, h - 1)) - 0.35
+    if noise(x, y, seed + 5) > 0.95:
+        tone += 1.2
     seam = h // 2 if h >= 8 else -1
     if y == seam:
-        tone = 3
+        tone = 3 + vary(seed, x, 9, spread=0.4)
     elif y == seam + 1:
-        tone = 7
-    # A rivet in each corner and two along the seam: a lit head, its shadow below and to the right.
+        tone = 7 + vary(seed, x, 8, spread=0.4)
+    # A rivet in each corner and two along the seam: a bright head, lit round its upper left, its shadow below right.
     rivets = [(1, 1), (w - 2, 1), (1, h - 2), (w - 2, h - 2)]
     if seam > 0:
         rivets += [(w // 3, seam), (w - 1 - w // 3, seam)]
     for rx, ry in rivets:
         if (x, y) == (rx, ry):
             return 8
-        if (x, y) in ((rx + 1, ry), (rx, ry + 1), (rx + 1, ry + 1)):
-            return 3
+        if (x, y) in ((rx + 1, ry + 1),):
+            return 2.5
+        if (x, y) in ((rx + 1, ry), (rx, ry + 1)):
+            return 3.5
     return tone
 
 
 def diamond(x, y, w, h, seed):
-    # A lattice of rhombuses, each facet lit on its upper left and shaded on its lower right.
+    # A lattice of rhombuses, each facet a shade of its own: lit on its upper left, a bright edge where the light
+    # catches it, shaded on its lower right, and the odd sparkle.
     size = 6
     a, b = (x + y + seed) % size, (x - y + 60 + seed) % size
+    facet = ((x + y + seed) // size, (x - y + 60 + seed) // size)
+    shift = vary(seed, *facet, spread=0.8)
     if a == 0 or b == 0:
-        return 3
+        return 3 + vary(seed, x, y, spread=0.4)
     if a < size // 2 and b < size // 2:
-        return 8 if (a, b) == (1, 1) and noise(x // size, y // size, seed) > 0.55 else 7
+        if (a, b) == (1, 1) and noise(*facet, seed) > 0.55:
+            return 8
+        return 7 + shift + (0.6 if a == 1 or b == 1 else 0)
     if a >= size // 2 and b >= size // 2:
-        return 4
-    return 6
+        return 4 + shift - (0.5 if a == size - 1 or b == size - 1 else 0)
+    return (6 if a < b else 5.2) + shift
 
 
 def netherite(x, y, w, h, seed):
-    # Bands three pixels high, bevelled, laid like bricks with their joints staggered.
+    # Bands three pixels high, bevelled, laid like bricks with their joints staggered: each brick a shade of its own,
+    # lit along its top and its left end, and flecked lighter as the netherite block is.
     band, row = divmod(y, 3)
-    if (x + band * 3 + seed) % 7 == 0:
-        return 1
-    tone = (5, 3, 2)[row]
-    if row == 1 and noise(x, band, seed) > 0.85:
-        tone = 4
+    along = x + band * 3 + seed
+    if along % 7 == 0:
+        return 1 + vary(seed, x, y, spread=0.3)
+    brick = (along // 7, band)
+    tone = (5, 3.4, 2.3)[row] + vary(seed, *brick, spread=0.7)
+    if along % 7 == 1:
+        tone += 0.5
+    if row == 1 and noise(x, band, seed) > 0.8:
+        tone += 1.2
     return tone
 
 
 def amethyst(x, y, w, h, seed):
-    # As the amethyst block: cells of crystal of every size, each lit on its upper left, with dark cracks between.
+    # As the amethyst block: cells of crystal of every size and shade, each lit on its upper left with a bright
+    # point, and dark cracks between them, darkest where three meet.
     points = [(noise(i, 1, seed) * w, noise(i, 2, seed) * h) for i in range(max(3, w * h // 14))]
     near = sorted((math.hypot(x - px, y - py), i) for i, (px, py) in enumerate(points))
     if near[1][0] - near[0][0] < 0.8:
-        return 2
+        return 1.5 if len(near) > 2 and near[2][0] - near[0][0] < 1.2 else 2.3
     i = near[0][1]
     px, py = points[i]
+    base = 4.2 + 2.6 * noise(i, 3, seed)
+    if round(px - 1) == x and round(py - 1) == y:
+        return 8
     lit = (x - px) + (y - py) < 0
-    return (7 if lit else 5) if i % 2 else (6 if lit else 4)
+    return base + (1 if lit else -0.4)
 
 
 def hay(x, y, w, h, seed):
-    # Woven like a basket: strands two pixels wide passing over and under each other.
-    if ((x // 2) + (y // 2)) % 2:
-        return 7 if x % 2 == 0 else 5
-    return 6 if y % 2 == 0 else 3
+    # Woven like a basket: strands two pixels wide passing over and under each other, each strand a shade of its own,
+    # each straw in it lit on one side, and here and there a pale ear of wheat or a dark seed.
+    cell = (x // 2, y // 2)
+    shift = vary(seed, *cell, spread=0.6)
+    if (cell[0] + cell[1]) % 2:
+        # Passing over: two straws side by side, the left one in the light.
+        tone = 6.4 + shift + (0.7 if x % 2 == 0 else -0.3)
+    else:
+        # Passing under, in the shadow of those over it: lit along its top, darkest along its bottom.
+        tone = 4.0 + shift * 0.7 + (0.4 if y % 2 == 0 else -1.0)
+    speck = noise(x, y, seed + 9)
+    if speck > 0.97 and tone > 5:
+        tone = 8
+    elif speck < 0.025:
+        tone -= 1.2
+    return tone
 
 
 def bone(x, y, w, h, seed):
-    # Two bones crossed corner to corner, knuckles at their ends, on plain bone with a crack here and there.
+    # Two bones crossed corner to corner, rounded, lit along one side and shaded along the other, knuckles at their
+    # ends, on bone mottled lighter and darker, with a crack here and there.
     slope = w / max(1, h)
     for d in (x - y * slope, (w - 1 - x) - y * slope):
         if abs(d) < 1.2:
             end = min(x, w - 1 - x) < 2 and (y < 2 or y > h - 3)
-            return 8 if d < 0 or end else 6
+            if end:
+                return 8
+            return 8 if d < -0.4 else 7 if d < 0.4 else 5.8
         if abs(d) < 2.0:
-            return 3
+            return 3 + vary(seed, x, y, spread=0.4)
     if noise(x, y, seed) > 0.96:
         return 3
-    return 5 if (x + y) % 2 else 6
+    return 5.6 + vary(seed, x // 2, y // 2, spread=0.7) + (0.35 if (x + y) % 2 else -0.35)
 
 
 DESIGNS = {'iron': iron, 'diamond': diamond, 'netherite': netherite, 'amethyst': amethyst, 'hay': hay, 'bone': bone}
+
+
+def tone_colour(colours, tone):
+    """The colour of a shade from 0 to 8, mixed from the two nearest of the nine when it falls between them."""
+    tone = max(0.0, min(8.0, tone))
+    low = int(tone)
+    high = min(8, low + 1)
+    f = tone - low
+    return tuple(round(a + (b - a) * f) for a, b in zip(colours[low], colours[high]))
 
 
 def frame_colour(colours, u, v, width, height, face):
@@ -278,7 +328,7 @@ def draw(copper, material, colours, half):
                 if front and lock_dx <= 3 and lock_dy <= 2:
                     # A little shadow round the lock.
                     tone -= 1
-                colour = colours[max(0, min(8, tone))]
+                colour = tone_colour(colours, tone)
             out.putpixel((x, y), colour + (p[3],))
     # Anything else the copper chest has outside the faces and the lock, darkest as the frame, the rest as the rim.
     covered = {(x, y) for fx, fy, fw, fh, _ in faces(width) for y in range(fy, fy + fh) for x in range(fx, fx + fw)}

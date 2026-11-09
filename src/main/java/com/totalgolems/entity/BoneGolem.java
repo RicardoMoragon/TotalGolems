@@ -3,8 +3,11 @@ package com.totalgolems.entity;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.ItemTags;
@@ -15,6 +18,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.animal.Animal;
@@ -40,6 +44,9 @@ import org.jspecify.annotations.Nullable;
  * The thinning takes a sword from its chest, which wears with every animal it kills: the one that
  * has the longest to wait before it can breed again. Without a sword it goes on feeding and tidying
  * up, and the herd just keeps growing.
+ * <p>
+ * Each animal fed, each thing picked up and each one culled takes a stroke of its own, done the moment the hand
+ * or the sword gets there, with a breather before the next. Its eyes are blue, and red while it is off to cull.
  */
 public class BoneGolem extends PenGolem {
 	public static final int MAX_ANIMALS = 20;
@@ -49,6 +56,9 @@ public class BoneGolem extends PenGolem {
 	private static final int RETRY_TICKS = 200;
 	/** Ten seconds between one cull and the next, to give the herd time to breed. */
 	private static final int CULL_INTERVAL = 200;
+
+	/** Off to cull one of the herd: its eyes turn from blue to red. */
+	private static final EntityDataAccessor<Boolean> DATA_ANGRY = SynchedEntityData.defineId(BoneGolem.class, EntityDataSerializers.BOOLEAN);
 
 	private final SimpleContainer food = new SimpleContainer(FOOD_SLOTS);
 	private final SimpleContainer drops = new SimpleContainer(DROP_SLOTS);
@@ -68,6 +78,33 @@ public class BoneGolem extends PenGolem {
 
 	public BoneGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
+		// What it holds out to an animal is only shown: the food itself stays in its pouch until it is eaten.
+		this.setDropChance(EquipmentSlot.OFFHAND, 0.0F);
+	}
+
+	@Override
+	protected void defineSynchedData(final SynchedEntityData.Builder entityData) {
+		super.defineSynchedData(entityData);
+		entityData.define(DATA_ANGRY, false);
+	}
+
+	public boolean isAngry() {
+		return this.entityData.get(DATA_ANGRY);
+	}
+
+	/** Blue eyes, red when it is off to cull. */
+	@Override
+	public String getEyesTextureId() {
+		return this.isAngry() ? "bone_angry" : "bone";
+	}
+
+	@Override
+	protected void serverStep(final ServerLevel level) {
+		super.serverStep(level);
+		boolean angry = this.errand == Errand.CULL;
+		if (angry != this.isAngry()) {
+			this.entityData.set(DATA_ANGRY, angry);
+		}
 	}
 
 	public static AttributeSupplier.Builder createAttributes() {
@@ -98,6 +135,9 @@ public class BoneGolem extends PenGolem {
 	protected void clearErrand() {
 		this.errand = null;
 		this.target = null;
+		if (!this.getOffhandItem().isEmpty()) {
+			this.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
+		}
 	}
 
 	/** Whether any animal in its pen eats {@code stack}, which makes it feed and not something to cart away. */
@@ -248,8 +288,13 @@ public class BoneGolem extends PenGolem {
 		}
 
 		this.getLookControl().setLookAt(entity);
-		this.setSwingingArm(this.errand == Errand.CULL);
-		if (!this.isActTick()) {
+		if (this.errand == Errand.FEED && this.getOffhandItem().isEmpty() && entity instanceof Animal animal) {
+			// The food it is about to give, held out in its free hand.
+			this.setItemSlot(EquipmentSlot.OFFHAND, this.food.getItems().stream().filter(animal::isFood).findFirst().map(stack -> stack.copyWithCount(1)).orElse(ItemStack.EMPTY));
+		}
+
+		// One thrust of the sword to cull, the free hand held out to feed or to pick something up: done when it gets there.
+		if (!this.strike(this.errand != Errand.CULL)) {
 			return false;
 		}
 
@@ -323,6 +368,7 @@ public class BoneGolem extends PenGolem {
 	@Override
 	public void readAdditionalSaveData(final ValueInput input) {
 		super.readAdditionalSaveData(input);
+		this.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
 		this.food.fromItemList(input.listOrEmpty("food", ItemStack.CODEC));
 		this.drops.fromItemList(input.listOrEmpty("drops", ItemStack.CODEC));
 	}

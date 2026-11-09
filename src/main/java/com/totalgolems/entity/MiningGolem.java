@@ -79,6 +79,8 @@ import org.jspecify.annotations.Nullable;
  */
 public class MiningGolem extends WorkerGolem {
 	private static final EntityDataAccessor<Boolean> DATA_MINING = SynchedEntityData.defineId(MiningGolem.class, EntityDataSerializers.BOOLEAN);
+	/** A netherite golem takes no pattern flower until a wither rose has unlocked it, and shows it with the crest on its head. */
+	private static final EntityDataAccessor<Boolean> DATA_UNLOCKED = SynchedEntityData.defineId(MiningGolem.class, EntityDataSerializers.BOOLEAN);
 	/** How many slots of blocks it always keeps for walling off water and laying floor, instead of unloading them. */
 	private static final int RESERVE_SLOTS = 2;
 	/** A chest keeps this many blocks for the golem, as many as it fills its reserve with; see {@link CoalGolem}. */
@@ -121,7 +123,17 @@ public class MiningGolem extends WorkerGolem {
 	private final GolemTier tier;
 	private final SimpleContainer inventory;
 	/** Drops that did not fit in the inventory. Anything here means the golem is full and must unload. */
+	/** How much faster than a player it digs, with the same tool. */
+	private static final float DIGGING_SPEEDUP = 2.0F;
+	/** The longest breather it takes after a block, however long that took. */
+	private static final int MAX_REST_TICKS = 40;
 	private final List<ItemStack> overflow = new ArrayList<>();
+	private static final int CREST_RISE_TICKS = 12;
+	/** Client side: when its crest started coming up. */
+	private int crestRiseTick = -1000;
+	/** Ticks spent digging since the last block came out. */
+	private int ticksDigging;
+	private int restUntilTick;
 	private final Map<BlockPos, BreakState> breaking = new HashMap<>();
 	private @Nullable Direction miningDirection;
 	private @Nullable BlockPos tunnelOrigin;
@@ -147,8 +159,6 @@ public class MiningGolem extends WorkerGolem {
 	private boolean halted;
 	private int stepTicks;
 	private @Nullable BlockPos stepTarget;
-	/** A netherite golem takes no pattern flower until a wither rose has unlocked it. */
-	private boolean unlocked;
 	/** Plain stone only wears the pickaxe every other block. */
 	private boolean stoneWearsNext = true;
 	/** Water and lava around the layer it is quarrying, still to be walled off; see {@link QuarryPlan#fluidsToSeal}. */
@@ -172,7 +182,7 @@ public class MiningGolem extends WorkerGolem {
 		super(type, level);
 		this.tier = tier;
 		this.inventory = new SimpleContainer(tier.inventorySlots());
-		this.unlocked = !tier.startsLocked();
+		this.entityData.set(DATA_UNLOCKED, !tier.startsLocked());
 		this.setDropChance(EquipmentSlot.OFFHAND, 0.0F);
 	}
 
@@ -208,8 +218,22 @@ public class MiningGolem extends WorkerGolem {
 		return this.halted;
 	}
 
+	/** Client side: how far its crest has come up out of its head, from 0 (hidden, locked) to 1. */
+	public float getCrestRise(final float partialTicks) {
+		return this.isUnlocked() ? Mth.clamp((this.tickCount - this.crestRiseTick + partialTicks) / (float)CREST_RISE_TICKS, 0.0F, 1.0F) : 0.0F;
+	}
+
+	@Override
+	public void onSyncedDataUpdated(final EntityDataAccessor<?> accessor) {
+		super.onSyncedDataUpdated(accessor);
+		// Unlocked in front of the player, the crest comes up; one that already was unlocked when it came into view has it up.
+		if (DATA_UNLOCKED.equals(accessor) && this.level().isClientSide() && this.isUnlocked()) {
+			this.crestRiseTick = this.tickCount > 0 ? this.tickCount : -CREST_RISE_TICKS;
+		}
+	}
+
 	public boolean isUnlocked() {
-		return this.unlocked;
+		return this.entityData.get(DATA_UNLOCKED);
 	}
 
 	@Override
@@ -246,10 +270,17 @@ public class MiningGolem extends WorkerGolem {
 		return (this.depositing || this.isWorking()) && !this.waiting;
 	}
 
+	/** Neither at work nor on its way home with a load, it potters about by its chest. */
+	@Override
+	protected boolean mayWander() {
+		return this.isIdleHere() && !this.isWorking() && !this.depositing;
+	}
+
 	@Override
 	protected void defineSynchedData(final SynchedEntityData.Builder entityData) {
 		super.defineSynchedData(entityData);
 		entityData.define(DATA_MINING, false);
+		entityData.define(DATA_UNLOCKED, false);
 	}
 
 	// ------------------------------------------------------------------------------------ interaction
@@ -261,12 +292,12 @@ public class MiningGolem extends WorkerGolem {
 	@Override
 	public InteractionResult mobInteract(final Player player, final InteractionHand hand) {
 		ItemStack held = player.getItemInHand(hand);
-		// Only the server knows whether it is unlocked, so the client just agrees that something happens.
+		// The server decides, so the client just agrees that something happens.
 		if (this.tier.startsLocked() && (held.is(UNLOCK_FLOWER) || isPatternFlower(held))) {
-			if (this.level() instanceof ServerLevel level && !this.unlocked) {
+			if (this.level() instanceof ServerLevel level && !this.isUnlocked()) {
 				if (held.is(UNLOCK_FLOWER)) {
 					held.consume(1, player);
-					this.unlocked = true;
+					this.entityData.set(DATA_UNLOCKED, true);
 					level.playSound(null, this, SoundEvents.ENCHANTMENT_TABLE_USE, this.getSoundSource(), 1.0F, 1.0F);
 				} else {
 					player.sendOverlayMessage(Component.translatable("message.totalgolems.golem_locked"));
@@ -283,7 +314,7 @@ public class MiningGolem extends WorkerGolem {
 
 	@Override
 	protected boolean isActivatingFlower(final ItemStack stack) {
-		return this.unlocked && isPatternFlower(stack);
+		return this.isUnlocked() && isPatternFlower(stack);
 	}
 
 	@Override
@@ -1488,8 +1519,16 @@ public class MiningGolem extends WorkerGolem {
 			}
 		}
 
-		this.setMining(true);
 		this.getLookControl().setLookAt(Vec3.atCenterOf(targets.getFirst()));
+		if (this.tickCount < this.restUntilTick) {
+			// A breather after the last block: the pickaxe down, and the cracks left as they are.
+			this.setMining(false);
+			return;
+		}
+
+		this.setMining(true);
+		this.ticksDigging++;
+		boolean broke = false;
 		boolean playSound = this.tickCount % 4 == 0;
 		for (BlockPos pos : targets) {
 			BlockState state = level.getBlockState(pos);
@@ -1505,8 +1544,9 @@ public class MiningGolem extends WorkerGolem {
 			ItemStack tool = shovelling ? shovel : pickaxe;
 			boolean dropsLoot = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
 			float hardness = state.getDestroySpeed(level, pos);
-			// Same formula a player digs with: tool speed over hardness, far slower with the wrong tool.
-			progress.progress += hardness <= 0.0F ? 1.0F : this.diggingSpeed(tool, state) / hardness / (dropsLoot ? 30.0F : 100.0F);
+			// Same formula a player digs with: tool speed over hardness, far slower with the wrong tool. Only twice as
+			// fast, to make up for the breather after each block.
+			progress.progress += hardness <= 0.0F ? 1.0F : DIGGING_SPEEDUP * this.diggingSpeed(tool, state) / hardness / (dropsLoot ? 30.0F : 100.0F);
 			if (playSound) {
 				level.playSound(null, pos, state.getSoundType().getHitSound(), SoundSource.NEUTRAL, 0.5F, 0.75F);
 				playSound = false;
@@ -1527,6 +1567,7 @@ public class MiningGolem extends WorkerGolem {
 			this.breaking.remove(pos);
 			level.destroyBlock(pos, false, this);
 			this.madeProgress();
+			broke = true;
 			for (ItemStack drop : drops) {
 				ItemStack leftover = this.inventory.addItem(drop);
 				if (!leftover.isEmpty()) {
@@ -1551,6 +1592,12 @@ public class MiningGolem extends WorkerGolem {
 				this.setMining(false);
 				return;
 			}
+		}
+
+		if (broke) {
+			// As long a breather as the digging took, which with the doubled speed digs as much as it ever did.
+			this.restUntilTick = this.tickCount + Math.min(this.ticksDigging, MAX_REST_TICKS);
+			this.ticksDigging = 0;
 		}
 	}
 
@@ -1648,7 +1695,7 @@ public class MiningGolem extends WorkerGolem {
 		output.putBoolean("depositing", this.depositing);
 		output.putBoolean("needs_blocks", this.needsBlocks);
 		output.putBoolean("halted", this.halted);
-		output.putBoolean("unlocked", this.unlocked);
+		output.putBoolean("unlocked", this.isUnlocked());
 		this.inventory.storeAsItemList(output.list("inventory", ItemStack.CODEC));
 		ValueOutput.TypedOutputList<ItemStack> overflowList = output.list("overflow", ItemStack.CODEC);
 		this.overflow.forEach(overflowList::add);
@@ -1669,7 +1716,7 @@ public class MiningGolem extends WorkerGolem {
 		this.needsBlocks = input.getBooleanOr("needs_blocks", false);
 		this.halted = input.getBooleanOr("halted", false);
 		// One already wearing a pattern flower was at work before the lock existed, and stays as it was.
-		this.unlocked = !this.tier.startsLocked() || input.getBooleanOr("unlocked", false) || isPatternFlower(this.getItemBySlot(FLOWER_SLOT));
+		this.entityData.set(DATA_UNLOCKED, !this.tier.startsLocked() || input.getBooleanOr("unlocked", false) || isPatternFlower(this.getItemBySlot(FLOWER_SLOT)));
 		this.inventory.fromItemList(input.listOrEmpty("inventory", ItemStack.CODEC));
 		this.overflow.clear();
 		input.listOrEmpty("overflow", ItemStack.CODEC).forEach(this.overflow::add);

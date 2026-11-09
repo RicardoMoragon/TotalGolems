@@ -43,11 +43,16 @@ GOLEMS = {
         right_arm=[cube((0, 36), (-4, -2, -2.5, 4, 12, 5), name='right_arm')],
         left_arm=[cube((18, 36), (0, -2, -2.5, 4, 12, 5), name='left_arm')],
     ),
-    # Rough and chunky: everything a size bigger, and lumps of stone on its shoulders, head and back.
+    # Rough and chunky: everything a size bigger, lumps of stone on its shoulders and head, and a gem in its back.
     'diamond': [
         part('body', (0, -5, 0), [
             cube((0, 16), (-5, -7, -3.5, 10, 7, 7), name='body'),
-            cube((14, 41), (-2.5, -6, 3.5, 5, 4, 1), inflate=0.05, name='back_lump'),
+            # A gem set in its back, row by row, sunk half into it: no inflating, so that the rows meet edge to edge
+            # and none of their faces lies over another's.
+            cube((0, 48), (-2, -6, 3, 4, 1, 1), name='back_gem_top'),
+            cube((12, 48), (-3, -5, 3, 6, 2, 1), name='back_gem_middle'),
+            cube((28, 48), (-2, -3, 3, 4, 1, 1), name='back_gem_lower'),
+            cube((40, 48), (-1, -2, 3, 2, 1, 1), name='back_gem_bottom'),
         ], [
             part('head', (0, -7, 0), [
                 cube((0, 0), (-4.5, -5, -5, 9, 5, 10), inflate=0.015, name='head'),

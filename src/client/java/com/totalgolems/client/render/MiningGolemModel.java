@@ -2,6 +2,7 @@ package com.totalgolems.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import com.totalgolems.entity.WorkerGolem;
 import net.minecraft.client.animation.KeyframeAnimation;
 import net.minecraft.client.animation.definitions.CopperGolemAnimation;
 import net.minecraft.client.model.animal.golem.CopperGolemModel;
@@ -25,6 +26,10 @@ import org.jspecify.annotations.Nullable;
  * A swing starts from the beginning when the golem starts working and is always played to the end, however
  * short the work, so even a moment's work shows one whole blow. The farmer's straw hat hops at each stroke.
  * <p>
+ * The rancher holds out its free hand to feed an animal or pick something up, the smelter rummages in chests as
+ * the copper golem does, any golem off the ground spreads its legs and arms in a jump, and the netherite golem's
+ * crest stays sunk in its head until a wither rose unlocks it.
+ * <p>
  * Each golem has a shape of its own (see {@link GolemModelLayers}), none with the copper golem's antenna, so
  * its flower sits on its head instead: tucked in on top, or in the farmer's hat band.
  */
@@ -33,10 +38,15 @@ public class MiningGolemModel extends CopperGolemModel {
 	private final ModelPart head;
 	private final ModelPart rightArm;
 	private final ModelPart leftArm;
+	private final ModelPart rightLeg;
+	private final ModelPart leftLeg;
 	private final @Nullable ModelPart hat;
+	private final @Nullable ModelPart crest;
 	private final String golem;
 	private final KeyframeAnimation walk;
 	private final KeyframeAnimation idle;
+	private final KeyframeAnimation chestGet;
+	private final KeyframeAnimation chestDrop;
 
 	public MiningGolemModel(final ModelPart root, final String golem) {
 		super(root);
@@ -45,9 +55,14 @@ public class MiningGolemModel extends CopperGolemModel {
 		this.head = this.body.getChild("head");
 		this.rightArm = this.body.getChild("right_arm");
 		this.leftArm = this.body.getChild("left_arm");
+		this.rightLeg = root.getChild("right_leg");
+		this.leftLeg = root.getChild("left_leg");
 		this.hat = this.head.hasChild("hat") ? this.head.getChild("hat") : null;
+		this.crest = this.head.hasChild("crest") ? this.head.getChild("crest") : null;
 		this.walk = CopperGolemAnimation.COPPER_GOLEM_WALK.bake(root);
 		this.idle = CopperGolemAnimation.COPPER_GOLEM_IDLE.bake(root);
+		this.chestGet = CopperGolemAnimation.COPPER_GOLEM_CHEST_INTERACTION_NOITEM_GET.bake(root);
+		this.chestDrop = CopperGolemAnimation.COPPER_GOLEM_CHEST_INTERACTION_ITEM_DROP.bake(root);
 	}
 
 	@Override
@@ -64,6 +79,8 @@ public class MiningGolemModel extends CopperGolemModel {
 			this.head.yRot = state.yRot * Mth.DEG_TO_RAD;
 			this.walk.applyWalk(state.walkAnimationPos, state.walkAnimationSpeed, 2.0F, 2.5F);
 			this.idle.apply(state.idleAnimationState, state.ageInTicks);
+			this.chestGet.apply(state.interactionGetItem, state.ageInTicks);
+			this.chestDrop.apply(state.interactionDropItem, state.ageInTicks);
 			this.rightArm.xRot -= 0.35F;
 		}
 
@@ -85,8 +102,52 @@ public class MiningGolemModel extends CopperGolemModel {
 			this.carry(state);
 		}
 
+		if (golem.reachTicks >= 0.0F) {
+			this.reach(golem.reachTicks / WorkerGolem.REACH_TICKS);
+		}
+
+		if (golem.jump > 0.0F) {
+			this.jump(golem.jump, !golem.mining && !finishing && golem.reachTicks < 0.0F);
+		}
+
+		this.root().y -= golem.hopLift;
+
 		// A greeting, with the hand that holds no tool.
 		GolemWave.apply(this.leftArm, golem.waveTicks, true);
+		if (this.crest != null) {
+			// Sunk into the head until a wither rose unlocks the golem, then up it comes.
+			this.crest.visible = golem.crest > 0.0F;
+			this.crest.y += 2.0F * (1.0F - golem.crest);
+		}
+	}
+
+	/**
+	 * The free hand held out, to an animal with its food or down to something on the ground, the golem bowing
+	 * towards it; it gets there halfway through, a moment's pause, and back.
+	 */
+	private void reach(final float t) {
+		float out = ease(t, 0.0F, 0.5F) - ease(t, 0.65F, 1.0F);
+		this.leftArm.xRot = Mth.lerp(out, this.leftArm.xRot, -1.25F);
+		this.leftArm.yRot = Mth.lerp(out, this.leftArm.yRot, 0.2F);
+		this.leftArm.zRot = Mth.lerp(out, this.leftArm.zRot, 0.0F);
+		this.body.xRot += 0.35F * out;
+		this.head.xRot += 0.2F * out;
+	}
+
+	/**
+	 * In the air: legs apart, one forward and one back, leaning into it, and the arms out for balance unless
+	 * they are busy with something.
+	 */
+	private void jump(final float amount, final boolean armsFree) {
+		this.rightLeg.xRot = Mth.lerp(amount, this.rightLeg.xRot, -0.6F);
+		this.leftLeg.xRot = Mth.lerp(amount, this.leftLeg.xRot, 0.45F);
+		this.body.xRot += 0.12F * amount;
+		if (armsFree) {
+			this.rightArm.xRot = Mth.lerp(amount, this.rightArm.xRot, -0.5F);
+			this.leftArm.xRot = Mth.lerp(amount, this.leftArm.xRot, -0.5F);
+			this.rightArm.zRot = Mth.lerp(amount, this.rightArm.zRot, 0.55F);
+			this.leftArm.zRot = Mth.lerp(amount, this.leftArm.zRot, -0.55F);
+		}
 	}
 
 	/** Eased from 0 to 1 as {@code t} goes from {@code from} to {@code to}. */

@@ -11,15 +11,17 @@ Mod de Fabric para Minecraft 26.3 que añade gólems de trabajo construidos con 
 | Hueso | Ganadero | Azulina (azure bluet) o arbusto muerto | Espada | Alimenta, cría y sacrifica los animales de su recinto |
 
 Todos se crean igual: el bloque con una **calabaza tallada** encima. Se activan dándoles su flor con clic derecho y se
-paran quitándosela con la mano vacía. Tienen los **ojos encendidos solo mientras trabajan**.
+paran quitándosela con la mano vacía. Tienen los **ojos siempre encendidos**, trabajen o no (ver *Vida*).
 
 Tienen el cuerpo del gólem de cobre, pero **sin antena** (es solo del de cobre), y cada uno lleva la flor en un sitio
 distinto. Cada uno tiene algo propio:
 
 - **Hierro:** brazos largos y gruesos que casi llegan al suelo, como los del gólem de hierro. La flor, en el hombro izquierdo.
-- **Diamante:** más grande y tosco, con bultos de piedra en los hombros, la cabeza y la espalda. La flor, en el hombro
+- **Diamante:** más grande y tosco, con bultos de piedra en los hombros y la cabeza, y un diamante engastado en la espalda. La flor, en el hombro
   derecho.
 - **Netherita:** forjado como una armadura, con hombreras, una cresta en la cabeza y un cinturón, donde lleva la flor.
+  La cresta está escondida dentro de la cabeza hasta que se le da la rosa de Wither, y entonces sale: así se ve si está
+  desbloqueado.
 - **Amatista:** le salen cristales pequeños de la cabeza y de los brazos. El allium, con el tallo metido en la cabeza.
 - **Heno:** lleva un sombrero de paja, con la flor en la cinta, que salta cada vez que da un golpe de azada.
 - **Hueso:** es hueco: el pecho es una caja torácica por la que se ve a través, con la columna dentro y la flor (o el
@@ -36,7 +38,7 @@ cofre y llevan en la mano: pico, hacha, azada y espada. Vale cualquiera, de cual
   casilla arada, cultivo cosechado o animal sacrificado) y se rompe al llegar a cero. Irrompibilidad funciona como siempre.
 - La **piedra y la pizarra naturales gastan la mitad**: de cada dos bloques, solo el primero desgasta el pico. Cuentan la
   piedra, la pizarra profunda, el granito, la diorita, la andesita y la toba. Las menas y el resto gastan un punto.
-- Al romperse, el gólem **vuelve a su cofre a por otra**. Si no hay, se queda **junto al cofre con los ojos apagados**
+- Al romperse, el gólem **vuelve a su cofre a por otra**. Si no hay, se queda **esperando junto al cofre**
   hasta que pongas una; en cuanto la hay, la coge y sigue donde lo dejó.
 - Sin herramienta no hacen nada de su trabajo: hay que dejarles una en el cofre antes de darles la flor. La excepción
   es el ganadero, que sin espada sigue alimentando y recogiendo y solo deja de sacrificar.
@@ -62,8 +64,10 @@ inventario** para su gólem: guarda en todos y busca en todos, herramientas incl
 | Inventario | 9 huecos | 15 huecos | 27 huecos |
 | Movimiento | Normal | Normal | Velocidad II |
 
-Los tres tienen **60 de vida** y pican cada bloque a la velocidad del pico, sin Prisa: lo que cambia con el material es
-cuántos bloques trabajan a la vez. Más bloques a la vez es más rápido, y gasta el pico igual de rápido.
+Los tres tienen **60 de vida**. Pican al **doble de la velocidad** que tendría un jugador con el mismo pico (sin Prisa),
+y tras cada bloque **descansan** tanto como han tardado en picarlo (hasta 2 segundos): rinden lo mismo que picando sin
+parar, pero se les ve trabajar a golpes. Lo que cambia con el material es cuántos bloques trabajan a la vez. Más
+bloques a la vez es más rápido, y gasta el pico igual de rápido.
 
 El material del gólem ya no decide con qué pica: **pica con el pico que lleva**, a la velocidad de ese pico y con sus
 encantamientos (**Eficiencia**, **Fortuna**, **Toque de seda**, Irrompibilidad...). Un pico demasiado flojo para un
@@ -75,7 +79,7 @@ sus encantamientos, y es la pala la que se gasta. Sin pala lo pica todo con el p
 pala: si se le rompe, sigue con el pico hasta que vuelva al cofre y haya otra.
 
 El gólem de **netherita** recién creado **no acepta amapola ni diente de león**. Dale primero una **rosa de Wither**: se
-gasta y lo desbloquea para siempre. Después elige patrón con amapola o diente de león como los demás.
+gasta y lo desbloquea para siempre, y le **sale la cresta** de la cabeza. Después elige patrón con amapola o diente de león como los demás.
 
 Cuando no le cabe un objeto más, el gólem vuelve a su cofre, lo vacía todo y regresa al punto donde lo dejó.
 Si el cofre está lleno (o lo han roto) se queda esperando junto a él y no sigue picando.
@@ -188,6 +192,8 @@ un radio de 16 bloques alrededor del punto donde se la des.
   también cuando no hay suficiente para todos.
 - Lleva lo que sale de los hornos al cofre de cobre.
 - Solo recoge algo si tiene dónde dejarlo: un horno del tipo adecuado libre, o sitio en un cofre de cobre.
+- En cada cofre **levanta la tapa y rebusca** con las animaciones del gólem de cobre (para coger o para dejar), unos
+  3 segundos, y lo mismo en cada horno.
 
 ## Gólem de cobre (el de siempre): marcos, vagonetas y Eficiencia
 
@@ -243,6 +249,8 @@ libro de Eficiencia lo rechaza sin gastarlo y te dice en la barra de acción qu�
 Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa con un **allium**.
 
 - Necesita un **hacha** en su cofre (ver Herramientas). Se gasta con cada tronco.
+- Como los mineros, corta al **doble de velocidad** que un jugador con esa hacha y tras cada tronco descansa lo que ha
+  tardado en cortarlo (hasta 2 segundos), así que rinde lo mismo.
 - De base tala solo **el chunk donde se activa**. Dale un **catalejo** con clic derecho para subirlo de nivel: el catalejo
   se gasta, su zona pasa a una malla de **3x3 chunks** que recorre en espiral desde el centro, y **sus ojos cambian de
   color** (de lila a dorado). Al morir suelta el catalejo.
@@ -268,7 +276,7 @@ Calabaza sobre un **bloque de amatista**; deja un cofre de amatista. Se activa c
 - Lleva 10 huecos de madera y una reserva de hasta 64 brotes de cada tipo. Del suelo **solo recoge brotes**.
 - Lleva la madera a su cofre cuando se llena o cuando se queda sin árboles.
 - Solo considera árbol un tronco sobre tierra que tenga hojas naturales, así que no toca construcciones de troncos.
-- **Se queda parado junto al cofre, con los ojos apagados**, si el cofre está lleno o si ya no quedan árboles en la zona.
+- **Se queda junto al cofre, paseando a su alrededor**, si el cofre está lleno o si ya no quedan árboles en la zona.
   Cada 30 segundos vuelve a mirar si ha crecido alguno.
 - No se teletransporta (ver *Detalles*): un árbol o un brote al que no llega andando lo deja estar.
 
@@ -288,6 +296,9 @@ Calabaza sobre un **bloque de heno**; deja un cofre de heno. Se activa con un **
 3. **Siembra** la tierra arada vacía. Si no lleva semillas las coge de su cofre, y si tampoco hay, las saca cosechando.
 4. **Cosecha** los cultivos maduros y **replanta** el mismo cultivo en el mismo sitio.
 5. Lleva la cosecha al **cofre de hueso** más cercano. Se queda hasta 64 semillas de cada tipo para replantar.
+
+Cada tarea (arar una casilla, sembrarla o cosecharla) es **un golpe de azada**, y se hace justo cuando la azada toca la
+tierra; después descansa un momento antes del siguiente.
 
 Sirve cualquier cultivo que se plante en tierra arada: trigo, zanahorias, patatas, remolacha... La azada **se gasta al
 arar y al cosechar**, un punto por casilla arada y otro por cada cultivo recogido, así que hay que reponerla.
@@ -309,6 +320,9 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con una
   nunca se matan, y tampoco las mascotas ni los animales con nombre. Entre un sacrificio y el siguiente espera 10
   segundos, para dar tiempo a que el rebaño críe. Los animales que acaban encima de la valla también cuentan.
 - **Recoge lo que hay en el suelo** del recinto y lo deja en su cofre.
+- Cada cosa es un gesto: para dar de comer **alarga la mano libre con la comida**, para recoger se agacha a cogerlo, y
+  para sacrificar da **una estocada**. Se hace justo cuando la mano o la espada llegan, y después descansa un momento.
+- Tiene los **ojos azules**, que se vuelven **rojos** cuando va a sacrificar.
 - El cofre de hueso es el punto de encuentro de la granja: el gólem de heno deja en él el trigo, el de hueso lo usa para
   alimentar, y el de carbón se lleva de él la carne cruda para cocinarla y todo lo que no sea comida de tus animales.
 
@@ -322,7 +336,7 @@ Calabaza sobre un **bloque de hueso**; deja un cofre de hueso. Se activa con una
 - Los gólems de **carbón, amatista, heno y hueso**, igual que el de cobre, **nunca se teletransportan**. Si no encuentran
   camino a pie hasta un cofre, un horno, un cultivo, un animal, un árbol o un brote (o llevan diez segundos atascados
   sin acercarse), **lo dejan estar durante un minuto** y pasan a otra cosa. Si lo que no alcanzan es su propio cofre, esperan
-  donde están con los ojos apagados y lo vuelven a intentar pasado ese minuto. Al darles otra vez su flor lo intentan
+  donde están y lo vuelven a intentar pasado ese minuto. Al darles otra vez su flor lo intentan
   todo de nuevo enseguida.
 - Un minero nunca se teletransporta por debajo de la altura a la que trabaja (su capa, sus túneles o, bajando la
   escalera, el peldaño al que va), ni a una casilla con agua o lava, ni a una sin suelo firme. Si no hay ningún sitio
@@ -352,6 +366,14 @@ Todos los gólems del mod se desgastan con el tiempo igual que el gólem de cobr
   raspa fase a fase; **raspada del todo, un hachazo más la devuelve a la vida**. Vuelve el mismo gólem: con su flor,
   su herramienta, su cofre y lo que llevara encima. Con cualquier otra cosa en la mano cambias su postura.
 - Se puede romper con un pico (la de paja, con una azada) y colocar en otro sitio: el gólem va dentro.
+
+## Vida
+
+- Los gólems tienen los **ojos siempre encendidos**: sin nada que hacer descansan, no están muertos.
+- Cuando no tienen nada que hacer (o no llevan flor) **pasean cerca de su cofre**, a unos 5 bloques; los de granja,
+  dentro de su recinto. Sin cofre, cerca de donde se quedaron. De vez en cuando dan un **saltito**.
+- Al saltar, caer o subir un bloque se les ve **en el aire**, con las piernas abiertas y los brazos extendidos.
+- Entre acción y acción descansan (ver cada gólem), para que su trabajo parezca más natural.
 
 ## Saludo
 
