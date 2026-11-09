@@ -8,11 +8,19 @@
   "block.totalgolems.amethyst_chest": "Amethyst Chest",
   "entity.totalgolems.coal_golem": "Coal Golem",
   "entity.totalgolems.amethyst_golem": "Amethyst Golem",
-  "block.totalgolems.sponge_chest": "Sponge Chest",
   "block.totalgolems.hay_chest": "Hay Chest",
   "block.totalgolems.bone_chest": "Bone Chest",
-  "entity.totalgolems.sponge_golem": "Sponge Golem",
   "entity.totalgolems.hay_golem": "Hay Golem",
   "entity.totalgolems.bone_golem": "Bone Golem",
-  "message.totalgolems.golem_locked": "It will not take a pattern until it has been given a wither rose"
+  "message.totalgolems.chunk_taken": "Another golem is quarrying this chunk: this one takes the nearest free chunk",
+  "message.totalgolems.golem_locked": "It will not take a pattern until it has been given a wither rose",
+  "message.totalgolems.efficiency_needed": "It needs an Efficiency %s book next",
+  "message.totalgolems.efficiency_max": "It already has Efficiency V",
+  "block.totalgolems.iron_golem_statue": "Iron Golem Statue",
+  "block.totalgolems.diamond_golem_statue": "Diamond Golem Statue",
+  "block.totalgolems.netherite_golem_statue": "Netherite Golem Statue",
+  "block.totalgolems.coal_golem_statue": "Coal Golem Statue",
+  "block.totalgolems.amethyst_golem_statue": "Amethyst Golem Statue",
+  "block.totalgolems.hay_golem_statue": "Hay Golem Statue",
+  "block.totalgolems.bone_golem_statue": "Bone Golem Statue"
 }

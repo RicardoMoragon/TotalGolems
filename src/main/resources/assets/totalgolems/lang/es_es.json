@@ -8,11 +8,19 @@
   "block.totalgolems.amethyst_chest": "Cofre de amatista",
   "entity.totalgolems.coal_golem": "Gólem de carbón",
   "entity.totalgolems.amethyst_golem": "Gólem de amatista",
-  "block.totalgolems.sponge_chest": "Cofre de esponja",
   "block.totalgolems.hay_chest": "Cofre de heno",
   "block.totalgolems.bone_chest": "Cofre de hueso",
-  "entity.totalgolems.sponge_golem": "Gólem de esponja",
   "entity.totalgolems.hay_golem": "Gólem de paja",
   "entity.totalgolems.bone_golem": "Gólem de hueso",
-  "message.totalgolems.golem_locked": "No acepta un patrón hasta que le des una rosa de Wither"
+  "message.totalgolems.chunk_taken": "Otro gólem ya pica este chunk: este se va al chunk libre más cercano",
+  "message.totalgolems.golem_locked": "No acepta un patrón hasta que le des una rosa de Wither",
+  "message.totalgolems.efficiency_needed": "Ahora necesita un libro de Eficiencia %s",
+  "message.totalgolems.efficiency_max": "Ya tiene Eficiencia V",
+  "block.totalgolems.iron_golem_statue": "Estatua de gólem de hierro",
+  "block.totalgolems.diamond_golem_statue": "Estatua de gólem de diamante",
+  "block.totalgolems.netherite_golem_statue": "Estatua de gólem de netherita",
+  "block.totalgolems.coal_golem_statue": "Estatua de gólem de carbón",
+  "block.totalgolems.amethyst_golem_statue": "Estatua de gólem de amatista",
+  "block.totalgolems.hay_golem_statue": "Estatua de gólem de paja",
+  "block.totalgolems.bone_golem_statue": "Estatua de gólem de hueso"
 }

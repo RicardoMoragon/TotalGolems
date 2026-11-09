@@ -4,7 +4,11 @@ import com.totalgolems.GolemTier;
 import com.totalgolems.block.MetalChestBlock;
 import com.totalgolems.registry.ModBlocks;
 import com.totalgolems.registry.ModEntities;
+//? if >=26.1 {
 import net.minecraft.advancements.triggers.CriteriaTriggers;
+//?} else {
+/*import net.minecraft.advancements.CriteriaTriggers;
+*///?}
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -77,8 +81,6 @@ public class MiningGolemSpawner {
 			return ModEntities.COAL_GOLEM;
 		} else if (base.is(Blocks.AMETHYST_BLOCK)) {
 			return ModEntities.AMETHYST_GOLEM;
-		} else if (base.is(Blocks.SPONGE)) {
-			return ModEntities.SPONGE_GOLEM;
 		} else if (base.is(Blocks.HAY_BLOCK)) {
 			return ModEntities.HAY_GOLEM;
 		} else {
@@ -95,8 +97,6 @@ public class MiningGolemSpawner {
 
 		if (base.is(Blocks.AMETHYST_BLOCK)) {
 			return ModBlocks.AMETHYST_CHEST;
-		} else if (base.is(Blocks.SPONGE)) {
-			return ModBlocks.SPONGE_CHEST;
 		} else if (base.is(Blocks.HAY_BLOCK)) {
 			return ModBlocks.HAY_CHEST;
 		} else {

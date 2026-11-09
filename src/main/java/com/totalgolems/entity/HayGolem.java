@@ -1,5 +1,6 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.block.MetalChestBlock;
 import com.totalgolems.registry.ModBlocks;
 import java.util.Comparator;
 import java.util.List;
@@ -33,8 +34,12 @@ import org.jspecify.annotations.Nullable;
  * The farmer. While it wears a cornflower it works the fenced field it stands in: with a hoe from
  * its hay chest it tills the soil, sows it, harvests what is ripe and replants it, and takes the
  * harvest to the nearest bone chest. Every block tilled and every crop reaped wears the hoe.
+ * <p>
+ * Each of those is one stroke of the hoe, done the moment it strikes the soil, with a breather before the next.
  */
 public class HayGolem extends PenGolem {
+	/** About every ten seconds a little straw comes loose from it. */
+	private static final int STRAW_CHANCE = 200;
 	private static final int SEED_SLOTS = 5;
 	private static final int HARVEST_SLOTS = 9;
 	/** It keeps a stack of each kind of seed for replanting; the rest of what it harvests is delivered. */
@@ -58,6 +63,14 @@ public class HayGolem extends PenGolem {
 
 	public HayGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
+	}
+
+	@Override
+	public void tick() {
+		super.tick();
+		if (this.level().isClientSide() && this.random.nextInt(STRAW_CHANCE) == 0) {
+			MetalChestBlock.dropStraw(this.level(), this.getX(), this.getY() + 0.5 + this.random.nextDouble() * 0.4, this.getZ(), 0.3, this.random);
+		}
 	}
 
 	public static AttributeSupplier.Builder createAttributes() {
@@ -103,7 +116,7 @@ public class HayGolem extends PenGolem {
 	}
 
 	private @Nullable BlockPos nearestCell(final Predicate<BlockPos> wanted) {
-		return this.pen.cells().stream().filter(wanted).min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position()))).orElse(null);
+		return this.pen.cells().stream().filter(cell -> !this.isUnreachable(cell) && wanted.test(cell)).min(Comparator.comparingDouble(cell -> cell.distToCenterSqr(this.position()))).orElse(null);
 	}
 
 	@Override
@@ -167,9 +180,10 @@ public class HayGolem extends PenGolem {
 					return false;
 				}
 
-				this.getLookControl().setLookAt(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-				this.setSwingingArm(this.errand != Errand.SOW);
-				if (!this.isActTick()) {
+				// Not down at its feet: at the soil a little ahead, as a farmer with a long-handled hoe would.
+				this.getLookControl().setLookAt(pos.getX() + 0.5, pos.getY() + 0.4, pos.getZ() + 0.5);
+				// Each job is one stroke of the hoe, tilling, sowing or reaping alike, done as the hoe comes down.
+				if (!this.strike(false)) {
 					return false;
 				}
 
@@ -218,7 +232,11 @@ public class HayGolem extends PenGolem {
 		}
 
 		level.setBlockAndUpdate(cell.below(), Blocks.FARMLAND.defaultBlockState());
+		//? if >=26.1 {
 		level.playSound(null, cell, SoundEvents.HOE_TILL.value(), SoundSource.BLOCKS, 1.0F, 1.0F);
+		//?} else {
+		/*level.playSound(null, cell, SoundEvents.HOE_TILL, SoundSource.BLOCKS, 1.0F, 1.0F);
+		*///?}
 		this.wearTool(1);
 	}
 

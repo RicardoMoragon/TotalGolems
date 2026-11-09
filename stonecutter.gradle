@@ -1,0 +1,32 @@
+plugins {
+	id 'dev.kikugie.stonecutter'
+	// Loaded once here so that all versions share one copy of each.
+	id 'net.fabricmc.fabric-loom' apply false
+	id 'net.fabricmc.fabric-loom-remap' apply false
+}
+
+// The version whose code is active in src/. The "Set active project to ..." tasks rewrite this line; commit with 26.3.
+stonecutter.active '26.3'
+
+// One folder with the jar of every Minecraft version: build/libs.
+tasks.register('collectJars', Copy) {
+	group = 'build'
+	description = 'Builds the jars of all Minecraft versions and copies them to build/libs.'
+	stonecutter.versions.each { version ->
+		def node = project(":${version.project}")
+		dependsOn "${node.path}:releaseJar"
+		from(node.layout.buildDirectory.dir('libs')) {
+			include '*.jar'
+			exclude '*-sources.jar', '*-dev.jar'
+		}
+	}
+	into layout.buildDirectory.dir('libs')
+}
+
+stonecutter.parameters {
+	// Before 26.1 the entity types are constants of EntityType itself; from 26.1 on they are in EntityTypes. (The
+	// imports are switched by //? comments where they are.)
+	replacements.regex(stonecutter.eval(current.version, '<26.1')) {
+		replace(/\bEntityTypes\.([A-Z][A-Z0-9_]*)\b/, 'EntityType.$1', /\bEntityType\.([A-Z][A-Z0-9_]*)\b/, 'EntityTypes.$1')
+	}
+}

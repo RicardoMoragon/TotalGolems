@@ -12,16 +12,16 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.material.FluidState;
 import org.jspecify.annotations.Nullable;
 
 /**
  * The dandelion pattern: dig out one chunk layer by layer.
  * <p>
  * The golem sweeps the inner 14x14 of the chunk in lanes, reaching into the outer ring of cells from
- * there. That ring is kept for a spiral staircase that goes down one block per cell: one block of
- * every ring column is left in place (or placed) as a step, which is how the golem gets back to its
- * chest. Local coordinates below are 0..15 inside the chunk.
+ * there. That ring is kept for a spiral staircase that goes down one block per cell: two blocks of
+ * every ring column are left in place (or placed), the step and the one under it, which is how the
+ * golem gets back to its chest. Local coordinates below are 0..15 inside the chunk.
  */
 public class QuarryPlan {
 	private static final int SIZE = 16;
@@ -197,13 +197,16 @@ public class QuarryPlan {
 		return cells;
 	}
 
-	/** Protects the floor from the ring cell {@code ringIndex} to the chest, in a straight line or an L. */
+	/** Protects the floor from the ring cell {@code ringIndex} to the chest, in a straight line or an L, and under the chest. */
 	private void addWalkway(final BlockPos chest, final int ringIndex) {
 		Set<BlockPos> blocks = this.walkway;
 		if (chest.getY() != this.topY || !this.contains(chest)) {
 			return;
 		}
 
+		// The chest stands on a block of the walkway too: dug out from under it, the chest would hang in the air
+		// with nothing to stand on to get at it.
+		blocks.add(chest.below());
 		int[] start = ringCell(ringIndex);
 		int x = start[0];
 		int z = start[1];
@@ -228,11 +231,6 @@ public class QuarryPlan {
 		return this.contains(pos) && pos.getY() <= this.topY;
 	}
 
-	/** The whole pit, dug or not: the chunk from the layer being worked on up to the top of the first one. */
-	public BoundingBox pit() {
-		return new BoundingBox(this.minX, this.layerFeetY(), this.minZ, this.minX + SIZE - 1, this.topY + this.height - 1, this.minZ + SIZE - 1);
-	}
-
 	public int layerFeetY() {
 		return this.topY - this.layer * this.height;
 	}
@@ -250,9 +248,89 @@ public class QuarryPlan {
 		this.stairsBuilt++;
 	}
 
+	/**
+	 * Goes over the layer being dug from the start again, so that anything that has turned up in the part
+	 * already done since (fallen gravel, blocks put there, water walled off) is dug out too. Cells with
+	 * nothing to dig are passed over at once, so this costs no walking where nothing has changed.
+	 */
+	public void rescan() {
+		this.routeIndex = 0;
+	}
+
+	/** Gives up on the place in the layer the golem was making for, and goes on to the next one. */
+	public void skipTarget() {
+		this.routeIndex++;
+	}
+
 	public void startNextLayer() {
 		this.layer++;
 		this.routeIndex = 0;
+	}
+
+	/**
+	 * Water and lava the golem has to wall off in the layer it is digging, and only in that one: every
+	 * source in the layer, and anything at all right against the outside of the chunk at the height of
+	 * the layer. On the first layer, also anything running in over the top of the pit. With those gone
+	 * nothing can flow into the layer or spring up again in it as it is dug out; the layers above were
+	 * seen to when they were dug.
+	 */
+	public List<BlockPos> fluidsToSeal(final Level level) {
+		List<BlockPos> found = new ArrayList<>();
+		int bottom = this.layerFeetY();
+		int top = bottom + this.height - 1;
+		int roof = this.layer == 0 ? top + 1 : top;
+		for (int y = bottom; y <= roof; y++) {
+			for (int x = -1; x <= SIZE; x++) {
+				for (int z = -1; z <= SIZE; z++) {
+					BlockPos pos = new BlockPos(this.minX + x, y, this.minZ + z);
+					if (isInside(x, z) || x >= 0 && x < SIZE || z >= 0 && z < SIZE) {
+						// Corners outside the chunk touch none of it.
+						if (this.needsSealing(level, pos, y > top)) {
+							found.add(pos);
+						}
+					}
+				}
+			}
+		}
+
+		return found;
+	}
+
+	/**
+	 * Whether {@code pos} has water or lava the golem must wall off: a source inside the chunk, or any
+	 * at all outside it or, with {@code any}, inside.
+	 */
+	private boolean needsSealing(final Level level, final BlockPos pos, final boolean any) {
+		FluidState fluid = level.getFluidState(pos);
+		boolean inside = this.contains(pos);
+		if (fluid.isEmpty() || inside && !any && !fluid.isSource() || inside && this.isProtected(pos)) {
+			return false;
+		}
+
+		BlockState state = level.getBlockState(pos);
+		return state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity();
+	}
+
+	/**
+	 * Blocks of the walkway and of the staircase built so far that are missing: where the ground had a hole
+	 * to begin with, or something broke them. Without them the way to the chest has a gap to fall through.
+	 */
+	public List<BlockPos> pathGaps(final Level level) {
+		List<BlockPos> gaps = new ArrayList<>();
+		for (BlockPos pos : this.walkway) {
+			if (level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()) {
+				gaps.add(pos);
+			}
+		}
+
+		for (int step = 0; step <= this.stairsBuilt; step++) {
+			BlockPos floor = this.stairStand(step).below();
+			if (level.getBlockState(floor).getCollisionShape(level, floor).isEmpty()) {
+				gaps.add(floor);
+			}
+		}
+
+		return gaps;
 	}
 
 	/** Where the golem stands on step {@code step} of the staircase; step 0 is the top. */
@@ -261,7 +339,11 @@ public class QuarryPlan {
 		return new BlockPos(this.minX + cell[0], this.topY - step, this.minZ + cell[1]);
 	}
 
-	/** Blocks the golem never breaks: the staircase steps and the walkway to its chest. */
+	/**
+	 * Blocks the golem never breaks: the staircase steps, the block under each step, and the walkway to its
+	 * chest. Under a step a golem would fit, but with the step right over its head it could not jump up to
+	 * the next one, and it would pace about in there trying.
+	 */
 	public boolean isProtected(final BlockPos pos) {
 		if (this.walkway.contains(pos)) {
 			return true;
@@ -271,7 +353,7 @@ public class QuarryPlan {
 		int z = pos.getZ() - this.minZ;
 		int index = isInside(x, z) ? ringIndex(x, z) : -1;
 		int step = this.topY - 1 - pos.getY();
-		return index >= 0 && step >= 0 && Math.floorMod(this.stairStart + step, RING_LENGTH) == index;
+		return index >= 0 && (step >= 0 && Math.floorMod(this.stairStart + step, RING_LENGTH) == index || step >= 1 && Math.floorMod(this.stairStart + step - 1, RING_LENGTH) == index);
 	}
 
 	/**
@@ -320,13 +402,26 @@ public class QuarryPlan {
 		return null;
 	}
 
-	/** Whether standing next to this cell of the layer there would be anything for the golem to break. */
+	/**
+	 * Whether standing next to this cell of the layer there would be anything for the golem to break, or
+	 * water or lava to wall off: it only does that from close by, so it has to go there.
+	 */
 	private boolean hasWork(final Level level, final int x, final int z, final int y) {
 		BlockPos cell = new BlockPos(this.minX + x, y, this.minZ + z);
 		for (BlockPos pos : this.slice(cell.west(), cell)) {
 			BlockState state = level.getBlockState(pos);
 			if (!state.isAir() && !state.getCollisionShape(level, pos).isEmpty() && !state.hasBlockEntity() && state.getDestroySpeed(level, pos) >= 0.0F) {
 				return true;
+			}
+
+			if (this.needsSealing(level, pos, false)) {
+				return true;
+			}
+
+			for (int[] offset : NEIGHBOURS) {
+				if (this.needsSealing(level, pos.offset(offset[0], 0, offset[1]), false)) {
+					return true;
+				}
 			}
 		}
 

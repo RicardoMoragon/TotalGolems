@@ -4,8 +4,13 @@
     "totalgolems:diamond_chest",
     "totalgolems:netherite_chest",
     "totalgolems:amethyst_chest",
-    "totalgolems:sponge_chest",
     "totalgolems:hay_chest",
-    "totalgolems:bone_chest"
+    "totalgolems:bone_chest",
+    "totalgolems:iron_golem_statue",
+    "totalgolems:diamond_golem_statue",
+    "totalgolems:netherite_golem_statue",
+    "totalgolems:coal_golem_statue",
+    "totalgolems:amethyst_golem_statue",
+    "totalgolems:bone_golem_statue"
   ]
 }

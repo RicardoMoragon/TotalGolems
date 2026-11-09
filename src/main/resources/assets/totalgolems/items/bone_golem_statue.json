@@ -1,0 +1,266 @@
+{
+  "model": {
+    "type": "minecraft:select",
+    "property": "minecraft:block_state",
+    "block_state_property": "age",
+    "cases": [
+      {
+        "when": "1",
+        "model": {
+          "type": "minecraft:select",
+          "property": "minecraft:block_state",
+          "block_state_property": "copper_golem_pose",
+          "cases": [
+            {
+              "when": "sitting",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "sitting",
+                  "age": 1
+                }
+              }
+            },
+            {
+              "when": "running",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "running",
+                  "age": 1
+                }
+              }
+            },
+            {
+              "when": "star",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "star",
+                  "age": 1
+                }
+              }
+            }
+          ],
+          "fallback": {
+            "type": "minecraft:special",
+            "base": "minecraft:item/template_copper_golem_statue",
+            "model": {
+              "type": "totalgolems:golem_statue",
+              "golem": "bone",
+              "pose": "standing",
+              "age": 1
+            }
+          }
+        }
+      },
+      {
+        "when": "2",
+        "model": {
+          "type": "minecraft:select",
+          "property": "minecraft:block_state",
+          "block_state_property": "copper_golem_pose",
+          "cases": [
+            {
+              "when": "sitting",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "sitting",
+                  "age": 2
+                }
+              }
+            },
+            {
+              "when": "running",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "running",
+                  "age": 2
+                }
+              }
+            },
+            {
+              "when": "star",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "star",
+                  "age": 2
+                }
+              }
+            }
+          ],
+          "fallback": {
+            "type": "minecraft:special",
+            "base": "minecraft:item/template_copper_golem_statue",
+            "model": {
+              "type": "totalgolems:golem_statue",
+              "golem": "bone",
+              "pose": "standing",
+              "age": 2
+            }
+          }
+        }
+      },
+      {
+        "when": "3",
+        "model": {
+          "type": "minecraft:select",
+          "property": "minecraft:block_state",
+          "block_state_property": "copper_golem_pose",
+          "cases": [
+            {
+              "when": "sitting",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "sitting",
+                  "age": 3
+                }
+              }
+            },
+            {
+              "when": "running",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "running",
+                  "age": 3
+                }
+              }
+            },
+            {
+              "when": "star",
+              "model": {
+                "type": "minecraft:special",
+                "base": "minecraft:item/template_copper_golem_statue",
+                "model": {
+                  "type": "totalgolems:golem_statue",
+                  "golem": "bone",
+                  "pose": "star",
+                  "age": 3
+                }
+              }
+            }
+          ],
+          "fallback": {
+            "type": "minecraft:special",
+            "base": "minecraft:item/template_copper_golem_statue",
+            "model": {
+              "type": "totalgolems:golem_statue",
+              "golem": "bone",
+              "pose": "standing",
+              "age": 3
+            }
+          }
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:select",
+      "property": "minecraft:block_state",
+      "block_state_property": "copper_golem_pose",
+      "cases": [
+        {
+          "when": "sitting",
+          "model": {
+            "type": "minecraft:special",
+            "base": "minecraft:item/template_copper_golem_statue",
+            "model": {
+              "type": "totalgolems:golem_statue",
+              "golem": "bone",
+              "pose": "sitting",
+              "age": 0
+            }
+          }
+        },
+        {
+          "when": "running",
+          "model": {
+            "type": "minecraft:special",
+            "base": "minecraft:item/template_copper_golem_statue",
+            "model": {
+              "type": "totalgolems:golem_statue",
+              "golem": "bone",
+              "pose": "running",
+              "age": 0
+            }
+          }
+        },
+        {
+          "when": "star",
+          "model": {
+            "type": "minecraft:special",
+            "base": "minecraft:item/template_copper_golem_statue",
+            "model": {
+              "type": "totalgolems:golem_statue",
+              "golem": "bone",
+              "pose": "star",
+              "age": 0
+            }
+          }
+        }
+      ],
+      "fallback": {
+        "type": "minecraft:special",
+        "base": "minecraft:item/template_copper_golem_statue",
+        "model": {
+          "type": "totalgolems:golem_statue",
+          "golem": "bone",
+          "pose": "standing",
+          "age": 0
+        }
+      }
+    },
+    "transformation": {
+      "left_rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "right_rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        -1,
+        -1
+      ],
+      "translation": [
+        0.5,
+        1.5,
+        0.5
+      ]
+    }
+  }
+}

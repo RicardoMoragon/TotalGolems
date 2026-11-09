@@ -1,5 +1,6 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.Compat;
 import com.totalgolems.GolemTier;
 import com.totalgolems.block.ChestGroup;
 import com.totalgolems.registry.ModBlocks;
@@ -42,16 +43,15 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The smelter, and the one that clears out the other golems' chests. While it wears an oxeye daisy
- * it empties the mining, sponge and bone golems' chests around the spot it was switched on at.
+ * The smelter, and the one that clears out the other golems' chests. While it wears a warped or crimson fungus
+ * it empties the mining and bone golems' chests around the spot it was switched on at.
  * What can be smelted goes to the furnaces, of which it keeps up to five fed with coal from the
- * same chests; everything else, and what the furnaces produce, goes to a copper chest. Sponges it
- * has dried go back to the sponge chest, and a sponge chest with a campfire against it is kept in
- * coal for the sponge golem to dry its own sponges with.
+ * same chests; everything else, and what the furnaces produce, goes to a copper chest.
  * <p>
- * It leaves each chest what its owner needs: the pickaxes and the swords, a stack of blocks for a
- * miner to lay as floor, the dry sponges and the coal for the fire, and the feed for the animals in
- * a bone golem's pen.
+ * It leaves each chest what its owner needs: the pickaxes, shovels and swords, a stack of blocks for
+ * a miner to lay as floor, and the feed for the animals in a bone golem's pen.
+ * <p>
+ * At each chest it lifts the lid and rummages in it as the copper golem does, and the same at each furnace.
  */
 public class CoalGolem extends WorkerGolem {
 	private static final int WORK_RADIUS = 16;
@@ -65,8 +65,11 @@ public class CoalGolem extends WorkerGolem {
 	private static final int ITEMS_PER_FUEL = 8;
 	private static final int PLAN_INTERVAL = 20;
 	private static final double OWNER_SEARCH_RANGE = 64.0;
+	/** As the copper golem: three seconds at each chest or furnace, the loads going in or out a third of the way through. */
+	private static final int INTERACTION_TICKS = 60;
+	private static final int INTERACTION_LANDS = 20;
 
-	/** What it is carrying to the furnaces: ores, raw food and wet sponges, nine stacks at most. */
+	/** What it is carrying to the furnaces: ores and raw food, nine stacks at most. */
 	private final SimpleContainer ores = new SimpleContainer(SLOTS);
 	private final SimpleContainer fuel = new SimpleContainer(SLOTS);
 	/** What is on its way to a chest: what it has taken out of furnaces, and what was never going into one. */
@@ -75,11 +78,10 @@ public class CoalGolem extends WorkerGolem {
 	private final List<BlockPos> furnaces = new ArrayList<>();
 	private final List<BlockPos> sources = new ArrayList<>();
 	private final List<BlockPos> sinks = new ArrayList<>();
-	private final List<BlockPos> spongeChests = new ArrayList<>();
-	/** Some sponge chest has a campfire and less coal than it should. */
-	private boolean campfireShortOfCoal;
 	private @Nullable BlockPos home;
 	private @Nullable BlockPos target;
+	/** Ticks since it got to its target and opened it, or -1 while it is not at one. */
+	private int interactionTicks = -1;
 
 	public CoalGolem(final EntityType<? extends AbstractGolem> type, final Level level) {
 		super(type, level);
@@ -94,6 +96,12 @@ public class CoalGolem extends WorkerGolem {
 		return "coal";
 	}
 
+	/** It walks everywhere: a furnace or chest it cannot get to it leaves alone for a while. */
+	@Override
+	protected boolean mayTeleport() {
+		return false;
+	}
+
 	@Override
 	protected boolean isBusy() {
 		return this.target != null;
@@ -101,7 +109,7 @@ public class CoalGolem extends WorkerGolem {
 
 	@Override
 	protected boolean isActivatingFlower(final ItemStack stack) {
-		return stack.is(Items.OXEYE_DAISY);
+		return stack.is(Items.WARPED_FUNGUS) || stack.is(Items.CRIMSON_FUNGUS);
 	}
 
 	@Override
@@ -113,13 +121,29 @@ public class CoalGolem extends WorkerGolem {
 	@Override
 	protected void onDeactivated(final ServerLevel level) {
 		this.target = null;
+		this.stopInteracting(level);
 		this.getNavigation().stop();
+	}
+
+	/** With nothing to do it potters about home. */
+	@Override
+	protected boolean mayWander() {
+		return this.isIdleHere() && this.target == null;
+	}
+
+	@Override
+	protected BlockPos wanderCentre() {
+		return this.hasFlower() && this.home != null ? this.home : super.wanderCentre();
 	}
 
 	@Override
 	protected void serverStep(final ServerLevel level) {
 		if (!this.hasFlower() || this.home == null) {
 			this.target = null;
+			if (this.interactionTicks >= 0) {
+				this.stopInteracting(level);
+			}
+
 			return;
 		}
 
@@ -132,35 +156,47 @@ public class CoalGolem extends WorkerGolem {
 			return;
 		}
 
-		if (!this.travelTo(level, this.target, CHEST_REACH)) {
-			return;
-		}
+		if (this.interactionTicks < 0 && !this.travelTo(level, this.target, CHEST_REACH)) {
+			if (this.hasGivenUp()) {
+				// No way there: on to something else.
+				this.target = null;
+			}
 
-		this.getLookControl().setLookAt(Vec3.atCenterOf(this.target));
-		if (this.tickCount % TRANSFER_INTERVAL != 0) {
 			return;
 		}
 
 		BlockPos reached = this.target;
 		BlockState reachedState = level.getBlockState(reached);
-		if (level.getBlockEntity(reached) instanceof AbstractFurnaceBlockEntity furnace) {
-			this.serveFurnace(level, furnace);
-		} else if (reachedState.is(BlockTags.COPPER_CHESTS)) {
-			this.storeProducts(level, reached, stack -> !isDriedSponge(stack));
-		} else if (this.isSource(reachedState)) {
-			// A sponge chest is both where the dried sponges go and where the wet ones are.
-			if (reachedState.is(ModBlocks.SPONGE_CHEST)) {
-				this.storeProducts(level, reached, CoalGolem::isDriedSponge);
-				this.stockCampfireCoal(level, reached);
-			}
-
-			this.takeFrom(level, reached);
+		this.getLookControl().setLookAt(Vec3.atCenterOf(reached));
+		if (this.interactionTicks < 0) {
+			// The lid up and its hands in: taking out of the golems' chests, putting into the copper chests and furnaces.
+			this.openChest(level, reached, this.isSource(reachedState) ? CHEST_GET : CHEST_DROP);
+			this.interactionTicks = 0;
 		}
 
-		this.playSound(SoundEvents.ITEM_PICKUP, 0.3F, 0.8F);
-		// Straight on to the next errand, if there is one.
-		this.plan(level);
-		this.resetTravel();
+		if (++this.interactionTicks == INTERACTION_LANDS) {
+			if (level.getBlockEntity(reached) instanceof AbstractFurnaceBlockEntity furnace) {
+				this.serveFurnace(level, furnace);
+			} else if (reachedState.is(BlockTags.COPPER_CHESTS)) {
+				this.storeProducts(level, reached);
+			} else if (this.isSource(reachedState)) {
+				this.takeFrom(level, reached);
+			}
+
+			this.playSound(this.getChestAction() == CHEST_GET ? SoundEvents.COPPER_GOLEM_ITEM_GET : SoundEvents.COPPER_GOLEM_ITEM_DROP, 0.6F, 0.8F);
+		}
+
+		if (this.interactionTicks >= INTERACTION_TICKS) {
+			this.stopInteracting(level);
+			// On to the next errand, if there is one.
+			this.plan(level);
+			this.resetTravel();
+		}
+	}
+
+	private void stopInteracting(final ServerLevel level) {
+		this.interactionTicks = -1;
+		this.closeChest(level);
 	}
 
 	/** Picks where to go next, nearest first within each kind of errand, or nowhere if there is nothing to do. */
@@ -168,21 +204,13 @@ public class CoalGolem extends WorkerGolem {
 		this.scan(level);
 		this.target = null;
 		boolean productsWaiting = this.furnaces.stream().anyMatch(pos -> this.hasCollectableResult(level, pos));
-		// Dried sponges go back to a sponge chest; everything else to a copper chest.
-		BlockPos sink = this.nearest(this.sinks, pos -> this.canStoreProducts(level, pos, stack -> !isDriedSponge(stack)));
-		if (sink == null) {
-			sink = this.nearest(this.spongeChests, pos -> this.canStoreProducts(level, pos, CoalGolem::isDriedSponge));
-		}
-
+		BlockPos sink = this.nearest(this.sinks, pos -> this.canStoreProducts(level, pos));
 		if (sink != null && !productsWaiting) {
 			this.target = sink;
 			return;
 		}
 
 		this.target = this.nearest(this.furnaces, pos -> this.needsVisit(level, pos));
-		if (this.target == null && !this.fuel.isEmpty()) {
-			this.target = this.nearest(this.spongeChests, pos -> campfireCoalShortage(level, pos) > 0);
-		}
 
 		if (this.target == null) {
 			this.target = this.nearest(this.sources, pos -> this.hasSomethingToTake(level, pos));
@@ -205,18 +233,18 @@ public class CoalGolem extends WorkerGolem {
 		this.furnaces.clear();
 		this.sources.clear();
 		this.sinks.clear();
-		this.spongeChests.clear();
-		ChunkPos min = ChunkPos.containing(this.home.offset(-WORK_RADIUS, 0, -WORK_RADIUS));
-		ChunkPos max = ChunkPos.containing(this.home.offset(WORK_RADIUS, 0, WORK_RADIUS));
-		for (int chunkX = min.x(); chunkX <= max.x(); chunkX++) {
-			for (int chunkZ = min.z(); chunkZ <= max.z(); chunkZ++) {
+		ChunkPos min = Compat.chunkAt(this.home.offset(-WORK_RADIUS, 0, -WORK_RADIUS));
+		ChunkPos max = Compat.chunkAt(this.home.offset(WORK_RADIUS, 0, WORK_RADIUS));
+		for (int chunkX = Compat.chunkX(min); chunkX <= Compat.chunkX(max); chunkX++) {
+			for (int chunkZ = Compat.chunkZ(min); chunkZ <= Compat.chunkZ(max); chunkZ++) {
 				if (!level.hasChunk(chunkX, chunkZ)) {
 					continue;
 				}
 
 				for (BlockEntity blockEntity : level.getChunk(chunkX, chunkZ).getBlockEntities().values()) {
 					BlockPos pos = blockEntity.getBlockPos();
-					if (Math.abs(pos.getX() - this.home.getX()) > WORK_RADIUS
+					if (this.isUnreachable(pos)
+						|| Math.abs(pos.getX() - this.home.getX()) > WORK_RADIUS
 						|| Math.abs(pos.getZ() - this.home.getZ()) > WORK_RADIUS
 						|| Math.abs(pos.getY() - this.home.getY()) > WORK_HEIGHT) {
 						continue;
@@ -227,9 +255,6 @@ public class CoalGolem extends WorkerGolem {
 						this.furnaces.add(pos);
 					} else if (this.isSource(state)) {
 						this.sources.add(pos);
-						if (state.is(ModBlocks.SPONGE_CHEST)) {
-							this.spongeChests.add(pos);
-						}
 					} else if (state.is(BlockTags.COPPER_CHESTS)) {
 						this.sinks.add(pos);
 					}
@@ -241,62 +266,20 @@ public class CoalGolem extends WorkerGolem {
 		if (this.furnaces.size() > MAX_FURNACES) {
 			this.furnaces.subList(MAX_FURNACES, this.furnaces.size()).clear();
 		}
-
-		this.campfireShortOfCoal = this.spongeChests.stream().anyMatch(pos -> campfireCoalShortage(level, pos) > 0);
 	}
 
-	/** How much coal the sponge chest at {@code pos} is short of, if it has a lit campfire against it to feed. */
-	private static int campfireCoalShortage(final ServerLevel level, final BlockPos pos) {
-		Container chest = ChestGroup.container(level, pos);
-		if (chest == null || SpongeGolem.campfireBy(level, pos) == null) {
-			return 0;
-		}
-
-		int held = 0;
-		boolean room = false;
-		for (int slot = 0; slot < chest.getContainerSize(); slot++) {
-			ItemStack there = chest.getItem(slot);
-			held += isFuel(there) ? there.getCount() : 0;
-			room |= there.isEmpty() || isFuel(there) && there.getCount() < there.getMaxStackSize();
-		}
-
-		// A chest with no room for it is not short of anything it could be given.
-		return room ? Math.max(0, SpongeGolem.CAMPFIRE_COAL_KEPT - held) : 0;
-	}
-
-	/** Tops up the coal the sponge golem burns to dry its sponges at the fire by its chest. */
-	private void stockCampfireCoal(final ServerLevel level, final BlockPos pos) {
-		Container chest = ChestGroup.container(level, pos);
-		int give = campfireCoalShortage(level, pos);
-		for (int slot = 0; chest != null && slot < this.fuel.getContainerSize() && give > 0; slot++) {
-			ItemStack carried = this.fuel.getItem(slot);
-			if (!carried.isEmpty()) {
-				ItemStack offered = carried.split(Math.min(give, carried.getCount()));
-				int count = offered.getCount();
-				ItemStack left = HopperBlockEntity.addItem(null, chest, offered, null);
-				give -= count - left.getCount();
-				carried.grow(left.getCount());
-				if (!left.isEmpty()) {
-					break;
-				}
-			}
-		}
-	}
-
-	/** It only takes from the chests the mining, sponge and bone golems fill. */
+	/** It only takes from the chests the mining and bone golems fill. */
 	private boolean isSource(final BlockState state) {
 		return state.is(ModBlocks.IRON_CHEST)
 			|| state.is(ModBlocks.DIAMOND_CHEST)
 			|| state.is(ModBlocks.NETHERITE_CHEST)
-			|| state.is(ModBlocks.SPONGE_CHEST)
 			|| state.is(ModBlocks.BONE_CHEST);
 	}
 
-	/** The three things it smelts. Each has its own kind of furnace when there is one. */
+	/** The two things it smelts. Each has its own kind of furnace when there is one. */
 	private enum Kind {
 		ORE(Blocks.BLAST_FURNACE),
-		FOOD(Blocks.SMOKER),
-		SPONGE(Blocks.FURNACE);
+		FOOD(Blocks.SMOKER);
 
 		private final Block preferredFurnace;
 
@@ -307,13 +290,11 @@ public class CoalGolem extends WorkerGolem {
 
 	/**
 	 * What {@code stack} is to the smelter, or null if it is not for the furnaces: ores and raw metals,
-	 * raw meat and fish, potatoes, and wet sponges. No stone, sand or anything else that merely can be smelted.
+	 * raw meat and fish, and potatoes. No stone, sand or anything else that merely can be smelted.
 	 */
 	private @Nullable Kind kindOf(final ServerLevel level, final ItemStack stack) {
 		if (stack.isEmpty()) {
 			return null;
-		} else if (stack.is(Items.WET_SPONGE)) {
-			return Kind.SPONGE;
 		}
 
 		boolean meat = stack.is(ItemTags.MEAT) || stack.is(ItemTags.FISHES) || stack.is(Items.POTATO);
@@ -327,7 +308,7 @@ public class CoalGolem extends WorkerGolem {
 		return !smelts ? null : meat ? Kind.FOOD : Kind.ORE;
 	}
 
-	/** Blast furnaces for ores and smokers for food when one is assigned; otherwise, and for sponges, plain furnaces. */
+	/** Blast furnaces for ores and smokers for food when one is assigned; otherwise plain furnaces. */
 	private Block furnaceFor(final ServerLevel level, final Kind kind) {
 		boolean available = this.furnaces.stream().anyMatch(pos -> level.getBlockState(pos).is(kind.preferredFurnace));
 		return available ? kind.preferredFurnace : Blocks.FURNACE;
@@ -337,10 +318,6 @@ public class CoalGolem extends WorkerGolem {
 	private boolean canTake(final ServerLevel level, final AbstractFurnaceBlockEntity furnace, final ItemStack stack) {
 		Kind kind = this.kindOf(level, stack);
 		return kind != null && furnace.getBlockState().is(this.furnaceFor(level, kind)) && fits(furnace.getItem(FURNACE_INPUT), stack);
-	}
-
-	private static boolean isDriedSponge(final ItemStack stack) {
-		return stack.is(Items.SPONGE);
 	}
 
 	private static boolean isFuel(final ItemStack stack) {
@@ -526,15 +503,13 @@ public class CoalGolem extends WorkerGolem {
 	}
 
 	/**
-	 * What the owner of the chest needs and so is never taken: the tool of its trade, the dry sponges of
-	 * a sponge golem and the coal for its fire, and whatever the animals in a bone golem's pen eat.
-	 * Potatoes are the exception, because they are worth more baked.
+	 * What the owner of the chest needs and so is never taken: the tools of its trade (a miner's shovel as
+	 * well as its pickaxe), and whatever the animals in a bone golem's pen eat. Potatoes are the exception,
+	 * because they are worth more baked.
 	 */
 	private boolean isReserved(final ServerLevel level, final Source source, final ItemStack stack) {
 		if (GolemTier.isMinerChest(source.state)) {
-			return stack.is(ItemTags.PICKAXES);
-		} else if (source.state.is(ModBlocks.SPONGE_CHEST)) {
-			return isDriedSponge(stack) || isFuel(stack);
+			return stack.is(ItemTags.PICKAXES) || stack.is(ItemTags.SHOVELS);
 		} else if (source.state.is(ModBlocks.BONE_CHEST)) {
 			return stack.is(ItemTags.SWORDS) || !stack.is(Items.POTATO) && source.rancher != null && source.rancher.feedsOn(level, stack);
 		}
@@ -566,7 +541,7 @@ public class CoalGolem extends WorkerGolem {
 		if (stack.isEmpty() || this.isReserved(level, source, stack)) {
 			return null;
 		} else if (isFuel(stack)) {
-			return (!this.furnaces.isEmpty() || this.campfireShortOfCoal) && this.fuel.canAddItem(stack) ? this.fuel : null;
+			return !this.furnaces.isEmpty() && this.fuel.canAddItem(stack) ? this.fuel : null;
 		} else if (this.kindOf(level, stack) != null) {
 			return this.ores.canAddItem(stack) && this.hasFurnaceFor(level, stack) ? this.ores : null;
 		}
@@ -635,15 +610,15 @@ public class CoalGolem extends WorkerGolem {
 		chest.setChanged();
 	}
 
-	/** Whether the chest at {@code pos} has room for any of the carried products that {@code which} picks out. */
-	private boolean canStoreProducts(final ServerLevel level, final BlockPos pos, final Predicate<ItemStack> which) {
+	/** Whether the chest at {@code pos} has room for any of the carried products. */
+	private boolean canStoreProducts(final ServerLevel level, final BlockPos pos) {
 		Container chest = HopperBlockEntity.getContainerAt(level, pos);
 		if (chest == null) {
 			return false;
 		}
 
 		for (ItemStack product : this.products.getItems()) {
-			for (int slot = 0; slot < chest.getContainerSize() && !product.isEmpty() && which.test(product); slot++) {
+			for (int slot = 0; slot < chest.getContainerSize() && !product.isEmpty(); slot++) {
 				if (fits(chest.getItem(slot), product)) {
 					return true;
 				}
@@ -653,7 +628,7 @@ public class CoalGolem extends WorkerGolem {
 		return false;
 	}
 
-	private void storeProducts(final ServerLevel level, final BlockPos pos, final Predicate<ItemStack> which) {
+	private void storeProducts(final ServerLevel level, final BlockPos pos) {
 		Container chest = HopperBlockEntity.getContainerAt(level, pos);
 		if (chest == null) {
 			return;
@@ -661,7 +636,7 @@ public class CoalGolem extends WorkerGolem {
 
 		for (int slot = 0; slot < this.products.getContainerSize(); slot++) {
 			ItemStack product = this.products.getItem(slot);
-			if (!product.isEmpty() && which.test(product)) {
+			if (!product.isEmpty()) {
 				this.products.setItem(slot, HopperBlockEntity.addItem(null, chest, product, null));
 			}
 		}

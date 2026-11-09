@@ -1,10 +1,18 @@
 {
 	"required": true,
 	"package": "com.totalgolems.mixin",
-	"compatibilityLevel": "JAVA_25",
+	"compatibilityLevel": "JAVA_${java_version}",
 	"mixins": [
 		"CarvedPumpkinBlockMixin",
+		"CopperGolemAiMixin",
+		"CopperGolemMixin",
+		"CopperGolemStatueBlockEntityMixin",
+		"MobMixin",
 		"TransportItemsBetweenContainersMixin"
+	],
+	"client": [
+		"client.CopperGolemModelMixin",
+		"client.CopperGolemRendererMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

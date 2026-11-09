@@ -1,9 +1,14 @@
 package com.totalgolems.client.render;
 
+import com.totalgolems.GolemGreeting;
 import com.totalgolems.TotalGolems;
+import com.totalgolems.entity.MiningGolem;
 import com.totalgolems.entity.WorkerGolem;
-import net.minecraft.client.model.geom.ModelLayers;
+//? if >=26.1 {
 import net.minecraft.client.renderer.block.BlockModelResolver;
+//?} else {
+/*import java.util.Optional;
+*///?}
 import net.minecraft.client.renderer.entity.CopperGolemRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
@@ -15,37 +20,88 @@ import net.minecraft.client.renderer.entity.state.CopperGolemRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.level.block.state.BlockState;
+import org.jspecify.annotations.Nullable;
 
 public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRenderState, MiningGolemModel> {
+	//? if >=26.1 {
 	private final BlockModelResolver blockModelResolver;
+	//?}
 
-	public MiningGolemRenderer(final EntityRendererProvider.Context context) {
-		super(context, new MiningGolemModel(context.bakeLayer(ModelLayers.COPPER_GOLEM)), 0.5F);
+	/** A renderer for one kind of golem, {@code golem} as in its texture names, with that golem's own model. */
+	public MiningGolemRenderer(final EntityRendererProvider.Context context, final String golem) {
+		super(context, new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem), 0.5F);
+		//? if >=26.1 {
 		this.blockModelResolver = context.getBlockModelResolver();
+		//?}
 		this.addLayer(
 			new LivingEntityEmissiveLayer<>(
 				this,
 				state -> TotalGolems.id("textures/entity/mining_golem/" + ((MiningGolemRenderState)state).eyesTextureId + "_golem_eyes.png"),
-				// The base texture has the eyes switched off; this layer lights them while the golem has work to do.
-				(state, ageInTicks) -> ((MiningGolemRenderState)state).active ? 1.0F : 0.0F,
-				new MiningGolemModel(context.bakeLayer(ModelLayers.COPPER_GOLEM)),
+				// The base texture has the eyes switched off; this layer lights them, always: a golem with nothing to do
+				// is resting, and with its eyes dark it would look dead.
+				(state, ageInTicks) -> 1.0F,
+				new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem),
 				RenderTypes::eyes,
 				false
 			)
 		);
-		// The tool of its trade, held the way a copper golem holds what it carries.
+		// Glints on the ore and amethyst golems and the coal one's glowing core, lit like the eyes.
+		this.addLayer(
+			new LivingEntityEmissiveLayer<>(
+				this,
+				MiningGolemRenderer::effectFrame,
+				(state, ageInTicks) -> effect(((MiningGolemRenderState)state).textureId) != null && !"bone".equals(((MiningGolemRenderState)state).textureId) ? 1.0F : 0.0F,
+				new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem),
+				RenderTypes::eyes,
+				false
+			)
+		);
+		// The bone golem's cracks, drawn over it.
+		this.addLayer(
+			new LivingEntityEmissiveLayer<>(
+				this,
+				MiningGolemRenderer::effectFrame,
+				(state, ageInTicks) -> "bone".equals(((MiningGolemRenderState)state).textureId) ? 1.0F : 0.0F,
+				new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem),
+				RenderTypes::entityTranslucent,
+				false
+			)
+		);
+		// The tool of its trade, held in its right hand, and the flower that switches it on.
 		this.addLayer(new ItemInHandLayer<>(this));
-		this.addLayer(new BlockDecorationLayer<>(this, state -> state.blockOnAntenna, this.model::applyBlockOnAntennaTransform));
+		this.addLayer(new BlockDecorationLayer<>(this, state -> state.blockOnAntenna, this.model::applyFlowerTransform));
+	}
+
+	/**
+	 * Frames in the loop and ticks per frame of each golem's animated texture (see art/make_effects.py, which
+	 * draws them), or null for one without.
+	 */
+	private static int @Nullable [] effect(final String golem) {
+		return switch (golem) {
+			case "iron", "diamond", "netherite", "amethyst" -> new int[]{48, 5};
+			case "bone" -> new int[]{64, 3};
+			case "coal" -> new int[]{32, 5};
+			default -> null;
+		};
+	}
+
+	private static Identifier effectFrame(final CopperGolemRenderState state) {
+		MiningGolemRenderState golem = (MiningGolemRenderState)state;
+		int[] effect = effect(golem.textureId);
+		int frame = effect == null ? 0 : Math.floorMod((int)(state.ageInTicks / effect[1]) + golem.effectOffset, effect[0]);
+		return TotalGolems.id("textures/entity/mining_golem/effect/" + golem.textureId + "_" + frame + ".png");
 	}
 
 	// The state type has to be the copper golem's for its model and layers to fit; it is always our subclass.
 	@Override
 	public Identifier getTextureLocation(final CopperGolemRenderState state) {
-		return TotalGolems.id("textures/entity/mining_golem/" + ((MiningGolemRenderState)state).textureId + "_golem.png");
+		MiningGolemRenderState golem = (MiningGolemRenderState)state;
+		return GolemTextures.body(golem.textureId, golem.age);
 	}
 
 	@Override
@@ -62,13 +118,42 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 		miningState.eyesTextureId = entity.getEyesTextureId();
 		miningState.active = entity.isActive();
 		miningState.mining = entity.isSwingingArm();
+		miningState.effectOffset = entity.getId() * 7;
+		miningState.swingTicks = entity.tickCount - entity.getSwingStartTick() + partialTicks;
+		miningState.swingLength = miningState.mining ? -1.0F : entity.getSwingStopTick() - entity.getSwingStartTick();
+		miningState.swingCycle = entity.getSwingCycleTicks();
+		miningState.waveTicks = GolemGreeting.waveTicks(entity, partialTicks);
+		miningState.age = entity.getWeatherState().ordinal();
+		int sinceReach = entity.getTicksSinceReach();
+		miningState.reachTicks = sinceReach < WorkerGolem.REACH_TICKS ? sinceReach + partialTicks : -1.0F;
+		// Off the ground, or the moment it steps up a block, which is a hop too.
+		int sinceStep = entity.getTicksSinceStepHop();
+		float stepHop = sinceStep < WorkerGolem.STEP_HOP_TICKS ? Mth.sin(Mth.PI * (sinceStep + partialTicks) / WorkerGolem.STEP_HOP_TICKS) : 0.0F;
+		float airborne = entity.getAirTicks() > 0 ? Mth.clamp((entity.getAirTicks() + partialTicks) / 3.0F, 0.0F, 1.0F) : 0.0F;
+		// And its little hops on the spot, which are only shown: up off the ground, and down again.
+		int sinceHop = entity.getTicksSinceHop();
+		float hop = sinceHop < WorkerGolem.HOP_TICKS ? Mth.sin(Mth.PI * (sinceHop + partialTicks) / WorkerGolem.HOP_TICKS) : 0.0F;
+		miningState.hopLift = 5.0F * hop;
+		miningState.jump = Math.max(Math.max(stepHop, airborne), hop);
+		miningState.crest = entity instanceof MiningGolem miner ? miner.getCrestRise(partialTicks) : 1.0F;
+		// Rummaging in a chest, as the copper golem does.
+		state.interactionGetItem.copyFrom(entity.getChestGetAnimation());
+		state.interactionDropItem.copyFrom(entity.getChestDropAnimation());
 		ItemStack flower = entity.getItemBySlot(WorkerGolem.FLOWER_SLOT);
 		if (flower.getItem() instanceof BlockItem blockItem) {
 			BlockItemStateProperties blockItemState = flower.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY);
 			BlockState blockState = blockItemState.apply(blockItem.getBlock().defaultBlockState());
+			//? if >=26.1 {
 			this.blockModelResolver.update(state.blockOnAntenna, blockState, CopperGolemRenderer.BLOCK_DISPLAY_CONTEXT);
+			//?} else {
+			/*state.blockOnAntenna = Optional.of(blockState);
+			*///?}
 		} else {
+			//? if >=26.1 {
 			state.blockOnAntenna.clear();
+			//?} else {
+			/*state.blockOnAntenna = Optional.empty();
+			*///?}
 		}
 	}
 }

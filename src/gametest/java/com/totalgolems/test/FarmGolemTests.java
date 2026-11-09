@@ -1,11 +1,11 @@
 package com.totalgolems.test;
 
+import com.totalgolems.Compat;
 import com.totalgolems.entity.BoneGolem;
 import com.totalgolems.entity.CoalGolem;
 import com.totalgolems.entity.Enclosure;
 import com.totalgolems.entity.HayGolem;
 import com.totalgolems.entity.MiningGolem;
-import com.totalgolems.entity.SpongeGolem;
 import com.totalgolems.entity.WorkerGolem;
 import com.totalgolems.registry.ModBlocks;
 import com.totalgolems.registry.ModEntities;
@@ -19,7 +19,11 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+//? if >=26.1 {
 import net.minecraft.world.entity.EntityTypes;
+//?} else {
+/*import net.minecraft.world.entity.EntityType;
+*///?}
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
@@ -36,17 +40,18 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
-/** The sponge, hay and bone golems, the coal golem's dealings with their chests, and golems sharing out chunks. */
+/** The hay and bone golems, the coal golem's dealings with their chests, and golems sharing out chunks. */
 public class FarmGolemTests {
 	private static final BlockPos OWN_CHEST = new BlockPos(0, 1, 3);
 	private static final BlockPos OTHER_CHEST = new BlockPos(7, 1, 3);
 
 	@GameTest
 	public void pumpkinsBuildTheNewGolemsAndTheirChests(final GameTestHelper helper) {
-		List<Block> bodies = List.of(Blocks.SPONGE, Blocks.HAY_BLOCK, Blocks.BONE_BLOCK);
-		List<Block> chests = List.of(ModBlocks.SPONGE_CHEST, ModBlocks.HAY_CHEST, ModBlocks.BONE_CHEST);
-		List<EntityType<? extends WorkerGolem>> golems = List.of(ModEntities.SPONGE_GOLEM, ModEntities.HAY_GOLEM, ModEntities.BONE_GOLEM);
+		List<Block> bodies = List.of(Blocks.HAY_BLOCK, Blocks.BONE_BLOCK);
+		List<Block> chests = List.of(ModBlocks.HAY_CHEST, ModBlocks.BONE_CHEST);
+		List<EntityType<? extends WorkerGolem>> golems = List.of(ModEntities.HAY_GOLEM, ModEntities.BONE_GOLEM);
 		for (int i = 0; i < bodies.size(); i++) {
 			helper.setBlock(1 + 2 * i, 1, 3, bodies.get(i));
 			helper.setBlock(1 + 2 * i, 2, 3, Blocks.CARVED_PUMPKIN);
@@ -55,60 +60,6 @@ public class FarmGolemTests {
 		}
 
 		helper.succeed();
-	}
-
-	// ------------------------------------------------------------------------------------ sponge
-
-	/**
-	 * A pool five by five and two deep is fifty blocks of water: one sponge's worth, but only from the
-	 * middle. From a corner the far side is out of a sponge's reach, and one sponge is all it gets.
-	 */
-	@GameTest(maxTicks = 1200)
-	public void spongeGolemDrainsPoolWithAsFewSpongesAsPossible(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		for (int x = 1; x <= 7; x++) {
-			for (int z = 0; z <= 6; z++) {
-				for (int y = -2; y <= 0; y++) {
-					boolean pool = x >= 2 && x <= 6 && z >= 1 && z <= 5 && y >= -1;
-					helper.setBlock(x, y, z, pool ? Blocks.WATER : Blocks.SMOOTH_STONE);
-				}
-			}
-		}
-
-		helper.setBlock(OWN_CHEST, ModBlocks.SPONGE_CHEST);
-		// Just the one sponge: with more it would go on to dry out whatever water the neighbouring tests have.
-		container(helper, OWN_CHEST).setItem(0, new ItemStack(Items.SPONGE, 1));
-		SpongeGolem golem = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 7));
-		golem.setChestPos(helper.absolutePos(OWN_CHEST));
-		give(helper, golem, Items.BLUE_ORCHID);
-		helper.succeedWhen(() -> {
-			for (int x = 2; x <= 6; x++) {
-				for (int z = 1; z <= 5; z++) {
-					helper.assertTrue(helper.getBlockState(new BlockPos(x, 0, z)).getFluidState().isEmpty(), "water left in the pool");
-					helper.assertTrue(helper.getBlockState(new BlockPos(x, -1, z)).getFluidState().isEmpty(), "water left at the bottom of the pool");
-				}
-			}
-
-			Container chest = container(helper, OWN_CHEST);
-			helper.assertTrue(chest.countItem(Items.WET_SPONGE) == 1, "the sponge should be back in the chest, wet");
-			helper.assertTrue(!golem.isActive(), "with no water left it should be idle");
-		});
-	}
-
-	@GameTest(maxTicks = 300)
-	public void spongeGolemWaitsByChestWithoutDrySponges(final GameTestHelper helper) {
-		floor(helper, Blocks.SMOOTH_STONE);
-		helper.setBlock(5, 1, 5, Blocks.WATER);
-		helper.setBlock(OWN_CHEST, ModBlocks.SPONGE_CHEST);
-		SpongeGolem golem = spawn(helper, ModEntities.SPONGE_GOLEM, new BlockPos(1, 1, 3));
-		golem.setChestPos(helper.absolutePos(OWN_CHEST));
-		give(helper, golem, Items.BLUE_ORCHID);
-		helper.runAtTickTime(200, () -> {
-			helper.assertBlockPresent(Blocks.WATER, 5, 1, 5);
-			helper.assertTrue(!golem.isActive(), "without sponges it has nothing to do");
-			helper.assertTrue(golem.position().distanceTo(Vec3.atCenterOf(helper.absolutePos(OWN_CHEST))) < 3.0, "it should stay by its chest");
-			helper.succeed();
-		});
 	}
 
 	// ------------------------------------------------------------------------------------ hay
@@ -167,10 +118,33 @@ public class FarmGolemTests {
 	}
 
 	/**
+	 * A golem chest in a pen's fence holds the animals in like the fence: to them it is as tall as a fence post, so
+	 * they cannot jump up on it and on over the fence. To a player or a golem it is an ordinary chest.
+	 */
+	@GameTest
+	public void animalsCannotClimbOntoGolemChests(final GameTestHelper helper) {
+		BlockPos chest = new BlockPos(1, 1, 1);
+		helper.setBlock(chest, ModBlocks.HAY_CHEST);
+		BlockPos at = helper.absolutePos(chest);
+		BlockState state = helper.getLevel().getBlockState(at);
+		Animal cow = helper.spawn(EntityTypes.COW, 3, 1, 1);
+		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+		WorkerGolem golem = spawn(helper, ModEntities.HAY_GOLEM, new BlockPos(1, 1, 3));
+		double toCow = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(cow)).max(Direction.Axis.Y);
+		double toPlayer = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(player)).max(Direction.Axis.Y);
+		double toGolem = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(golem)).max(Direction.Axis.Y);
+		helper.assertTrue(toCow >= 1.5, "to a cow the chest should be as tall as a fence, not " + toCow);
+		helper.assertTrue(toPlayer < 1.0 && toGolem < 1.0, "to a player and a golem it should be an ordinary chest, not " + toPlayer + " and " + toGolem);
+		// Reaching above its block, it has to be checked against what is over it, as a fence is.
+		helper.assertTrue(state.hasLargeCollisionShape(), "an animal above the chest should be checked against it");
+		helper.succeed();
+	}
+
+	/**
 	 * A pen only counts while it is closed. Built in the air in world coordinates, because the test
 	 * framework walls its own area in: a fenced square with a long strip of ground leading away from it.
 	 */
-	@GameTest(padding = 64)
+	@GameTest(/*? if >=26.1 {*/padding = 64/*?} else {*//*environment = "totalgolems:alone_1"*//*?}*/)
 	public void penWithGapInFenceIsNotAPen(final GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		BlockPos corner = helper.absolutePos(BlockPos.ZERO).above(24);
@@ -190,6 +164,10 @@ public class FarmGolemTests {
 		// A closed gate is as good as a fence; an open one, or none, lets the pen run away down the strip.
 		level.setBlockAndUpdate(corner.offset(5, 1, 2), Blocks.OAK_FENCE_GATE.defaultBlockState());
 		helper.assertTrue(Enclosure.find(level, inside) != null, "a gate keeps the pen closed");
+		// A golem steps up a whole block, onto a chest and off down the strip, but a chest in the fence line closes it all the same.
+		level.setBlockAndUpdate(corner.offset(5, 1, 2), ModBlocks.BONE_CHEST.defaultBlockState());
+		Enclosure withChest = Enclosure.find(level, inside);
+		helper.assertTrue(withChest != null && withChest.cells().size() == 16, "a chest in the fence keeps the pen closed");
 		level.setBlockAndUpdate(corner.offset(5, 1, 2), Blocks.AIR.defaultBlockState());
 		helper.assertTrue(Enclosure.find(level, inside) == null, "with a gap in the fence there is no pen");
 		helper.succeed();
@@ -208,7 +186,7 @@ public class FarmGolemTests {
 		chest.setItem(1, new ItemStack(Items.CARROT, 8));
 		helper.spawn(EntityTypes.COW, 3, 1, 3);
 		helper.spawn(EntityTypes.COW, 4, 1, 4);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		helper.succeedWhen(() -> {
 			List<Animal> animals = animals(helper);
 			helper.assertTrue(animals.stream().anyMatch(Animal::isBaby), "the fed cows should have had a calf");
@@ -217,12 +195,53 @@ public class FarmGolemTests {
 		});
 	}
 
+	/**
+	 * A cow on its own, and a pair of pigs with a single carrot between them: none of them would breed, so
+	 * the golem feeds none of them and the cow's wheat stays in the chest.
+	 */
+	@GameTest(maxTicks = 400)
+	public void boneGolemOnlyFeedsAnimalsThatHaveAPartner(final GameTestHelper helper) {
+		BoneGolem golem = pen(helper, ModEntities.BONE_GOLEM, ModBlocks.BONE_CHEST);
+		Container chest = container(helper, OWN_CHEST);
+		chest.setItem(0, new ItemStack(Items.WHEAT, 8));
+		chest.setItem(1, new ItemStack(Items.CARROT, 1));
+		helper.spawn(EntityTypes.COW, 3, 1, 3);
+		helper.spawn(EntityTypes.PIG, 4, 1, 4);
+		helper.spawn(EntityTypes.PIG, 5, 1, 5);
+		give(helper, golem, Items.AZURE_BLUET);
+		helper.onEachTick(() -> helper.assertTrue(animals(helper).stream().noneMatch(Animal::isInLove), "no animal without a partner to breed with should be fed"));
+		helper.runAtTickTime(350, () -> {
+			helper.assertTrue(container(helper, OWN_CHEST).countItem(Items.WHEAT) == 8, "the lone cow's wheat should stay in the chest");
+			helper.succeed();
+		});
+	}
+
+	/**
+	 * Twenty-one cows, one too many. The one to go is the one with the longest wait before it can breed
+	 * again, not the nearest.
+	 */
+	@GameTest(maxTicks = 2400)
+	public void boneGolemCullsTheAnimalLongestFromBreeding(final GameTestHelper helper) {
+		BoneGolem golem = pen(helper, ModEntities.BONE_GOLEM, ModBlocks.BONE_CHEST);
+		golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+		herd(helper, BoneGolem.MAX_ANIMALS + 1, 0);
+		List<Animal> herd = animals(helper);
+		herd.get(3).setAge(3000);
+		Animal longest = herd.get(BoneGolem.MAX_ANIMALS);
+		longest.setAge(6000);
+		give(helper, golem, Items.AZURE_BLUET);
+		helper.succeedWhen(() -> {
+			helper.assertTrue(animals(helper).size() == BoneGolem.MAX_ANIMALS, "one cow should have gone");
+			helper.assertTrue(!longest.isAlive(), "the cow with the longest wait before breeding again should be the one to go");
+		});
+	}
+
 	@GameTest(maxTicks = 300)
 	public void boneGolemNeverKillsWithTwentyAnimals(final GameTestHelper helper) {
 		BoneGolem golem = pen(helper, ModEntities.BONE_GOLEM, ModBlocks.BONE_CHEST);
 		golem.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
 		herd(helper, BoneGolem.MAX_ANIMALS, 0);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		helper.runAtTickTime(250, () -> {
 			helper.assertTrue(animals(helper).size() == BoneGolem.MAX_ANIMALS, "all twenty should still be alive, found " + animals(helper).size());
 			helper.succeed();
@@ -239,56 +258,73 @@ public class FarmGolemTests {
 		// Fire Aspect, to show that it does nothing here: the meat still comes out raw, for the coal golem to cook.
 		golem.setItemSlot(EquipmentSlot.MAINHAND, MiningGolemTests.enchanted(helper, Items.IRON_SWORD, Enchantments.FIRE_ASPECT, 2));
 		herd(helper, 23, 3);
-		give(helper, golem, Items.WHITE_TULIP);
+		give(helper, golem, Items.AZURE_BLUET);
 		int[] fewest = {Integer.MAX_VALUE};
-		helper.onEachTick(() -> fewest[0] = Math.min(fewest[0], animals(helper).size()));
+		// Each cull wears the sword by one: when the last one was, and the shortest time between two.
+		int[] culls = {0};
+		long[] lastCull = {-1};
+		long[] shortestGap = {Long.MAX_VALUE};
+		helper.onEachTick(() -> {
+			fewest[0] = Math.min(fewest[0], animals(helper).size());
+			int worn = golem.getTool().getDamageValue();
+			if (worn > culls[0]) {
+				long now = helper.getTick();
+				if (lastCull[0] >= 0) {
+					shortestGap[0] = Math.min(shortestGap[0], now - lastCull[0]);
+				}
+
+				lastCull[0] = now;
+				culls[0] = worn;
+			}
+		});
 		helper.succeedWhen(() -> {
+			helper.assertTrue(shortestGap[0] >= 200, "it should wait ten seconds between culls, not " + shortestGap[0] + " ticks");
+			helper.assertTrue(penned(helper).size() == BoneGolem.MAX_ANIMALS, "expected 20 animals in the pen, found " + penned(helper).size());
 			List<Animal> animals = animals(helper);
-			helper.assertTrue(animals.size() == BoneGolem.MAX_ANIMALS, "expected 20 animals, found " + animals.size());
 			helper.assertTrue(animals.stream().filter(Animal::isBaby).count() == 3, "the three calves must all be alive");
 			helper.assertContainerContains(OWN_CHEST, Items.BEEF);
 			helper.assertItemEntityNotPresent(Items.BEEF);
 			helper.assertTrue(container(helper, OWN_CHEST).countItem(Items.COOKED_BEEF) == 0, "Fire Aspect must not cook the meat");
 			helper.assertItemEntityNotPresent(Items.COOKED_BEEF);
-			helper.assertTrue(fewest[0] == BoneGolem.MAX_ANIMALS, "it must stop at twenty, but the herd got down to " + fewest[0]);
-			// Six cows killed, six uses of the sword.
-			helper.assertTrue(golem.getTool().getDamageValue() == 6, "the sword should be worn by 6, not " + golem.getTool().getDamageValue());
+			helper.assertTrue(fewest[0] >= BoneGolem.MAX_ANIMALS, "it must stop at twenty, but the herd got down to " + fewest[0]);
+			// One use of the sword for each cow killed: six, or one fewer for each shoved onto the fence.
+			int killed = 26 - animals.size();
+			helper.assertTrue(golem.getTool().getDamageValue() == killed, "the sword should be worn by " + killed + ", not " + golem.getTool().getDamageValue());
 		});
 	}
 
 	// ------------------------------------------------------------------------------------ coal
 
-	/** One of each kind of furnace, and one chest of each kind of thing to smelt. */
-	@GameTest(maxTicks = 6000)
-	public void coalGolemSortsOresMeatAndSpongesIntoTheRightFurnaces(final GameTestHelper helper) {
+	/**
+	 * One of each kind of furnace, and one chest of each kind of thing to smelt. Ores go to the blast
+	 * furnace and meat to the smoker; the plain furnace is left with nothing.
+	 */
+	@GameTest(maxTicks = 6000/*? if >=26.1 {*/, padding = 16/*?} else {*//*, environment = "totalgolems:alone_2"*//*?}*/)
+	public void coalGolemSortsOresAndMeatIntoTheRightFurnaces(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
-		BlockPos spongeChest = new BlockPos(0, 1, 1);
 		BlockPos boneChest = new BlockPos(0, 1, 5);
 		BlockPos copperChest = new BlockPos(7, 1, 5);
 		BlockPos furnace = new BlockPos(2, 1, 0);
 		BlockPos blastFurnace = new BlockPos(4, 1, 0);
 		BlockPos smoker = new BlockPos(6, 1, 0);
 		helper.setBlock(OWN_CHEST, ModBlocks.IRON_CHEST);
-		helper.setBlock(spongeChest, ModBlocks.SPONGE_CHEST);
 		helper.setBlock(boneChest, ModBlocks.BONE_CHEST);
-		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(copperChest, TestCompat.copperChest());
 		helper.setBlock(furnace, Blocks.FURNACE);
 		helper.setBlock(blastFurnace, Blocks.BLAST_FURNACE);
 		helper.setBlock(smoker, Blocks.SMOKER);
 		container(helper, OWN_CHEST).setItem(0, new ItemStack(Items.RAW_IRON, 8));
 		container(helper, OWN_CHEST).setItem(1, new ItemStack(Items.COAL, 8));
 		container(helper, OWN_CHEST).setItem(2, new ItemStack(Items.COBBLESTONE, 4));
-		container(helper, spongeChest).setItem(0, new ItemStack(Items.WET_SPONGE, 4));
-		container(helper, spongeChest).setItem(1, new ItemStack(Items.SPONGE, 2));
 		container(helper, boneChest).setItem(0, new ItemStack(Items.BEEF, 8));
 		container(helper, boneChest).setItem(1, new ItemStack(Items.BONE, 6));
 		container(helper, boneChest).setItem(2, new ItemStack(Items.COOKED_BEEF, 1));
 		CoalGolem golem = spawn(helper, ModEntities.COAL_GOLEM, new BlockPos(3, 1, 3));
-		give(helper, golem, Items.OXEYE_DAISY);
+		give(helper, golem, Items.CRIMSON_FUNGUS);
 
 		String[] misplaced = {null};
 		helper.onEachTick(() -> {
-			check(helper, furnace, "furnace", Items.WET_SPONGE, misplaced);
+			check(helper, furnace, "furnace", Items.AIR, misplaced);
 			check(helper, blastFurnace, "blast furnace", Items.RAW_IRON, misplaced);
 			check(helper, smoker, "smoker", Items.BEEF, misplaced);
 		});
@@ -299,10 +335,6 @@ public class FarmGolemTests {
 			// The eight it cooked and the one that was in the bone chest already.
 			helper.assertTrue(copper.countItem(Items.COOKED_BEEF) == 9, "expected 9 steaks in the copper chest, found " + copper.countItem(Items.COOKED_BEEF));
 			helper.assertTrue(copper.countItem(Items.BONE) == 6, "what cannot be smelted goes straight to the copper chest");
-			helper.assertTrue(copper.countItem(Items.SPONGE) == 0, "dried sponges do not go to the copper chest");
-			// The two that were already dry, and the four it dried.
-			Container sponges = container(helper, spongeChest);
-			helper.assertTrue(sponges.countItem(Items.SPONGE) == 6 && sponges.countItem(Items.WET_SPONGE) == 0, "the dried sponges should be back in the sponge chest");
 			helper.assertTrue(container(helper, OWN_CHEST).countItem(Items.COBBLESTONE) == 4, "a miner's chest keeps its blocks for laying floor");
 			helper.assertTrue(container(helper, boneChest).isEmpty(), "the bone chest should have been emptied");
 		});
@@ -323,14 +355,14 @@ public class FarmGolemTests {
 	 * digging up the others' stairs and floors, and all three must get to work. Built in the air, clear
 	 * of the test framework's own blocks, on a slab covering the chunk and the eight around it.
 	 */
-	@GameTest(maxTicks = 3000, padding = 40)
+	@GameTest(maxTicks = 3000/*? if >=26.1 {*/, padding = 40/*?} else {*//*, environment = "totalgolems:alone_3"*//*?}*/)
 	public void quarryingGolemsTakeAChunkEach(final GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(24);
-		ChunkPos centre = ChunkPos.containing(origin);
+		ChunkPos centre = Compat.chunkAt(origin);
 		int top = origin.getY() + 2;
-		for (int chunkX = centre.x() - 1; chunkX <= centre.x() + 1; chunkX++) {
-			for (int chunkZ = centre.z() - 1; chunkZ <= centre.z() + 1; chunkZ++) {
+		for (int chunkX = Compat.chunkX(centre) - 1; chunkX <= Compat.chunkX(centre) + 1; chunkX++) {
+			for (int chunkZ = Compat.chunkZ(centre) - 1; chunkZ <= Compat.chunkZ(centre) + 1; chunkZ++) {
 				level.setChunkForced(chunkX, chunkZ, true);
 				for (int x = 0; x < 16; x++) {
 					for (int z = 0; z < 16; z++) {
@@ -380,8 +412,8 @@ public class FarmGolemTests {
 			}
 
 			golems.forEach(MiningGolem::discard);
-			for (int chunkX = centre.x() - 1; chunkX <= centre.x() + 1; chunkX++) {
-				for (int chunkZ = centre.z() - 1; chunkZ <= centre.z() + 1; chunkZ++) {
+			for (int chunkX = Compat.chunkX(centre) - 1; chunkX <= Compat.chunkX(centre) + 1; chunkX++) {
+				for (int chunkZ = Compat.chunkZ(centre) - 1; chunkZ <= Compat.chunkZ(centre) + 1; chunkZ++) {
 					level.setChunkForced(chunkX, chunkZ, false);
 				}
 			}
@@ -430,6 +462,12 @@ public class FarmGolemTests {
 		return helper.getLevel().getEntitiesOfClass(Animal.class, AABB.encapsulatingFullBlocks(corner, opposite), Animal::isAlive);
 	}
 
+	/** The animals the pen holds, as the golems see it: those up on the fence too. */
+	static List<Animal> penned(final GameTestHelper helper) {
+		Enclosure pen = Enclosure.find(helper.getLevel(), helper.absolutePos(new BlockPos(3, 1, 3)));
+		return pen == null ? List.of() : helper.getLevel().getEntitiesOfClass(Animal.class, pen.bounds(), animal -> animal.isAlive() && pen.holds(animal.position()));
+	}
+
 	static Container container(final GameTestHelper helper, final BlockPos pos) {
 		return (Container)helper.getLevel().getBlockEntity(helper.absolutePos(pos));
 	}
@@ -438,7 +476,7 @@ public class FarmGolemTests {
 		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 		player.setYRot(Direction.EAST.toYRot());
 		player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(item));
-		golem.interact(player, InteractionHand.MAIN_HAND, golem.position());
+		TestCompat.interact(golem, player, InteractionHand.MAIN_HAND);
 		return player;
 	}
 }
