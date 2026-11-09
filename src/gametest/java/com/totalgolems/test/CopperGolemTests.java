@@ -16,7 +16,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntitySpawnReason;
+//? if >=26.1 {
 import net.minecraft.world.entity.EntityTypes;
+//?} else {
+/*import net.minecraft.world.entity.EntityType;
+*///?}
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.golem.CopperGolem;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -54,7 +58,7 @@ public class CopperGolemTests {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos source = new BlockPos(1, 1, 1);
 		BlockPos destination = new BlockPos(5, 1, 5);
-		helper.setBlock(source, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(source, TestCompat.copperChest());
 		helper.setBlock(destination, Blocks.CHEST);
 		container(helper, source).setItem(0, new ItemStack(Items.IRON_INGOT, 64));
 		CopperGolem golem = helper.spawn(EntityTypes.COPPER_GOLEM, 2, 1, 2);
@@ -109,7 +113,7 @@ public class CopperGolemTests {
 		helper.assertTrue(loaded.getAttributeValue(Attributes.MOVEMENT_SPEED) > baseSpeed * 1.19, "and so should the speed");
 
 		BlockPos statuePos = new BlockPos(5, 1, 5);
-		Block statue = Blocks.COPPER_GOLEM_STATUE.weathering().oxidized();
+		Block statue = TestCompat.oxidizedCopperGolemStatue();
 		helper.setBlock(statuePos, statue);
 		CopperGolemStatueBlockEntity statueEntity = (CopperGolemStatueBlockEntity)level.getBlockEntity(helper.absolutePos(statuePos));
 		statueEntity.createStatue(golem);
@@ -133,7 +137,7 @@ public class CopperGolemTests {
 	private static Player offer(final GameTestHelper helper, final CopperGolem golem, final int level) {
 		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 		player.setItemInHand(InteractionHand.MAIN_HAND, CopperGolemEfficiency.book(helper.getLevel(), level));
-		golem.interact(player, InteractionHand.MAIN_HAND, golem.position());
+		TestCompat.interact(golem, player, InteractionHand.MAIN_HAND);
 		return player;
 	}
 }

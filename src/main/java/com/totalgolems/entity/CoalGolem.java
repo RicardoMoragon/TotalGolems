@@ -1,5 +1,6 @@
 package com.totalgolems.entity;
 
+import com.totalgolems.Compat;
 import com.totalgolems.GolemTier;
 import com.totalgolems.block.ChestGroup;
 import com.totalgolems.registry.ModBlocks;
@@ -232,10 +233,10 @@ public class CoalGolem extends WorkerGolem {
 		this.furnaces.clear();
 		this.sources.clear();
 		this.sinks.clear();
-		ChunkPos min = ChunkPos.containing(this.home.offset(-WORK_RADIUS, 0, -WORK_RADIUS));
-		ChunkPos max = ChunkPos.containing(this.home.offset(WORK_RADIUS, 0, WORK_RADIUS));
-		for (int chunkX = min.x(); chunkX <= max.x(); chunkX++) {
-			for (int chunkZ = min.z(); chunkZ <= max.z(); chunkZ++) {
+		ChunkPos min = Compat.chunkAt(this.home.offset(-WORK_RADIUS, 0, -WORK_RADIUS));
+		ChunkPos max = Compat.chunkAt(this.home.offset(WORK_RADIUS, 0, WORK_RADIUS));
+		for (int chunkX = Compat.chunkX(min); chunkX <= Compat.chunkX(max); chunkX++) {
+			for (int chunkZ = Compat.chunkZ(min); chunkZ <= Compat.chunkZ(max); chunkZ++) {
 				if (!level.hasChunk(chunkX, chunkZ)) {
 					continue;
 				}

@@ -1,5 +1,6 @@
 package com.totalgolems.test;
 
+import com.totalgolems.Compat;
 import com.totalgolems.entity.BoneGolem;
 import com.totalgolems.entity.CoalGolem;
 import com.totalgolems.entity.Enclosure;
@@ -18,7 +19,11 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+//? if >=26.1 {
 import net.minecraft.world.entity.EntityTypes;
+//?} else {
+/*import net.minecraft.world.entity.EntityType;
+*///?}
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
@@ -35,6 +40,7 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 /** The hay and bone golems, the coal golem's dealings with their chests, and golems sharing out chunks. */
 public class FarmGolemTests {
@@ -112,10 +118,33 @@ public class FarmGolemTests {
 	}
 
 	/**
+	 * A golem chest in a pen's fence holds the animals in like the fence: to them it is as tall as a fence post, so
+	 * they cannot jump up on it and on over the fence. To a player or a golem it is an ordinary chest.
+	 */
+	@GameTest
+	public void animalsCannotClimbOntoGolemChests(final GameTestHelper helper) {
+		BlockPos chest = new BlockPos(1, 1, 1);
+		helper.setBlock(chest, ModBlocks.HAY_CHEST);
+		BlockPos at = helper.absolutePos(chest);
+		BlockState state = helper.getLevel().getBlockState(at);
+		Animal cow = helper.spawn(EntityTypes.COW, 3, 1, 1);
+		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+		WorkerGolem golem = spawn(helper, ModEntities.HAY_GOLEM, new BlockPos(1, 1, 3));
+		double toCow = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(cow)).max(Direction.Axis.Y);
+		double toPlayer = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(player)).max(Direction.Axis.Y);
+		double toGolem = state.getCollisionShape(helper.getLevel(), at, CollisionContext.of(golem)).max(Direction.Axis.Y);
+		helper.assertTrue(toCow >= 1.5, "to a cow the chest should be as tall as a fence, not " + toCow);
+		helper.assertTrue(toPlayer < 1.0 && toGolem < 1.0, "to a player and a golem it should be an ordinary chest, not " + toPlayer + " and " + toGolem);
+		// Reaching above its block, it has to be checked against what is over it, as a fence is.
+		helper.assertTrue(state.hasLargeCollisionShape(), "an animal above the chest should be checked against it");
+		helper.succeed();
+	}
+
+	/**
 	 * A pen only counts while it is closed. Built in the air in world coordinates, because the test
 	 * framework walls its own area in: a fenced square with a long strip of ground leading away from it.
 	 */
-	@GameTest(padding = 64)
+	@GameTest(/*? if >=26.1 {*/padding = 64/*?} else {*//*environment = "totalgolems:alone_1"*//*?}*/)
 	public void penWithGapInFenceIsNotAPen(final GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		BlockPos corner = helper.absolutePos(BlockPos.ZERO).above(24);
@@ -270,7 +299,7 @@ public class FarmGolemTests {
 	 * One of each kind of furnace, and one chest of each kind of thing to smelt. Ores go to the blast
 	 * furnace and meat to the smoker; the plain furnace is left with nothing.
 	 */
-	@GameTest(maxTicks = 6000, padding = 16)
+	@GameTest(maxTicks = 6000/*? if >=26.1 {*/, padding = 16/*?} else {*//*, environment = "totalgolems:alone_2"*//*?}*/)
 	public void coalGolemSortsOresAndMeatIntoTheRightFurnaces(final GameTestHelper helper) {
 		floor(helper, Blocks.SMOOTH_STONE);
 		BlockPos boneChest = new BlockPos(0, 1, 5);
@@ -280,7 +309,7 @@ public class FarmGolemTests {
 		BlockPos smoker = new BlockPos(6, 1, 0);
 		helper.setBlock(OWN_CHEST, ModBlocks.IRON_CHEST);
 		helper.setBlock(boneChest, ModBlocks.BONE_CHEST);
-		helper.setBlock(copperChest, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(copperChest, TestCompat.copperChest());
 		helper.setBlock(furnace, Blocks.FURNACE);
 		helper.setBlock(blastFurnace, Blocks.BLAST_FURNACE);
 		helper.setBlock(smoker, Blocks.SMOKER);
@@ -326,14 +355,14 @@ public class FarmGolemTests {
 	 * digging up the others' stairs and floors, and all three must get to work. Built in the air, clear
 	 * of the test framework's own blocks, on a slab covering the chunk and the eight around it.
 	 */
-	@GameTest(maxTicks = 3000, padding = 40)
+	@GameTest(maxTicks = 3000/*? if >=26.1 {*/, padding = 40/*?} else {*//*, environment = "totalgolems:alone_3"*//*?}*/)
 	public void quarryingGolemsTakeAChunkEach(final GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		BlockPos origin = helper.absolutePos(BlockPos.ZERO).above(24);
-		ChunkPos centre = ChunkPos.containing(origin);
+		ChunkPos centre = Compat.chunkAt(origin);
 		int top = origin.getY() + 2;
-		for (int chunkX = centre.x() - 1; chunkX <= centre.x() + 1; chunkX++) {
-			for (int chunkZ = centre.z() - 1; chunkZ <= centre.z() + 1; chunkZ++) {
+		for (int chunkX = Compat.chunkX(centre) - 1; chunkX <= Compat.chunkX(centre) + 1; chunkX++) {
+			for (int chunkZ = Compat.chunkZ(centre) - 1; chunkZ <= Compat.chunkZ(centre) + 1; chunkZ++) {
 				level.setChunkForced(chunkX, chunkZ, true);
 				for (int x = 0; x < 16; x++) {
 					for (int z = 0; z < 16; z++) {
@@ -383,8 +412,8 @@ public class FarmGolemTests {
 			}
 
 			golems.forEach(MiningGolem::discard);
-			for (int chunkX = centre.x() - 1; chunkX <= centre.x() + 1; chunkX++) {
-				for (int chunkZ = centre.z() - 1; chunkZ <= centre.z() + 1; chunkZ++) {
+			for (int chunkX = Compat.chunkX(centre) - 1; chunkX <= Compat.chunkX(centre) + 1; chunkX++) {
+				for (int chunkZ = Compat.chunkZ(centre) - 1; chunkZ <= Compat.chunkZ(centre) + 1; chunkZ++) {
 					level.setChunkForced(chunkX, chunkZ, false);
 				}
 			}
@@ -447,7 +476,7 @@ public class FarmGolemTests {
 		Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 		player.setYRot(Direction.EAST.toYRot());
 		player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(item));
-		golem.interact(player, InteractionHand.MAIN_HAND, golem.position());
+		TestCompat.interact(golem, player, InteractionHand.MAIN_HAND);
 		return player;
 	}
 }

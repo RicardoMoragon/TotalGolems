@@ -8,12 +8,19 @@ import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.util.RandomSource;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.EntityCollisionContext;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class MetalChestBlock extends ChestBlock {
 	public MetalChestBlock(final BlockBehaviour.Properties properties) {
@@ -23,6 +30,30 @@ public class MetalChestBlock extends ChestBlock {
 	@Override
 	public BlockEntity newBlockEntity(final BlockPos worldPosition, final BlockState blockState) {
 		return new MetalChestBlockEntity(worldPosition, blockState);
+	}
+
+	/**
+	 * To animals the chest stands as tall as a fence. A golem chest often takes a post's place in a pen's fence, and
+	 * an animal that jumped up on it could jump on over the fence; players and golems still climb onto it as usual.
+	 */
+	@Override
+	protected VoxelShape getCollisionShape(final BlockState state, final BlockGetter level, final BlockPos pos, final CollisionContext context) {
+		VoxelShape shape = super.getCollisionShape(state, level, pos, context);
+		if (shape.isEmpty() || !(context instanceof EntityCollisionContext entityContext && entityContext.getEntity() instanceof Animal)) {
+			return shape;
+		}
+
+		AABB bounds = shape.bounds();
+		return Shapes.or(shape, Shapes.box(bounds.minX, 0.0, bounds.minZ, bounds.maxX, 1.5, bounds.maxZ));
+	}
+
+	/**
+	 * Its shape depends on who touches it, so it is not cached: the cached one, the same for all, would say the chest
+	 * reaches no higher than its block, and an animal standing above it would never be checked against it.
+	 */
+	@Override
+	public boolean hasDynamicShape() {
+		return true;
 	}
 
 	/** Now and then a wisp of straw comes loose from a hay chest and drifts down its side. */

@@ -4,7 +4,11 @@ import com.totalgolems.GolemGreeting;
 import com.totalgolems.TotalGolems;
 import com.totalgolems.entity.MiningGolem;
 import com.totalgolems.entity.WorkerGolem;
+//? if >=26.1 {
 import net.minecraft.client.renderer.block.BlockModelResolver;
+//?} else {
+/*import java.util.Optional;
+*///?}
 import net.minecraft.client.renderer.entity.CopperGolemRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
@@ -24,12 +28,16 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jspecify.annotations.Nullable;
 
 public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRenderState, MiningGolemModel> {
+	//? if >=26.1 {
 	private final BlockModelResolver blockModelResolver;
+	//?}
 
 	/** A renderer for one kind of golem, {@code golem} as in its texture names, with that golem's own model. */
 	public MiningGolemRenderer(final EntityRendererProvider.Context context, final String golem) {
 		super(context, new MiningGolemModel(context.bakeLayer(GolemModelLayers.of(golem)), golem), 0.5F);
+		//? if >=26.1 {
 		this.blockModelResolver = context.getBlockModelResolver();
+		//?}
 		this.addLayer(
 			new LivingEntityEmissiveLayer<>(
 				this,
@@ -135,9 +143,17 @@ public class MiningGolemRenderer extends MobRenderer<WorkerGolem, CopperGolemRen
 		if (flower.getItem() instanceof BlockItem blockItem) {
 			BlockItemStateProperties blockItemState = flower.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY);
 			BlockState blockState = blockItemState.apply(blockItem.getBlock().defaultBlockState());
+			//? if >=26.1 {
 			this.blockModelResolver.update(state.blockOnAntenna, blockState, CopperGolemRenderer.BLOCK_DISPLAY_CONTEXT);
+			//?} else {
+			/*state.blockOnAntenna = Optional.of(blockState);
+			*///?}
 		} else {
+			//? if >=26.1 {
 			state.blockOnAntenna.clear();
+			//?} else {
+			/*state.blockOnAntenna = Optional.empty();
+			*///?}
 		}
 	}
 }

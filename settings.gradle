@@ -4,10 +4,38 @@ pluginManagement {
 			name = 'Fabric'
 			url = 'https://maven.fabricmc.net/'
 		}
+		maven {
+			name = 'Stonecutter'
+			url = 'https://maven.kikugie.dev/releases'
+		}
 		mavenCentral()
 		gradlePluginPortal()
 	}
+
+	// Every Minecraft version applies one of these, so their versions live here, once. Minecraft is obfuscated up to
+	// 1.21.11, which needs the remapping Loom and Mojang's mappings, and unobfuscated from 26.1 on. See build.gradle.
+	plugins {
+		id 'net.fabricmc.fabric-loom' version "${loom_version}"
+		id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+	}
+}
+
+plugins {
+	// Builds the same sources for several Minecraft versions: see stonecutter.gradle.
+	id 'dev.kikugie.stonecutter' version '0.9.8'
 }
 
 // Should match the mod id
 rootProject.name = 'totalgolems'
+
+stonecutter {
+	kotlinController = false
+	centralScript = 'build.gradle'
+
+	create(rootProject) {
+		// Each version has its dependency versions in versions/<version>/gradle.properties.
+		versions '1.21.11', '26.3'
+		// The version the sources in src/ are written for when committed.
+		vcsVersion = '26.3'
+	}
+}

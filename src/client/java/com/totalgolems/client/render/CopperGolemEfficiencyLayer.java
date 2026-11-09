@@ -51,6 +51,9 @@ public class CopperGolemEfficiencyLayer extends RenderLayer<CopperGolemRenderSta
 		submitNodeCollector.order(1)
 			.submitModel(
 				this.dots, state, poseStack, RenderTypes.eyes(dotsTexture(Math.min(level, 5))), lightCoords, OverlayTexture.NO_OVERLAY, -1, null, state.outlineColor
+				//? if <26.1 {
+				/*, null
+				*///?}
 			);
 	}
 }

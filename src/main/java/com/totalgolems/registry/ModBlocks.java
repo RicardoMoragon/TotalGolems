@@ -6,7 +6,11 @@ import com.totalgolems.block.MetalChestBlock;
 import com.totalgolems.entity.WorkerGolem;
 import java.util.List;
 import java.util.function.Supplier;
+//? if >=26.1 {
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
+//?} else {
+/*import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+*///?}
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -66,7 +70,11 @@ public class ModBlocks {
 		Block block = Blocks.register(
 			blockKey,
 			properties -> new GolemStatueBlock(textureId, golem, properties),
+			//? if >=26.1 {
 			BlockBehaviour.Properties.of().mapColor(color).strength(3.0F, 6.0F).sound(sound).pushReaction(PushReaction.POPPED).noOcclusion()
+			//?} else {
+			/*BlockBehaviour.Properties.of().mapColor(color).strength(3.0F, 6.0F).sound(sound).pushReaction(PushReaction.DESTROY).noOcclusion()
+			*///?}
 		);
 		registerItem(name, block);
 		return block;
@@ -89,7 +97,11 @@ public class ModBlocks {
 	}
 
 	public static void init() {
+		//? if >=26.1 {
 		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(output -> {
+		//?} else {
+		/*ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(output -> {
+		*///?}
 			output.accept(IRON_CHEST);
 			output.accept(DIAMOND_CHEST);
 			output.accept(NETHERITE_CHEST);

@@ -232,7 +232,11 @@ public class HayGolem extends PenGolem {
 		}
 
 		level.setBlockAndUpdate(cell.below(), Blocks.FARMLAND.defaultBlockState());
+		//? if >=26.1 {
 		level.playSound(null, cell, SoundEvents.HOE_TILL.value(), SoundSource.BLOCKS, 1.0F, 1.0F);
+		//?} else {
+		/*level.playSound(null, cell, SoundEvents.HOE_TILL, SoundSource.BLOCKS, 1.0F, 1.0F);
+		*///?}
 		this.wearTool(1);
 	}
 

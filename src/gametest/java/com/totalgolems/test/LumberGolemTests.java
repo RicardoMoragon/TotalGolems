@@ -27,7 +27,11 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
+//? if >=26.1 {
 import net.minecraft.world.level.levelgen.feature.Feature;
+//?} else {
+/*import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
+*///?}
 
 /**
  * The amethyst golem on real trees: a big oak with its branches and a giant two by two spruce, grown as
@@ -157,7 +161,7 @@ public class LumberGolemTests {
 		chest.setItem(0, new ItemStack(Items.COBBLESTONE, 32));
 		chest.setItem(1, new ItemStack(Items.OAK_SAPLING, 8));
 		chest.setItem(2, new ItemStack(Items.OAK_LOG, 16));
-		helper.setBlock(5, 1, 5, Blocks.COPPER_CHEST.weathering().unaffected());
+		helper.setBlock(5, 1, 5, TestCompat.copperChest());
 		give(helper, golem, new ItemStack(Items.CRIMSON_FUNGUS), Direction.EAST);
 		helper.runAtTickTime(300, () -> {
 			helper.assertTrue(chest.countItem(Items.COBBLESTONE) == 32, "the blocks stay");
@@ -196,9 +200,15 @@ public class LumberGolemTests {
 	}
 
 	/** Grows the tree {@code feature} at {@link #TREE}, the same every time. */
+	//? if >=26.1 {
 	private static int grow(final GameTestHelper helper, final ResourceKey<Feature> feature, final long seed) {
 		ServerLevel level = helper.getLevel();
 		Feature tree = level.registryAccess().lookupOrThrow(Registries.FEATURE).getOrThrow(feature).value();
+	//?} else {
+	/*private static int grow(final GameTestHelper helper, final ResourceKey<ConfiguredFeature<?, ?>> feature, final long seed) {
+		ServerLevel level = helper.getLevel();
+		ConfiguredFeature<?, ?> tree = level.registryAccess().lookupOrThrow(Registries.CONFIGURED_FEATURE).getOrThrow(feature).value();
+	*///?}
 		boolean grown = false;
 		for (long attempt = seed; !grown && attempt < seed + 50; attempt++) {
 			grown = tree.place(level, level.getChunkSource().getGenerator(), RandomSource.create(attempt), helper.absolutePos(TREE));

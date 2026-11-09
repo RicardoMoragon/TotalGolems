@@ -18,6 +18,9 @@
 			"com.totalgolems.test.TestWorldClientTest"
 		]
 	},
+	"mixins": [
+		"totalgolems-test.mixins.json"
+	],
 	"depends": {
 		"totalgolems": "*"
 	}

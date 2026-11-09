@@ -1,5 +1,6 @@
 package com.totalgolems.client.render;
 
+import org.joml.Matrix4f;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.totalgolems.entity.WorkerGolem;
@@ -310,9 +311,14 @@ public class MiningGolemModel extends CopperGolemModel {
 	/** Moves to {@code x, y, z} (in pixels), leans {@code lean} degrees to the side and shrinks to {@code scale}. */
 	private static void flower(final PoseStack poseStack, final float x, final float y, final float z, final float lean, final float scale) {
 		poseStack.translate(x / 16.0F, y / 16.0F, z / 16.0F);
-		poseStack.rotateDegrees(Axis.ZP, lean);
+		poseStack.mulPose(new Matrix4f().rotation(Axis.ZP.rotationDegrees(lean)));
 		poseStack.scale(scale, scale, scale);
 		// The layer puts the flower's top at the origin and its foot a block below it.
+		//? if >=26.1 {
 		poseStack.translate(0.0F, -1.0F, 0.0F);
+		//?} else {
+		/*// Before 26.1 the layer puts the block half a block lower down.
+		poseStack.translate(0.0F, -1.5F, 0.0F);
+		*///?}
 	}
 }
