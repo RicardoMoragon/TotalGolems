@@ -382,7 +382,7 @@ Minecraft. Los que llevan herramienta saludan con la mano libre.
 
 ## Instalación
 
-Copia el jar de tu versión, `build/libs/totalgolems-1.4.1+26.3.jar` o `build/libs/totalgolems-1.4.1+1.21.11.jar`, a la
+Copia el jar de tu versión, `build/libs/totalgolems-1.5.0+26.3.jar` o `build/libs/totalgolems-1.5.0+1.21.11.jar`, a la
 carpeta `mods` junto con [Fabric API](https://modrinth.com/mod/fabric-api) para esa versión.
 
 ## Compilar
