@@ -585,14 +585,16 @@ public class CoalGolem extends WorkerGolem {
 		for (int slot = 0; slot < chest.getContainerSize(); slot++) {
 			ItemStack stack = chest.getItem(slot);
 			SimpleContainer pouch = this.pouchFor(level, source, stack);
-			int allowed = MiningGolem.isBuildingBlock(stack) ? Math.min(spare, stack.getCount()) : stack.getCount();
+			// Asked before taking: a whole stack taken leaves {@code stack} empty, and no longer a building block.
+			boolean building = MiningGolem.isBuildingBlock(stack);
+			int allowed = building ? Math.min(spare, stack.getCount()) : stack.getCount();
 			if (pouch == null || allowed <= 0) {
 				continue;
 			}
 
 			ItemStack left = pouch.addItem(chest.removeItem(slot, allowed));
 			int taken = allowed - left.getCount();
-			if (MiningGolem.isBuildingBlock(stack)) {
+			if (building) {
 				spare -= taken;
 			}
 
