@@ -2,9 +2,10 @@ package com.totalgolems;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.BooleanSupplier;
-import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.world.Container;
@@ -101,25 +102,66 @@ public final class ItemFrameFilter {
 	 * it cannot get to do not count.
 	 */
 	public static boolean shownElsewhere(final Level level, final PathfinderMob golem, final ItemStack stack) {
-		AABB area = new AABB(golem.blockPosition()).inflate(SEARCH_HORIZONTAL, SEARCH_VERTICAL, SEARCH_HORIZONTAL);
 		Set<GlobalPos> unreachable = golem.getBrain().getMemory(MemoryModuleType.UNREACHABLE_TRANSPORT_BLOCK_POSITIONS).orElse(Set.of());
-		Predicate<BlockEntity> showsIt = blockEntity -> {
-			BlockPos pos = blockEntity.getBlockPos();
-			BlockState state = blockEntity.getBlockState();
-			return (state.is(Blocks.CHEST) || state.is(Blocks.TRAPPED_CHEST))
-				&& area.contains(pos.getX(), pos.getY(), pos.getZ())
-				&& !unreachable.contains(new GlobalPos(level.dimension(), pos))
-				&& marksOn(level, pos, state).shows(stack);
-		};
-		int chunks = Math.floorDiv(SEARCH_HORIZONTAL, 16) + 1;
-		for (ChunkPos chunkPos : ChunkPos.rangeClosed(Compat.chunkAt(golem.blockPosition()), chunks).toList()) {
-			LevelChunk chunk = level.getChunkSource().getChunkNow(Compat.chunkX(chunkPos), Compat.chunkZ(chunkPos));
-			if (chunk != null && chunk.getBlockEntities().values().stream().anyMatch(blockEntity -> blockEntity instanceof ChestBlockEntity && showsIt.test(blockEntity))) {
+		for (MarkedChest chest : markedChests(level, golem)) {
+			if (chest.marks().shows(stack) && !unreachable.contains(new GlobalPos(level.dimension(), chest.pos()))) {
 				return true;
 			}
 		}
 
+		AABB area = new AABB(golem.blockPosition()).inflate(SEARCH_HORIZONTAL, SEARCH_VERTICAL, SEARCH_HORIZONTAL);
 		return MinecartStations.waitingWithin(level, area).stream().anyMatch(cart -> MinecartStations.marks(level, cart).shows(stack));
+	}
+
+	/** How long a look round for marked chests holds good, in ticks: frames are seldom moved, and a second late is no harm. */
+	private static final int SCAN_TICKS = 20;
+	/** How far the golem may walk before its last look round no longer holds. */
+	private static final int SCAN_MOVE = 2;
+	/**
+	 * Each golem's last look round. Without it every chest it weighs up, one after the other, would have it go through
+	 * every chest within reach again. Weak, so a golem that is gone takes its own with it.
+	 */
+	private static final Map<PathfinderMob, Scan> SCANS = new WeakHashMap<>();
+
+	/** A chest with a frame showing an item. */
+	private record MarkedChest(BlockPos pos, Marks marks) {
+	}
+
+	private record Scan(long until, BlockPos from, List<MarkedChest> chests) {
+	}
+
+	/** The chests within reach of {@code golem} with a frame showing an item, looked for at most once a second. */
+	private static List<MarkedChest> markedChests(final Level level, final PathfinderMob golem) {
+		long now = level.getGameTime();
+		BlockPos from = golem.blockPosition();
+		Scan scan = SCANS.get(golem);
+		if (scan != null && now < scan.until() && scan.from().closerThan(from, SCAN_MOVE)) {
+			return scan.chests();
+		}
+
+		AABB area = new AABB(from).inflate(SEARCH_HORIZONTAL, SEARCH_VERTICAL, SEARCH_HORIZONTAL);
+		List<MarkedChest> chests = new ArrayList<>();
+		int chunks = Math.floorDiv(SEARCH_HORIZONTAL, 16) + 1;
+		for (ChunkPos chunkPos : ChunkPos.rangeClosed(Compat.chunkAt(from), chunks).toList()) {
+			LevelChunk chunk = level.getChunkSource().getChunkNow(Compat.chunkX(chunkPos), Compat.chunkZ(chunkPos));
+			if (chunk == null) {
+				continue;
+			}
+
+			for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+				BlockPos pos = blockEntity.getBlockPos();
+				BlockState state = blockEntity.getBlockState();
+				if (blockEntity instanceof ChestBlockEntity && (state.is(Blocks.CHEST) || state.is(Blocks.TRAPPED_CHEST)) && area.contains(pos.getX(), pos.getY(), pos.getZ())) {
+					Marks marks = marksOn(level, pos, state);
+					if (!marks.shown().isEmpty()) {
+						chests.add(new MarkedChest(pos.immutable(), marks));
+					}
+				}
+			}
+		}
+
+		SCANS.put(golem, new Scan(now + SCAN_TICKS, from.immutable(), chests));
+		return chests;
 	}
 
 	/** Whether any of {@code stack} fits in {@code container}: an empty slot, or a stack of it that is not full. */
