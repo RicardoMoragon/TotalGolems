@@ -816,12 +816,21 @@ public abstract class WorkerGolem extends AbstractGolem implements ContainerUser
 
 	/** Leaves {@code pos} alone for a while: there is no getting to it. */
 	protected void markUnreachable(final BlockPos pos) {
-		this.unreachablePlaces.put(pos.immutable(), this.level().getGameTime() + UNREACHABLE_TICKS);
+		long now = this.level().getGameTime();
+		forgetExpired(this.unreachablePlaces, now);
+		this.unreachablePlaces.put(pos.immutable(), now + UNREACHABLE_TICKS);
 	}
 
 	/** Leaves {@code entity} alone for a while: there is no getting to it. */
 	protected void markUnreachable(final Entity entity) {
-		this.unreachableCreatures.put(entity.getUUID(), this.level().getGameTime() + UNREACHABLE_TICKS);
+		long now = this.level().getGameTime();
+		forgetExpired(this.unreachableCreatures, now);
+		this.unreachableCreatures.put(entity.getUUID(), now + UNREACHABLE_TICKS);
+	}
+
+	/** Drops what has been left alone long enough, asked about again or not, so that the lists do not keep growing. */
+	private static <K> void forgetExpired(final Map<K, Long> marked, final long now) {
+		marked.values().removeIf(until -> until <= now);
 	}
 
 	/** Whether {@code pos} is one it recently found no way to. */

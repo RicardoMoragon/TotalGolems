@@ -2,6 +2,7 @@ package com.totalgolems.entity;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.totalgolems.registry.ModBlocks;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -964,6 +965,14 @@ public class LumberGolem extends WorkerGolem {
 	// ------------------------------------------------------------------------------------ chest
 
 	private void tickDeposit(final ServerLevel level) {
+		if (this.chestPos == null && this.tickCount % TRANSFER_INTERVAL == 0) {
+			// An amethyst chest put down near it since will do; not another golem's.
+			BlockPos found = this.findNearbyChest(level);
+			if (found != null && level.getBlockState(found).is(ModBlocks.AMETHYST_CHEST)) {
+				this.chestPos = found;
+			}
+		}
+
 		if (this.chestPos == null) {
 			// No chest to take the wood to: the same as a full one.
 			this.chestRefused = true;

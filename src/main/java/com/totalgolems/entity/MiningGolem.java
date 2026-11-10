@@ -120,16 +120,16 @@ public class MiningGolem extends WorkerGolem {
 	private static final int STUCK_TIMES_BEFORE_HALT = 3;
 	/** How many of the cells it was last in count as somewhere it has already been. */
 	private static final int RECENT_CELLS = 8;
-
-	private final GolemTier tier;
-	private final SimpleContainer inventory;
-	/** Drops that did not fit in the inventory. Anything here means the golem is full and must unload. */
 	/** How much faster than a player it digs, with the same tool. */
 	private static final float DIGGING_SPEEDUP = 2.0F;
 	/** The longest breather it takes after a block, however long that took. */
 	private static final int MAX_REST_TICKS = 40;
-	private final List<ItemStack> overflow = new ArrayList<>();
 	private static final int CREST_RISE_TICKS = 12;
+
+	private final GolemTier tier;
+	private final SimpleContainer inventory;
+	/** Drops that did not fit in the inventory. Anything here means the golem is full and must unload. */
+	private final List<ItemStack> overflow = new ArrayList<>();
 	/** Client side: when its crest started coming up. */
 	private int crestRiseTick = -1000;
 	/** Ticks spent digging since the last block came out. */
@@ -174,7 +174,7 @@ public class MiningGolem extends WorkerGolem {
 	/** The last tick it broke a block or got to a new cell; see {@link #checkProgress}. */
 	private int lastProgressTick;
 	/** The last few cells it has been in, to tell getting somewhere from going round in circles. */
-	private final java.util.ArrayDeque<BlockPos> recentCells = new java.util.ArrayDeque<>();
+	private final ArrayDeque<BlockPos> recentCells = new ArrayDeque<>();
 	private int timesStuck;
 	/** Standing at its chest with nothing it can do: no pickaxe, say. */
 	private boolean waiting;
@@ -1700,6 +1700,14 @@ public class MiningGolem extends WorkerGolem {
 		this.inventory.storeAsItemList(output.list("inventory", ItemStack.CODEC));
 		ValueOutput.TypedOutputList<ItemStack> overflowList = output.list("overflow", ItemStack.CODEC);
 		this.overflow.forEach(overflowList::add);
+		// What is left of the veins it is mining out, the holes they leave in the floor and the blocks it put into
+		// the water, so that after a reload it still digs those out and fills those in.
+		ValueOutput.TypedOutputList<BlockPos> veinList = output.list("vein", BlockPos.CODEC);
+		this.vein.forEach(veinList::add);
+		ValueOutput.TypedOutputList<BlockPos> veinFloorList = output.list("vein_floor", BlockPos.CODEC);
+		this.veinFloor.forEach(veinFloorList::add);
+		ValueOutput.TypedOutputList<BlockPos> fillerList = output.list("fillers", BlockPos.CODEC);
+		this.fillers.forEach(fillerList::add);
 	}
 
 	@Override
@@ -1721,6 +1729,12 @@ public class MiningGolem extends WorkerGolem {
 		this.inventory.fromItemList(input.listOrEmpty("inventory", ItemStack.CODEC));
 		this.overflow.clear();
 		input.listOrEmpty("overflow", ItemStack.CODEC).forEach(this.overflow::add);
+		this.vein.clear();
+		input.listOrEmpty("vein", BlockPos.CODEC).forEach(this.vein::add);
+		this.veinFloor.clear();
+		input.listOrEmpty("vein_floor", BlockPos.CODEC).forEach(this.veinFloor::add);
+		this.fillers.clear();
+		input.listOrEmpty("fillers", BlockPos.CODEC).forEach(this.fillers::add);
 	}
 
 	@Override
